@@ -74,18 +74,20 @@
   // players / enemies: [{uid,id,hp,maxHp}] (both sides persist between rounds)
   function createBattle(players, enemies) {
     const units = [];
+    // Fleets sail in from the screen edges: yours from the bottom, the rival's from the top.
+    // Melee leads, then archers/bombers, artillery last; up to 8 ships per row, rows stacked off-screen.
     const place = (list, team) => {
-      // front line first (melee), then ranged/bombers, artillery at the back; up to 8 ships per row
       const rank = u => { const r = u.def.role; return (r === 'Melee' || r === 'Elite' && u.def.range < 2) ? 0 : r === 'Artillery' ? 2 : 1; };
-      const sorted = list.slice().sort((a, b) => rank(a) - rank(b) || a.def.cost - b.def.cost);
-      const per = 8, rows = Math.ceil(sorted.length / per) || 1;
-      const y0 = 9.3, y1 = 15.2, step = rows > 1 ? Math.min(1.5, (y1 - y0) / (rows - 1)) : 0;
-      sorted.forEach((u, i) => {
-        const row = Math.floor(i / per), inRow = Math.min(per, sorted.length - row * per);
-        u.x = 1 + ((i % per) + 0.5) / inRow * 8;
-        const y = y0 + row * step;
-        u.y = team === 'p' ? y : H - y;
-      });
+      const rows = [];
+      for (let g = 0; g < 3; g++) {
+        const grp = list.filter(u => rank(u) === g);
+        for (let i = 0; i < grp.length; i += 8) rows.push(grp.slice(i, i + 8));
+      }
+      rows.forEach((row, ri) => row.forEach((u, i) => {
+        u.x = 1 + (i + 0.5) / row.length * 8;
+        const off = 0.3 + ri * 1.3; // distance beyond the edge
+        u.y = team === 'p' ? H + off : -off;
+      }));
     };
     const pu = players.map(p => { const u = makeUnit('p', p.id, p.hp, p.maxHp); u.srcUid = p.uid; return u; });
     const eu = enemies.map(e => { const u = makeUnit('e', e.id, e.hp, e.maxHp); u.srcUid = e.uid; return u; });
@@ -162,7 +164,7 @@
         }
       }
     }
-    for (const u of alive) { u.x = Math.max(0.4, Math.min(W - 0.4, u.x)); u.y = Math.max(0.4, Math.min(H - 0.4, u.y)); }
+    for (const u of alive) { u.x = Math.max(0.4, Math.min(W - 0.4, u.x)); u.y = Math.max(-10, Math.min(H + 10, u.y)); }
     const pa = s.units.some(u => u.alive && u.team === 'p');
     const ea = s.units.some(u => u.alive && u.team === 'e');
     if (!ea) s.winner = 'p'; else if (!pa) s.winner = 'e';
