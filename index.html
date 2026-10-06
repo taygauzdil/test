@@ -589,7 +589,7 @@ async function act(dir) { // 1 recruit, -1 discard (limited per round)
   if (dir > 0) { budget -= u.cost; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
   current = null; drawPips();
   // the rival answers with a pick of its own (a free skip is not a real move)
-  if (!free && !O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(450); if (my !== token) return; rivalPick(); await wait(750); if (my !== token) return; }
+  if (!free && !O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(1950); if (my !== token) return; rivalPick(); await wait(900); if (my !== token) return; }
   nextCard();
 }
 function bindCard(card) {
