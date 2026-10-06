@@ -13,8 +13,8 @@ function match(deckA, polA, deckB) {
   for (let r = 0; r < S.ROUNDS && wa < 3 && wb < 3; r++) {
     BG = S.budgetFor(r + 1); A.push(...pick(deckA, polA).map(mk)); B.push(...S.draftBot(deckB, BG).map(mk));
     const st = S.createBattle(A, B); let n = 0; while (!st.winner && n++ < 4000) S.step(st, 1 / 30);
-    const heal = u => ({ uid: u.srcUid, id: u.id, hp: Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * .4)), maxHp: u.maxHp });
-    const keep = t => st.units.filter(u => u.team === t).map(u => u.alive ? heal(u) : { uid: u.srcUid, id: u.id, maxHp: u.maxHp, hp: Math.ceil(u.maxHp * .5) });
+    const heal = u => ({ uid: u.srcUid, id: u.id, hp: u.maxHp, maxHp: u.maxHp });
+    const keep = t => st.units.filter(u => u.team === t).map(u => heal(u));
     if (st.winner === 'p') wa++; else wb++; A = keep('p'); B = keep('e');
   }
   return wa > wb;

@@ -288,7 +288,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 const { UNITS, ORDER, STARTER, BUDGETS, ROUNDS, WIN_ROUNDS, W, H } = SIM;
 const MAXB = BUDGETS[BUDGETS.length - 1];
 const ROLE_COLOR = { Gunboat: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
-const DECK_MIN = 3, DECK_MAX = 5, COPY_MAX = 1, HEAL = 0.4, REVIVE = 0.5;
+const DECK_MIN = 3, DECK_MAX = 5, COPY_MAX = 1;
 const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
 const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
 const $ = id => document.getElementById(id);
@@ -997,9 +997,9 @@ function draw(t) {
 function modal(html) { $('modal').innerHTML = html; $('overlay').classList.add('on'); }
 const closeModal = () => $('overlay').classList.remove('on');
 function endBattle() {
-  // Every ship you drafted comes back for the next round: survivors heal, fallen ships revive at half health.
+  // Every ship you drafted comes back for the next round at full health.
   const carry = team => B.units.filter(u => u.team === team).map(u => ({ uid: u.srcUid, id: u.id, maxHp: u.maxHp,
-    hp: u.alive ? Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * HEAL)) : Math.ceil(u.maxHp * REVIVE) }));
+    hp: u.maxHp })); // every ship starts the next round at full health
   const iWon = B.winner === 'p';
   const lostP = B.units.filter(u => u.team === 'p' && !u.alive).length, lostE = B.units.filter(u => u.team === 'e' && !u.alive).length;
   if (iWon) G.wins++; else G.losses++;
@@ -1009,7 +1009,7 @@ function endBattle() {
   if (!done) {
     const next = SIM.budgetFor(G.round + 1);
     modal(`<h2>${iWon ? '✅ Round won!' : '❌ Round lost'}</h2><p>${score}</p>
-      <p>You lost ${lostP} ship${lostP === 1 ? '' : 's'}, ${esc(O.name)} lost ${lostE}.<br>Your whole fleet returns: survivors heal, fallen ships revive at ${REVIVE * 100}% health.</p>
+      <p>You lost ${lostP} ship${lostP === 1 ? '' : 's'}, ${esc(O.name)} lost ${lostE}.<br>Your whole fleet returns at full health.</p>
       <p>Next round budget: <b class="gold">★${next}</b></p>
       <button class="primary" id="mOk">Next round →</button>`);
     $('mOk').onclick = () => { closeModal(); G.round++; startRound(); };
