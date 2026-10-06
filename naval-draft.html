@@ -250,6 +250,10 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   const BUDGETS = [10, 15, 20, 25, 30]; // star budget per round
   // bigger budgets need a bigger card pool: the deck is shuffled in this many times per round
   const poolCopies = b => Math.ceil(b / 12);
+  // A round's card pool: random draws (with replacement) from the deck, so a card can show up several times or not at all.
+  function drawPool(deck, budget, rng) {
+    return Array.from({ length: deck.length * poolCopies(budget) }, () => deck[Math.floor(rnd(rng) * deck.length)]);
+  }
   const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
@@ -261,16 +265,12 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     const owned = ownedIds.slice();
     const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 5);
     const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
-    const deck = [];
-    for (const id of shuffle(pool.concat(pool), rng)) {
-      if (deck.length >= 8) break;
-      if (deck.filter(x => x === id).length < 2) deck.push(id);
-    }
+    const deck = shuffle(pool, rng).slice(0, 8); // one copy of each card, like the player's deck
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
   function draftBot(deck, budget, rng) {
-    let pool = shuffle([].concat(...Array.from({ length: poolCopies(budget) }, () => deck)), rng), got = [];
+    let pool = drawPool(deck, budget, rng), got = [];
     while (budget > 0) {
       pool = pool.filter(id => UNITS[id].cost <= budget);
       if (!pool.length) break;
@@ -394,7 +394,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -405,7 +405,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 const { UNITS, ORDER, STARTER, BUDGETS, ROUNDS, WIN_ROUNDS, W, H } = SIM;
 const MAXB = BUDGETS[BUDGETS.length - 1];
 const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
-const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 2, HEAL = 0.4, REVIVE = 0.5;
+const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 1, HEAL = 0.4, REVIVE = 0.5;
 const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
 const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
 const $ = id => document.getElementById(id);
@@ -478,6 +478,8 @@ const KEY = 'navalDraft.v1';
 let save = { gold: 0, trophies: 1000, name: 'Captain', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.owned && s.deck) save = Object.assign(save, s); } catch (e) {}
 if (save.name === 'Kaptan') save.name = 'Captain';
+save.deck = save.deck.filter((id, i, a) => UNITS[id] && a.indexOf(id) === i);
+for (const id of STARTER) if (save.deck.length < 6 && !save.deck.includes(id)) save.deck.push(id);
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
@@ -548,7 +550,7 @@ function oppBar() {
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function startRound() {
   budget = SIM.budgetFor(G.round); busy = false;
-  pool = shuffle([].concat(...Array.from({ length: SIM.poolCopies(budget) }, () => save.deck))).map(id => ({ id, k: G.uid++ }));
+  pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
   // the rival drafts with the same rules and budget (picks are revealed before the battle)

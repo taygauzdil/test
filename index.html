@@ -223,7 +223,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 const { UNITS, ORDER, STARTER, BUDGETS, ROUNDS, WIN_ROUNDS, W, H } = SIM;
 const MAXB = BUDGETS[BUDGETS.length - 1];
 const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
-const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 2, HEAL = 0.4, REVIVE = 0.5;
+const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 1, HEAL = 0.4, REVIVE = 0.5;
 const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
 const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
 const $ = id => document.getElementById(id);
@@ -296,6 +296,8 @@ const KEY = 'navalDraft.v1';
 let save = { gold: 0, trophies: 1000, name: 'Captain', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.owned && s.deck) save = Object.assign(save, s); } catch (e) {}
 if (save.name === 'Kaptan') save.name = 'Captain';
+save.deck = save.deck.filter((id, i, a) => UNITS[id] && a.indexOf(id) === i);
+for (const id of STARTER) if (save.deck.length < 6 && !save.deck.includes(id)) save.deck.push(id);
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
@@ -366,7 +368,7 @@ function oppBar() {
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function startRound() {
   budget = SIM.budgetFor(G.round); busy = false;
-  pool = shuffle([].concat(...Array.from({ length: SIM.poolCopies(budget) }, () => save.deck))).map(id => ({ id, k: G.uid++ }));
+  pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
   // the rival drafts with the same rules and budget (picks are revealed before the battle)

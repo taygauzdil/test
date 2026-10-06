@@ -3,7 +3,7 @@ const S = require('./sim.js');
 let BG = 10;
 const pick = (deck, pol) => {
   if (pol === 'bot') return S.draftBot(deck, BG);
-  let pool = [].concat(...Array.from({ length: S.poolCopies(BG) }, () => deck)).sort(() => Math.random() - .5), b = BG, got = [];
+  let pool = S.drawPool(deck, BG), b = BG, got = [];
   while (pool.length) { pool = pool.filter(id => S.UNITS[id].cost <= b); if (!pool.length) break; const id = pool.shift(); if (pol === 'greedy' || S.UNITS[id].cost >= 4 || Math.random() < .5) { b -= S.UNITS[id].cost; got.push(id); } }
   return got;
 };
@@ -19,8 +19,8 @@ function match(deckA, polA, deckB) {
   }
   return wa > wb;
 }
-const starter = ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'];
-const all = S.ORDER.concat(S.ORDER.slice(0, 3));
+const starter = ['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber'];
+const all = S.ORDER.slice();
 const elite = ['captain', 'elitebomb', 'cannon', 'mortar', 'sharp', 'grenadier', 'guard', 'raider'];
 const botStarter = () => S.genOpponentDeck(['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber']);
 for (const [n, d, bd] of [['starter vs starter-bot', starter, botStarter], ['elite vs starter-bot', elite, botStarter], ['starter vs elite-bot', starter, () => elite], ['all vs all-bot', all, () => S.genOpponentDeck(S.ORDER)]])

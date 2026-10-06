@@ -31,6 +31,10 @@
   const BUDGETS = [10, 15, 20, 25, 30]; // star budget per round
   // bigger budgets need a bigger card pool: the deck is shuffled in this many times per round
   const poolCopies = b => Math.ceil(b / 12);
+  // A round's card pool: random draws (with replacement) from the deck, so a card can show up several times or not at all.
+  function drawPool(deck, budget, rng) {
+    return Array.from({ length: deck.length * poolCopies(budget) }, () => deck[Math.floor(rnd(rng) * deck.length)]);
+  }
   const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
@@ -42,16 +46,12 @@
     const owned = ownedIds.slice();
     const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 5);
     const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
-    const deck = [];
-    for (const id of shuffle(pool.concat(pool), rng)) {
-      if (deck.length >= 8) break;
-      if (deck.filter(x => x === id).length < 2) deck.push(id);
-    }
+    const deck = shuffle(pool, rng).slice(0, 8); // one copy of each card, like the player's deck
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
   function draftBot(deck, budget, rng) {
-    let pool = shuffle([].concat(...Array.from({ length: poolCopies(budget) }, () => deck)), rng), got = [];
+    let pool = drawPool(deck, budget, rng), got = [];
     while (budget > 0) {
       pool = pool.filter(id => UNITS[id].cost <= budget);
       if (!pool.length) break;
@@ -175,6 +175,6 @@
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);
