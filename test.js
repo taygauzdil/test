@@ -19,9 +19,9 @@ function match(deckA, polA, deckB) {
   }
   return wa > wb;
 }
-const starter = ['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber'];
-const all = S.ORDER.slice();
-const elite = ['captain', 'elitebomb', 'cannon', 'mortar', 'sharp', 'grenadier', 'guard', 'raider'];
+const starter = ['deckhand', 'raider', 'guard', 'archer', 'bomber'];
+const all = ['raider', 'guard', 'longbow', 'bomber', 'cannon'];
+const elite = ['captain', 'elitebomb', 'cannon', 'sharp', 'guard'];
 const botStarter = () => S.genOpponentDeck(['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber']);
 for (const [n, d, bd] of [['starter vs starter-bot', starter, botStarter], ['elite vs starter-bot', elite, botStarter], ['starter vs elite-bot', starter, () => elite], ['all vs all-bot', all, () => S.genOpponentDeck(S.ORDER)]])
   for (const pol of ['greedy', 'pick', 'bot']) {

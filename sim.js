@@ -47,7 +47,7 @@
     const owned = ownedIds.slice();
     const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 5);
     const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
-    const deck = shuffle(pool, rng).slice(0, 8); // one copy of each card, like the player's deck
+    const deck = shuffle(pool, rng).slice(0, 5); // one copy of each card, like the player's deck
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).

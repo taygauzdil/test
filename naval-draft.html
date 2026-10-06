@@ -266,7 +266,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     const owned = ownedIds.slice();
     const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 5);
     const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
-    const deck = shuffle(pool, rng).slice(0, 8); // one copy of each card, like the player's deck
+    const deck = shuffle(pool, rng).slice(0, 5); // one copy of each card, like the player's deck
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
@@ -407,7 +407,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 const { UNITS, ORDER, STARTER, BUDGETS, ROUNDS, WIN_ROUNDS, W, H } = SIM;
 const MAXB = BUDGETS[BUDGETS.length - 1];
 const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
-const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 1, HEAL = 0.4, REVIVE = 0.5;
+const DECK_MIN = 3, DECK_MAX = 5, COPY_MAX = 1, HEAL = 0.4, REVIVE = 0.5;
 const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
 const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
 const $ = id => document.getElementById(id);
@@ -477,11 +477,11 @@ function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w
 
 // ---------- persistence ----------
 const KEY = 'navalDraft.v1';
-let save = { gold: 0, trophies: 1000, name: 'Captain', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
+let save = { gold: 0, trophies: 1000, name: 'Captain', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'raider', 'archer', 'bomber', 'guard'], wins: 0 };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.owned && s.deck) save = Object.assign(save, s); } catch (e) {}
 if (save.name === 'Kaptan') save.name = 'Captain';
-save.deck = save.deck.filter((id, i, a) => UNITS[id] && a.indexOf(id) === i);
-for (const id of STARTER) if (save.deck.length < 6 && !save.deck.includes(id)) save.deck.push(id);
+save.deck = save.deck.filter((id, i, a) => UNITS[id] && a.indexOf(id) === i).slice(0, 5); // unique cards, max 5
+for (const id of STARTER) if (save.deck.length < 3 && !save.deck.includes(id)) save.deck.push(id);
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
