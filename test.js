@@ -3,8 +3,8 @@ const S = require('./sim.js');
 let BG = 10;
 const pick = (deck, pol) => {
   if (pol === 'bot') return S.draftBot(deck, BG);
-  let disc = S.MAX_DISCARDS, pool = S.drawPool(deck, BG), b = BG, got = [];
-  while (pool.length) { pool = pool.filter(id => S.UNITS[id].cost <= b); if (!pool.length) break; const id = pool.shift(); if (pol === 'greedy' || disc <= 0 || S.UNITS[id].cost >= 2 || Math.random() < .5) { b -= S.UNITS[id].cost; got.push(id); } else disc--; }
+  let disc = S.MAX_DISCARDS, picks = 0, pool = S.drawPool(deck, BG), b = BG, got = [];
+  while (pool.length && picks < S.MAX_PICKS) { pool = pool.filter(id => S.UNITS[id].cost <= b); if (!pool.length) break; const id = pool.shift(); if (pol === 'greedy' || disc <= 0 || S.UNITS[id].cost >= 3 || Math.random() < .5) { b -= S.UNITS[id].cost; got.push(id); picks++; } else disc--; }
   return got;
 };
 const mk = id => ({ uid: Math.random(), id, hp: S.UNITS[id].hp, maxHp: S.UNITS[id].hp });

@@ -5,18 +5,18 @@
   // cost = Star cost. Power grows faster than linearly with cost.
   const UNITS = {
     // Every ship shoots. Rule of thumb: the further it reaches, the less each shot hurts (front = leads the formation).
-    deckhand:  { id: 'deckhand',  name: 'Pistol Deckhand',   icon: '🗡️', role: 'Gunboat',   front: true, cost: 1, hp: 70,  dmg: 11, range: 3,   spd: 2.2, cd: 0.9, aoe: 0,   price: 0,   desc: 'Cheap brawler. Pistols hit hard up close.' },
-    raider:    { id: 'raider',    name: 'Blunderbuss Raider',icon: '⚔️', role: 'Gunboat',   front: true, cost: 2, hp: 100, dmg: 22, range: 2.5, spd: 2.3, cd: 1.2, aoe: 0,   price: 0,   desc: 'Shortest reach, heavy scatter blast.' },
-    guard:     { id: 'guard',     name: 'Shield Guard',      icon: '🛡️', role: 'Gunboat',   front: true, cost: 3, hp: 210, dmg: 12, range: 3.5, spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Armored wall with a swivel gun.' },
-    captain:   { id: 'captain',   name: 'Elite Captain',     icon: '🏴‍☠️', role: 'Elite',     front: true, cost: 4, hp: 270, dmg: 34, range: 4,   spd: 2.2, cd: 1.0, aoe: 0,   price: 290, desc: 'Elite duelist with a flintlock cannon.' },
-    archer:    { id: 'archer',    name: 'Archer',            icon: '🏹', role: 'Archer',    cost: 1, hp: 45,  dmg: 8,  range: 5,   spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Mid range, light arrows.' },
-    longbow:   { id: 'longbow',   name: 'Longbow',           icon: '🎯', role: 'Archer',    cost: 2, hp: 55,  dmg: 11, range: 6.5, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Long range, weaker arrows.' },
-    sharp:     { id: 'sharp',     name: 'Sharpshooter',      icon: '🔫', role: 'Archer',    cost: 3, hp: 60,  dmg: 18, range: 8.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 200, desc: 'Sniper. Longest reach, lighter bullets.' },
-    bomber:    { id: 'bomber',    name: 'Bomber',            icon: '💣', role: 'Bomber',    cost: 2, hp: 60,  dmg: 18, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Lobbed bombs, area damage.' },
-    grenadier: { id: 'grenadier', name: 'Grenadier',         icon: '🧨', role: 'Bomber',    cost: 3, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
-    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',      icon: '☄️', role: 'Elite',     cost: 4, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Fire comets. Elite area damage.' },
-    cannon:    { id: 'cannon',    name: 'Cannon',            icon: '💥', role: 'Artillery', cost: 5, hp: 90,  dmg: 56, range: 8,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Heavy shells from afar.' },
-    mortar:    { id: 'mortar',    name: 'Siege Mortar',      icon: '🌋', role: 'Artillery', cost: 6, hp: 125, dmg: 52, range: 11,  spd: 1.0, cd: 2.4, aoe: 3.0, price: 510, desc: 'Extreme range, huge blast, lighter hit.' },
+    deckhand:  { id: 'deckhand',  name: 'Pistol Deckhand',   icon: '🗡️', role: 'Gunboat',   front: true, cost: 2, hp: 70,  dmg: 11, range: 3,   spd: 2.2, cd: 0.9, aoe: 0,   price: 0,   desc: 'Cheap brawler. Pistols hit hard up close.' },
+    raider:    { id: 'raider',    name: 'Blunderbuss Raider',icon: '⚔️', role: 'Gunboat',   front: true, cost: 3, hp: 100, dmg: 22, range: 2.5, spd: 2.3, cd: 1.2, aoe: 0,   price: 0,   desc: 'Shortest reach, heavy scatter blast.' },
+    guard:     { id: 'guard',     name: 'Shield Guard',      icon: '🛡️', role: 'Gunboat',   front: true, cost: 4, hp: 210, dmg: 12, range: 3.5, spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Armored wall with a swivel gun.' },
+    captain:   { id: 'captain',   name: 'Elite Captain',     icon: '🏴‍☠️', role: 'Elite',     front: true, cost: 5, hp: 270, dmg: 34, range: 4,   spd: 2.2, cd: 1.0, aoe: 0,   price: 290, desc: 'Elite duelist with a flintlock cannon.' },
+    archer:    { id: 'archer',    name: 'Archer',            icon: '🏹', role: 'Archer',    cost: 2, hp: 45,  dmg: 8,  range: 5,   spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Mid range, light arrows.' },
+    longbow:   { id: 'longbow',   name: 'Longbow',           icon: '🎯', role: 'Archer',    cost: 3, hp: 55,  dmg: 11, range: 6.5, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Long range, weaker arrows.' },
+    sharp:     { id: 'sharp',     name: 'Sharpshooter',      icon: '🔫', role: 'Archer',    cost: 4, hp: 60,  dmg: 18, range: 8.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 200, desc: 'Sniper. Longest reach, lighter bullets.' },
+    bomber:    { id: 'bomber',    name: 'Bomber',            icon: '💣', role: 'Bomber',    cost: 3, hp: 60,  dmg: 18, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Lobbed bombs, area damage.' },
+    grenadier: { id: 'grenadier', name: 'Grenadier',         icon: '🧨', role: 'Bomber',    cost: 4, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
+    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',      icon: '☄️', role: 'Elite',     cost: 5, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Fire comets. Elite area damage.' },
+    cannon:    { id: 'cannon',    name: 'Cannon',            icon: '💥', role: 'Artillery', cost: 6, hp: 90,  dmg: 56, range: 8,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Heavy shells from afar.' },
+    mortar:    { id: 'mortar',    name: 'Siege Mortar',      icon: '🌋', role: 'Artillery', cost: 7, hp: 125, dmg: 52, range: 11,  spd: 1.0, cd: 2.4, aoe: 3.0, price: 510, desc: 'Extreme range, huge blast, lighter hit.' },
   };
   // Every unit has its own attack. spd = projectile speed in tiles/s (none = instant melee), arc = lob height in tiles.
   const SHOTS = {
@@ -40,6 +40,7 @@
     return Array.from({ length: deck.length * poolCopies(budget) }, () => deck[Math.floor(rnd(rng) * deck.length)]);
   }
   const MAX_DISCARDS = 3; // discards allowed per round
+  const MAX_PICKS = 3; // ships you may recruit per round
   const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
@@ -49,7 +50,7 @@
   // Opponent AI: builds a deck, then drafts each round with the same rules as the player.
   function genOpponentDeck(ownedIds, rng) {
     const owned = ownedIds.slice();
-    const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 3);
+    const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 4);
     const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
     const deck = shuffle(pool, rng).slice(0, 5); // one copy of each card, like the player's deck
     return deck;
@@ -58,14 +59,14 @@
   // A rival that drafts one card at a time, like the player. step() -> {id, recruit} or null when it has nothing left that fits.
   function createBot(deck, budget, rng) {
     return {
-      budget, discards: MAX_DISCARDS, pool: drawPool(deck, budget, rng), done: false,
+      budget, discards: MAX_DISCARDS, picks: 0, pool: drawPool(deck, budget, rng), done: false,
       step() {
         this.pool = this.pool.filter(id => UNITS[id].cost <= this.budget);
-        if (!this.pool.length) { this.done = true; return null; }
+        if (!this.pool.length || this.picks >= MAX_PICKS) { this.done = true; return null; }
         const id = this.pool.shift(), c = UNITS[id].cost;
         // takes strong cards, gambles on cheap ones when there is room for a better pair
-        const want = c >= 3 || this.budget - c <= 2 || rnd(rng) < 0.55;
-        if (want || this.discards <= 0) { this.budget -= c; return { id, recruit: true }; }
+        const want = c >= 4 || this.budget - c <= 2 || rnd(rng) < 0.55;
+        if (want || this.discards <= 0) { this.budget -= c; this.picks++; return { id, recruit: true }; }
         this.discards--; return { id, recruit: false };
       },
     };
@@ -211,6 +212,6 @@
     s.events.push({ k: 'hit', uid: u.uid, x: u.x, y: u.y, dmg, team: u.team, killed, sx: src.x, sy: src.y });
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, MAX_PICKS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);

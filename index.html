@@ -212,6 +212,12 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 
 .pips i{transition:background .18s,transform .18s}
 .pips i:not(.on){transform:scaleY(.8)}
+
+.picks{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--mute);white-space:nowrap}
+.picks i{width:9px;height:9px;border-radius:50%;background:#1d3c5c;display:inline-block}
+.picks i.on{background:var(--acc)}
+.picks span{margin-left:3px}
+.info .topbar{gap:8px}
 </style>
 </head>
 <body>
@@ -249,6 +255,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     <div class="info">
       <div class="topbar">
         <div class="wave" id="waveLbl">ROUND 1 / 5</div>
+        <div class="picks" id="picksLbl"></div>
         <div class="budget" id="budgetLbl">★10</div>
       </div>
       <div class="pips" id="pips"></div>
@@ -480,7 +487,7 @@ $('btnSail').onclick = async () => {
 };
 
 // ---------- draft (alternating picks: you, then the rival) ----------
-let pool = [], budget = 0, current = null, busy = false, discards = 0, token = 0, curCan = true, forced = false;
+let pool = [], budget = 0, current = null, busy = false, discards = 0, picks = 0, token = 0, curCan = true, forced = false;
 const born = {}; // ship uid -> spawn time, for the pop-in effect
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function updDiscard() {
@@ -494,7 +501,7 @@ function oppBar() {
   const bot = O.bot, l = O.last;
   const act = l ? `<div class="ra ${l.recruit ? 'ok' : 'no'}">${mc(l.id, null, { opp: 1 })}<span>${l.recruit ? 'Recruited' : 'Discarded'}<b>${UNITS[l.id].name}</b></span></div>`
     : '<div class="ra"><span>Your pick first</span></div>';
-  $('oppMain').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} discards</div></div>
+  $('oppMain').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} · picks ${bot.picks}/${SIM.MAX_PICKS}</div></div>
     ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div></div>`;
   setPips('rival', 'opips', 'obudget', bot.budget, SIM.budgetFor(G.round), pipsFresh);
 }
@@ -511,9 +518,10 @@ function setPips(key, elId, labelId, target, total, immediate) {
   const stepFn = () => { if (tk !== st.tk || st.shown === target) return; st.shown += st.shown > target ? -1 : 1; paint(); setTimeout(stepFn, 120); };
   setTimeout(stepFn, 80);
 }
-function drawPips() { setPips('me', 'pips', 'budgetLbl', budget, SIM.budgetFor(G.round), pipsFresh); }
+function drawPips() {
+  $('picksLbl').innerHTML = Array.from({ length: SIM.MAX_PICKS }, (_, i) => `<i class="${i < picks ? 'on' : ''}"></i>`).join('') + `<span>${picks}/${SIM.MAX_PICKS} picks</span>`; setPips('me', 'pips', 'budgetLbl', budget, SIM.budgetFor(G.round), pipsFresh); }
 function startRound() {
-  token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
+  token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS; picks = 0;
   pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
@@ -535,15 +543,19 @@ function rivalPick() {
 }
 function nextCard() {
   current = pool[0] || null;
-  const fitsAny = pool.some(c => UNITS[c.id].cost <= budget);
-  curCan = !!current && UNITS[current.id].cost <= budget;
+  const limitHit = picks >= SIM.MAX_PICKS;
+  const fitsAny = !limitHit && pool.some(c => UNITS[c.id].cost <= budget);
+  curCan = !!current && !limitHit && UNITS[current.id].cost <= budget;
   forced = !!current && !fitsAny; // nothing in the pool fits any more: the only move left is to battle
   drawPips(); updDiscard();
   const area = $('cardArea');
   if (!current) { finishDraft(); return; }
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
-  const need = !curCan ? `<div class="need"><b>Not enough Stars</b>needs ★${u.cost} · you have ★${budget}<small>${forced ? 'Nothing else fits — start the battle!' : 'Skip it for free'}</small></div>` : '';
+  const limit = picks >= SIM.MAX_PICKS;
+  const need = !curCan ? (limit
+    ? `<div class="need"><b>Pick limit reached</b>${picks}/${SIM.MAX_PICKS} ships recruited this round<small>Start the battle!</small></div>`
+    : `<div class="need"><b>Not enough Stars</b>needs ★${u.cost} · you have ★${budget}<small>${forced ? 'Nothing else fits — start the battle!' : 'Skip it for free'}</small></div>`) : '';
   area.innerHTML = `<div class="card enter ${curCan ? '' : 'blocked'}" id="card" style="--c:${c}">${need}
     <div class="stamp r" id="stR">RECRUIT</div><div class="stamp l" id="stL">DISCARD</div>
     <div class="top"><span class="role">${u.role}</span><span class="cost">${stars(u.cost)}</span></div>
@@ -586,7 +598,7 @@ async function act(dir) { // 1 recruit, -1 discard (limited per round)
   if (my !== token) return;
   const u = UNITS[current.id];
   pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
-  if (dir > 0) { budget -= u.cost; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
+  if (dir > 0) { budget -= u.cost; picks++; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
   current = null; drawPips();
   // the rival answers with a pick of its own (a free skip is not a real move)
   if (!free && !O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(1950); if (my !== token) return; rivalPick(); await wait(900); if (my !== token) return; }

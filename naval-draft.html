@@ -212,6 +212,12 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 
 .pips i{transition:background .18s,transform .18s}
 .pips i:not(.on){transform:scaleY(.8)}
+
+.picks{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--mute);white-space:nowrap}
+.picks i{width:9px;height:9px;border-radius:50%;background:#1d3c5c;display:inline-block}
+.picks i.on{background:var(--acc)}
+.picks span{margin-left:3px}
+.info .topbar{gap:8px}
 </style>
 </head>
 <body>
@@ -249,6 +255,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     <div class="info">
       <div class="topbar">
         <div class="wave" id="waveLbl">ROUND 1 / 5</div>
+        <div class="picks" id="picksLbl"></div>
         <div class="budget" id="budgetLbl">★10</div>
       </div>
       <div class="pips" id="pips"></div>
@@ -282,18 +289,18 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   // cost = Star cost. Power grows faster than linearly with cost.
   const UNITS = {
     // Every ship shoots. Rule of thumb: the further it reaches, the less each shot hurts (front = leads the formation).
-    deckhand:  { id: 'deckhand',  name: 'Pistol Deckhand',   icon: '🗡️', role: 'Gunboat',   front: true, cost: 1, hp: 70,  dmg: 11, range: 3,   spd: 2.2, cd: 0.9, aoe: 0,   price: 0,   desc: 'Cheap brawler. Pistols hit hard up close.' },
-    raider:    { id: 'raider',    name: 'Blunderbuss Raider',icon: '⚔️', role: 'Gunboat',   front: true, cost: 2, hp: 100, dmg: 22, range: 2.5, spd: 2.3, cd: 1.2, aoe: 0,   price: 0,   desc: 'Shortest reach, heavy scatter blast.' },
-    guard:     { id: 'guard',     name: 'Shield Guard',      icon: '🛡️', role: 'Gunboat',   front: true, cost: 3, hp: 210, dmg: 12, range: 3.5, spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Armored wall with a swivel gun.' },
-    captain:   { id: 'captain',   name: 'Elite Captain',     icon: '🏴‍☠️', role: 'Elite',     front: true, cost: 4, hp: 270, dmg: 34, range: 4,   spd: 2.2, cd: 1.0, aoe: 0,   price: 290, desc: 'Elite duelist with a flintlock cannon.' },
-    archer:    { id: 'archer',    name: 'Archer',            icon: '🏹', role: 'Archer',    cost: 1, hp: 45,  dmg: 8,  range: 5,   spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Mid range, light arrows.' },
-    longbow:   { id: 'longbow',   name: 'Longbow',           icon: '🎯', role: 'Archer',    cost: 2, hp: 55,  dmg: 11, range: 6.5, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Long range, weaker arrows.' },
-    sharp:     { id: 'sharp',     name: 'Sharpshooter',      icon: '🔫', role: 'Archer',    cost: 3, hp: 60,  dmg: 18, range: 8.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 200, desc: 'Sniper. Longest reach, lighter bullets.' },
-    bomber:    { id: 'bomber',    name: 'Bomber',            icon: '💣', role: 'Bomber',    cost: 2, hp: 60,  dmg: 18, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Lobbed bombs, area damage.' },
-    grenadier: { id: 'grenadier', name: 'Grenadier',         icon: '🧨', role: 'Bomber',    cost: 3, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
-    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',      icon: '☄️', role: 'Elite',     cost: 4, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Fire comets. Elite area damage.' },
-    cannon:    { id: 'cannon',    name: 'Cannon',            icon: '💥', role: 'Artillery', cost: 5, hp: 90,  dmg: 56, range: 8,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Heavy shells from afar.' },
-    mortar:    { id: 'mortar',    name: 'Siege Mortar',      icon: '🌋', role: 'Artillery', cost: 6, hp: 125, dmg: 52, range: 11,  spd: 1.0, cd: 2.4, aoe: 3.0, price: 510, desc: 'Extreme range, huge blast, lighter hit.' },
+    deckhand:  { id: 'deckhand',  name: 'Pistol Deckhand',   icon: '🗡️', role: 'Gunboat',   front: true, cost: 2, hp: 70,  dmg: 11, range: 3,   spd: 2.2, cd: 0.9, aoe: 0,   price: 0,   desc: 'Cheap brawler. Pistols hit hard up close.' },
+    raider:    { id: 'raider',    name: 'Blunderbuss Raider',icon: '⚔️', role: 'Gunboat',   front: true, cost: 3, hp: 100, dmg: 22, range: 2.5, spd: 2.3, cd: 1.2, aoe: 0,   price: 0,   desc: 'Shortest reach, heavy scatter blast.' },
+    guard:     { id: 'guard',     name: 'Shield Guard',      icon: '🛡️', role: 'Gunboat',   front: true, cost: 4, hp: 210, dmg: 12, range: 3.5, spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Armored wall with a swivel gun.' },
+    captain:   { id: 'captain',   name: 'Elite Captain',     icon: '🏴‍☠️', role: 'Elite',     front: true, cost: 5, hp: 270, dmg: 34, range: 4,   spd: 2.2, cd: 1.0, aoe: 0,   price: 290, desc: 'Elite duelist with a flintlock cannon.' },
+    archer:    { id: 'archer',    name: 'Archer',            icon: '🏹', role: 'Archer',    cost: 2, hp: 45,  dmg: 8,  range: 5,   spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Mid range, light arrows.' },
+    longbow:   { id: 'longbow',   name: 'Longbow',           icon: '🎯', role: 'Archer',    cost: 3, hp: 55,  dmg: 11, range: 6.5, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Long range, weaker arrows.' },
+    sharp:     { id: 'sharp',     name: 'Sharpshooter',      icon: '🔫', role: 'Archer',    cost: 4, hp: 60,  dmg: 18, range: 8.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 200, desc: 'Sniper. Longest reach, lighter bullets.' },
+    bomber:    { id: 'bomber',    name: 'Bomber',            icon: '💣', role: 'Bomber',    cost: 3, hp: 60,  dmg: 18, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Lobbed bombs, area damage.' },
+    grenadier: { id: 'grenadier', name: 'Grenadier',         icon: '🧨', role: 'Bomber',    cost: 4, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
+    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',      icon: '☄️', role: 'Elite',     cost: 5, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Fire comets. Elite area damage.' },
+    cannon:    { id: 'cannon',    name: 'Cannon',            icon: '💥', role: 'Artillery', cost: 6, hp: 90,  dmg: 56, range: 8,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Heavy shells from afar.' },
+    mortar:    { id: 'mortar',    name: 'Siege Mortar',      icon: '🌋', role: 'Artillery', cost: 7, hp: 125, dmg: 52, range: 11,  spd: 1.0, cd: 2.4, aoe: 3.0, price: 510, desc: 'Extreme range, huge blast, lighter hit.' },
   };
   // Every unit has its own attack. spd = projectile speed in tiles/s (none = instant melee), arc = lob height in tiles.
   const SHOTS = {
@@ -317,6 +324,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     return Array.from({ length: deck.length * poolCopies(budget) }, () => deck[Math.floor(rnd(rng) * deck.length)]);
   }
   const MAX_DISCARDS = 3; // discards allowed per round
+  const MAX_PICKS = 3; // ships you may recruit per round
   const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
@@ -326,7 +334,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   // Opponent AI: builds a deck, then drafts each round with the same rules as the player.
   function genOpponentDeck(ownedIds, rng) {
     const owned = ownedIds.slice();
-    const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 3);
+    const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 4);
     const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
     const deck = shuffle(pool, rng).slice(0, 5); // one copy of each card, like the player's deck
     return deck;
@@ -335,14 +343,14 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   // A rival that drafts one card at a time, like the player. step() -> {id, recruit} or null when it has nothing left that fits.
   function createBot(deck, budget, rng) {
     return {
-      budget, discards: MAX_DISCARDS, pool: drawPool(deck, budget, rng), done: false,
+      budget, discards: MAX_DISCARDS, picks: 0, pool: drawPool(deck, budget, rng), done: false,
       step() {
         this.pool = this.pool.filter(id => UNITS[id].cost <= this.budget);
-        if (!this.pool.length) { this.done = true; return null; }
+        if (!this.pool.length || this.picks >= MAX_PICKS) { this.done = true; return null; }
         const id = this.pool.shift(), c = UNITS[id].cost;
         // takes strong cards, gambles on cheap ones when there is room for a better pair
-        const want = c >= 3 || this.budget - c <= 2 || rnd(rng) < 0.55;
-        if (want || this.discards <= 0) { this.budget -= c; return { id, recruit: true }; }
+        const want = c >= 4 || this.budget - c <= 2 || rnd(rng) < 0.55;
+        if (want || this.discards <= 0) { this.budget -= c; this.picks++; return { id, recruit: true }; }
         this.discards--; return { id, recruit: false };
       },
     };
@@ -488,7 +496,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     s.events.push({ k: 'hit', uid: u.uid, x: u.x, y: u.y, dmg, team: u.team, killed, sx: src.x, sy: src.y });
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, MAX_PICKS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -698,7 +706,7 @@ $('btnSail').onclick = async () => {
 };
 
 // ---------- draft (alternating picks: you, then the rival) ----------
-let pool = [], budget = 0, current = null, busy = false, discards = 0, token = 0, curCan = true, forced = false;
+let pool = [], budget = 0, current = null, busy = false, discards = 0, picks = 0, token = 0, curCan = true, forced = false;
 const born = {}; // ship uid -> spawn time, for the pop-in effect
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function updDiscard() {
@@ -712,7 +720,7 @@ function oppBar() {
   const bot = O.bot, l = O.last;
   const act = l ? `<div class="ra ${l.recruit ? 'ok' : 'no'}">${mc(l.id, null, { opp: 1 })}<span>${l.recruit ? 'Recruited' : 'Discarded'}<b>${UNITS[l.id].name}</b></span></div>`
     : '<div class="ra"><span>Your pick first</span></div>';
-  $('oppMain').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} discards</div></div>
+  $('oppMain').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} · picks ${bot.picks}/${SIM.MAX_PICKS}</div></div>
     ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div></div>`;
   setPips('rival', 'opips', 'obudget', bot.budget, SIM.budgetFor(G.round), pipsFresh);
 }
@@ -729,9 +737,10 @@ function setPips(key, elId, labelId, target, total, immediate) {
   const stepFn = () => { if (tk !== st.tk || st.shown === target) return; st.shown += st.shown > target ? -1 : 1; paint(); setTimeout(stepFn, 120); };
   setTimeout(stepFn, 80);
 }
-function drawPips() { setPips('me', 'pips', 'budgetLbl', budget, SIM.budgetFor(G.round), pipsFresh); }
+function drawPips() {
+  $('picksLbl').innerHTML = Array.from({ length: SIM.MAX_PICKS }, (_, i) => `<i class="${i < picks ? 'on' : ''}"></i>`).join('') + `<span>${picks}/${SIM.MAX_PICKS} picks</span>`; setPips('me', 'pips', 'budgetLbl', budget, SIM.budgetFor(G.round), pipsFresh); }
 function startRound() {
-  token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
+  token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS; picks = 0;
   pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
@@ -753,15 +762,19 @@ function rivalPick() {
 }
 function nextCard() {
   current = pool[0] || null;
-  const fitsAny = pool.some(c => UNITS[c.id].cost <= budget);
-  curCan = !!current && UNITS[current.id].cost <= budget;
+  const limitHit = picks >= SIM.MAX_PICKS;
+  const fitsAny = !limitHit && pool.some(c => UNITS[c.id].cost <= budget);
+  curCan = !!current && !limitHit && UNITS[current.id].cost <= budget;
   forced = !!current && !fitsAny; // nothing in the pool fits any more: the only move left is to battle
   drawPips(); updDiscard();
   const area = $('cardArea');
   if (!current) { finishDraft(); return; }
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
-  const need = !curCan ? `<div class="need"><b>Not enough Stars</b>needs ★${u.cost} · you have ★${budget}<small>${forced ? 'Nothing else fits — start the battle!' : 'Skip it for free'}</small></div>` : '';
+  const limit = picks >= SIM.MAX_PICKS;
+  const need = !curCan ? (limit
+    ? `<div class="need"><b>Pick limit reached</b>${picks}/${SIM.MAX_PICKS} ships recruited this round<small>Start the battle!</small></div>`
+    : `<div class="need"><b>Not enough Stars</b>needs ★${u.cost} · you have ★${budget}<small>${forced ? 'Nothing else fits — start the battle!' : 'Skip it for free'}</small></div>`) : '';
   area.innerHTML = `<div class="card enter ${curCan ? '' : 'blocked'}" id="card" style="--c:${c}">${need}
     <div class="stamp r" id="stR">RECRUIT</div><div class="stamp l" id="stL">DISCARD</div>
     <div class="top"><span class="role">${u.role}</span><span class="cost">${stars(u.cost)}</span></div>
@@ -804,7 +817,7 @@ async function act(dir) { // 1 recruit, -1 discard (limited per round)
   if (my !== token) return;
   const u = UNITS[current.id];
   pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
-  if (dir > 0) { budget -= u.cost; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
+  if (dir > 0) { budget -= u.cost; picks++; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
   current = null; drawPips();
   // the rival answers with a pick of its own (a free skip is not a real move)
   if (!free && !O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(1950); if (my !== token) return; rivalPick(); await wait(900); if (my !== token) return; }
