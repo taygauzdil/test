@@ -109,19 +109,21 @@
 
   // Splits ships (anything with .def) into formation rows: melee first, artillery last, up to 8 per row.
   function formationRows(list) {
-    // Ships line up side by side. A new row starts only when the current one is full; gunboats fill the first row.
-    const rank = d => d.front ? 0 : d.role === 'Artillery' ? 2 : 1;
-    const sorted = list.slice().sort((a, b) => rank(a.def) - rank(b.def));
+    // Three lines by weapon range: short-range ships lead, mid-range behind them, long-range at the back.
+    // A line wraps to an extra row only when it is wider than the sea.
+    const cls = d => d.range < 4.2 ? 0 : d.range < 7 ? 1 : 2;
     const rows = [];
-    let row = [], w = 0;
-    for (const u of sorted) {
-      const uw = 2 * u.def.rad + 0.1;
-      if (row.length && w + uw > 8.6) { rows.push(row); row = []; w = 0; }
-      row.push(u); w += uw;
+    for (let g = 0; g < 3; g++) {
+      let row = [], w = 0;
+      const flush = () => { if (row.length) { const out = []; row.forEach((u, i) => (i % 2 ? out.unshift(u) : out.push(u))); rows.push(out); } row = []; w = 0; };
+      for (const u of list.filter(u => cls(u.def) === g).sort((a, b) => a.def.range - b.def.range)) {
+        const uw = 2 * u.def.rad + 0.1;
+        if (row.length && w + uw > 8.6) flush();
+        row.push(u); w += uw;
+      }
+      flush();
     }
-    if (row.length) rows.push(row);
-    // inside a row the most front-line ships sit in the middle, the rest fan out to both sides
-    return rows.map(r => { const out = []; r.forEach((u, i) => (i % 2 ? out.unshift(u) : out.push(u))); return out; });
+    return rows;
   }
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }

@@ -198,6 +198,17 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 .card .need small{display:block;margin-top:3px;color:#fff;font-weight:700;font-size:11px}
 #btnStart.pulse{background:linear-gradient(#37b3ff,#1f7fd6);box-shadow:0 0 0 0 #35a7ffaa,0 4px 0 #14568f;animation:pls 1s infinite;font-size:15px}
 @keyframes pls{70%{box-shadow:0 0 0 12px #35a7ff00,0 4px 0 #14568f}100%{box-shadow:0 0 0 0 #35a7ff00,0 4px 0 #14568f}}
+
+/* rival bar on top (with its Stars), my bar at the bottom */
+#draft .opp{flex-direction:column;align-items:stretch;gap:4px}
+#draft .oprow{display:flex;align-items:center;gap:8px;min-width:0}
+.oppstars{display:flex;align-items:center;gap:8px}
+.obudget{font-weight:900;font-size:18px;color:#ff9a9e;min-width:34px}
+.opips{flex:1;margin:0}
+.opips i{height:8px;background:#4a1d28}
+.opips i.on{background:#ff5a5f}
+#draft .info{margin-top:2px}
+#draft .info .wave{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 </style>
 </head>
 <body>
@@ -229,6 +240,9 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   <div id="draft" class="screen">
     <canvas id="pv"></canvas>
     <div class="opp" id="oppBar"></div>
+    <div id="sky" class="fleetgap"></div>
+    <div class="cardarea" id="cardArea"></div>
+    <div id="myfleet" class="fleetgap"></div>
     <div class="info">
       <div class="topbar">
         <div class="wave" id="waveLbl">ROUND 1 / 5</div>
@@ -236,9 +250,6 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
       </div>
       <div class="pips" id="pips"></div>
     </div>
-    <div id="sky" class="fleetgap"></div>
-    <div class="cardarea" id="cardArea"></div>
-    <div id="myfleet" class="fleetgap"></div>
     <div class="btns">
       <button class="bad" id="btnDiscard">✖ Discard</button>
       <button id="btnStart">⚔ Battle</button>
@@ -372,19 +383,21 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 
   // Splits ships (anything with .def) into formation rows: melee first, artillery last, up to 8 per row.
   function formationRows(list) {
-    // Ships line up side by side. A new row starts only when the current one is full; gunboats fill the first row.
-    const rank = d => d.front ? 0 : d.role === 'Artillery' ? 2 : 1;
-    const sorted = list.slice().sort((a, b) => rank(a.def) - rank(b.def));
+    // Three lines by weapon range: short-range ships lead, mid-range behind them, long-range at the back.
+    // A line wraps to an extra row only when it is wider than the sea.
+    const cls = d => d.range < 4.2 ? 0 : d.range < 7 ? 1 : 2;
     const rows = [];
-    let row = [], w = 0;
-    for (const u of sorted) {
-      const uw = 2 * u.def.rad + 0.1;
-      if (row.length && w + uw > 8.6) { rows.push(row); row = []; w = 0; }
-      row.push(u); w += uw;
+    for (let g = 0; g < 3; g++) {
+      let row = [], w = 0;
+      const flush = () => { if (row.length) { const out = []; row.forEach((u, i) => (i % 2 ? out.unshift(u) : out.push(u))); rows.push(out); } row = []; w = 0; };
+      for (const u of list.filter(u => cls(u.def) === g).sort((a, b) => a.def.range - b.def.range)) {
+        const uw = 2 * u.def.rad + 0.1;
+        if (row.length && w + uw > 8.6) flush();
+        row.push(u); w += uw;
+      }
+      flush();
     }
-    if (row.length) rows.push(row);
-    // inside a row the most front-line ships sit in the middle, the rest fan out to both sides
-    return rows.map(r => { const out = []; r.forEach((u, i) => (i % 2 ? out.unshift(u) : out.push(u))); return out; });
+    return rows;
   }
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -696,8 +709,10 @@ function oppBar() {
   const bot = O.bot, l = O.last;
   const act = l ? `<div class="ra ${l.recruit ? 'ok' : 'no'}">${mc(l.id, null, { opp: 1 })}<span>${l.recruit ? 'Recruited' : 'Discarded'}<b>${UNITS[l.id].name}</b></span></div>`
     : '<div class="ra"><span>Your pick first</span></div>';
-  $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ★${bot.budget} left · ✖${bot.discards}</div></div>
-    ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div>`;
+  const total = SIM.budgetFor(G.round);
+  $('oppBar').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} discards</div></div>
+    ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div></div>
+    <div class="oppstars"><span class="obudget">★${bot.budget}</span><div class="pips opips">${Array.from({ length: total }, (_, i) => `<i class="${i < bot.budget ? 'on' : ''}"></i>`).join('')}</div></div>`;
 }
 function drawPips() {
   $('pips').innerHTML = Array.from({ length: SIM.budgetFor(G.round) }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
@@ -710,7 +725,7 @@ function startRound() {
   O.army.forEach(u => u.fresh = false);
   O.bot = SIM.createBot(O.deck, budget); O.last = null; O.done = false; // the rival drafts with the same rules and budget
   show('draft'); oppBar();
-  $('waveLbl').textContent = G.round === ROUNDS ? 'FINAL ROUND' : `ROUND ${G.round} / ${ROUNDS}`;
+  $('waveLbl').textContent = `🧑‍✈️ ${save.name} · ` + (G.round === ROUNDS ? 'FINAL ROUND' : `ROUND ${G.round}/${ROUNDS}`);
   cancelAnimationFrame(pvRAF); pvRAF = requestAnimationFrame(pvLoop);
   nextCard();
 }
@@ -1001,6 +1016,9 @@ function runBattle() {
   B.totalE = B.units.filter(u => u.team === 'e').reduce((s, u) => s + u.maxHp, 0);
   B.byUid = Object.fromEntries(B.units.map(u => [u.uid, u]));
   parts = []; floats = []; B.freeze = 0; B.shake = 0;
+  // intro: ships spawn in one by one (back rows first) before the fight starts
+  B.introLen = Math.min(2.2, 0.9 + B.units.length * 0.07); B.introT = 0;
+  ['p', 'e'].forEach(tm => B.units.filter(u => u.team === tm).sort((a, b) => Math.abs(b.y - H / 2) - Math.abs(a.y - H / 2)).forEach((u, i, arr) => { u.spawnIdx = i / Math.max(1, arr.length - 1); }));
   fx = []; last = performance.now(); B.endT = 0;
   cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
 }
@@ -1009,6 +1027,7 @@ function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   sfxBudget = 5;
   let t = dt * speed;
+  const intro = B.introT < B.introLen; if (B.introT < B.introLen + 0.9) B.introT += dt; if (intro) t = 0;
   if (B.freeze > 0) { B.freeze -= dt; t = 0; } // tiny hit-stop on big hits and kills
   while (t > 0 && !B.winner) { const d = Math.min(1 / 30, t); SIM.step(B, d); t -= d; }
   for (const e of B.events) handleEvent(e);
@@ -1039,6 +1058,10 @@ function draw(t) {
   const list = B.units.slice().sort((a, b) => a.y - b.y);
   for (const u of list) {
     const x = (u.x + (u.kx || 0)) * S, y = (u.y + (u.ky || 0)) * S;
+    const sk = B.introT >= B.introLen ? 1 : Math.max(0, Math.min(1, (B.introT - u.spawnIdx * (B.introLen - 0.8)) / 0.4));
+    if (sk <= 0) continue;
+    if (sk < 1) { g.strokeStyle = `rgba(255,255,255,${0.8 * (1 - sk)})`; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 8 + sk * 34, 0, 7); g.stroke(); }
+    const popK = 0.25 + 0.75 * (1 - Math.pow(1 - sk, 3));
     // heading: face the nearest enemy; ships that moved leave a wake
     if (u.alive) {
       let tg = null, bd = 1e9;
@@ -1054,13 +1077,14 @@ function draw(t) {
       }
       const dm0 = shipDims(u.def, S * sizeF), fl = Math.max(0, u.flash / 0.16);
       if (fl > 0) { g.shadowColor = '#fff'; g.shadowBlur = 16 * fl; }
-      drawShip(g, u.def, u.team, x, y, S * sizeF, u.ang);
+      drawShip(g, u.def, u.team, x, y, S * sizeF * popK, u.ang);
       g.shadowColor = 'transparent'; g.shadowBlur = 0;
       if (fl > 0) { g.fillStyle = `rgba(255,255,255,${0.55 * fl})`; const dm = shipDims(u.def, S * sizeF); g.beginPath(); g.ellipse(x, y, dm.hw * 1.1, dm.hl * 0.95, u.ang, 0, 7); g.fill(); } // white hit flash
+      if (sk < 1) g.globalAlpha = sk;
       const bw = 30, f = u.hp / u.maxHp, hb = Math.max(S * 0.55, dm0.hl * 0.75 + 10);
       g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - hb, bw, 4);
       g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - hb, bw * f, 4);
-      g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - hb - 5);
+      g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - hb - 5); g.globalAlpha = 1;
     } else {
       // sinking: the wreck tilts, shrinks and fades while bubbles rise
       const age = B.t - (u.diedAt || 0);
@@ -1127,6 +1151,13 @@ function draw(t) {
     }
   }
   drawJuice(g);
+  if (B.introT < B.introLen + 0.9) { // round banner, then FIGHT!
+    const fight = B.introT >= B.introLen, k = fight ? (B.introT - B.introLen) / 0.9 : Math.min(1, B.introT / 0.3);
+    g.save(); g.globalAlpha = fight ? 1 - k : k; g.translate(w / 2, h / 2); const sc = fight ? 1 + k * 0.35 : 0.8 + 0.2 * k; g.scale(sc, sc);
+    g.font = '900 40px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 6; g.strokeStyle = '#000b';
+    const txt = fight ? 'FIGHT!' : (G.round === ROUNDS ? 'FINAL ROUND' : 'ROUND ' + G.round);
+    g.strokeText(txt, 0, 0); g.fillStyle = fight ? '#ffd34d' : '#fff'; g.fillText(txt, 0, 0); g.restore();
+  }
   g.restore();
 }
 
