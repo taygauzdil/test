@@ -160,7 +160,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 #draft{padding-left:10px;padding-right:10px}
 #pv{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
 #draft > :not(canvas){position:relative;z-index:1}
-.fleetgap{flex:0 0 clamp(86px,15.5vh,124px)}
+.fleetgap{flex:0 0 clamp(96px,17vh,140px)}
 #draft .opp{margin:0;padding:5px 8px;gap:8px;background:#2a1220e6}
 #draft .opp .who{min-width:0}
 #draft .opp .tr{white-space:nowrap}
@@ -221,7 +221,6 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   <div id="draft" class="screen">
     <canvas id="pv"></canvas>
     <div class="opp" id="oppBar"></div>
-    <div id="sky" class="fleetgap"></div>
     <div class="info">
       <div class="topbar">
         <div class="wave" id="waveLbl">ROUND 1 / 5</div>
@@ -229,6 +228,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
       </div>
       <div class="pips" id="pips"></div>
     </div>
+    <div id="sky" class="fleetgap"></div>
     <div class="cardarea" id="cardArea"></div>
     <div id="myfleet" class="fleetgap"></div>
     <div class="btns">
@@ -820,10 +820,10 @@ function drawPreview(t) {
 }
 function fleet(list, team, top, bottom, w, t) {
   const rows = SIM.formationRows(list.map(u => Object.assign({ def: UNITS[u.id] }, u)));
-  const pitch = Math.min(24, (bottom - top - 22) / Math.max(1, rows.length)), size = w / 10 * 0.52, now = performance.now();
+  const pitch = Math.min(26, (bottom - top - 40) / Math.max(1, rows.length)), size = w / 10 * 0.62, now = performance.now();
   rows.forEach((row, ri) => row.forEach((u, i) => {
     const x = w * (1 + (i + 0.5) / row.length * 8) / 10;
-    const y = (team === 'p' ? top + 16 + ri * pitch : bottom - 16 - ri * pitch) + Math.sin(t * 1.7 + (parseInt(String(u.uid).replace(/\D/g, '')) || 0) * 1.3 + i) * 1.5;
+    const y = (team === 'p' ? top + 26 + ri * pitch : bottom - 26 - ri * pitch) + Math.sin(t * 1.7 + (parseInt(String(u.uid).replace(/\D/g, '')) || 0) * 1.3 + i) * 1.5;
     const age = (now - (born[u.uid] ?? -1e9)) / 1000, pop = Math.min(1, age / 0.4), k = 0.25 + 0.75 * (1 - Math.pow(1 - pop, 3));
     if (age < 0.7) { pg.strokeStyle = `rgba(255,255,255,${0.8 * (1 - age / 0.7)})`; pg.lineWidth = 2; pg.beginPath(); pg.arc(x, y, 6 + age * 40, 0, 7); pg.stroke(); }
     if (u.fresh && age < 4) { pg.fillStyle = `rgba(${team === 'p' ? '53,167,255' : '255,90,95'},${0.25 * (1 - age / 4)})`; pg.beginPath(); pg.arc(x, y, size * 0.8, 0, 7); pg.fill(); }
