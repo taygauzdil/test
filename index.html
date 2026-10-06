@@ -149,6 +149,12 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 .card .icon{margin:4px 0 2px}
 .card .icon img{width:132px;height:132px;border-radius:18px;box-shadow:0 4px 10px #0008;pointer-events:none}
 .ucard img{width:28px;height:28px;vertical-align:middle;margin-right:2px}
+
+.armyrow{flex-wrap:wrap;max-height:150px;overflow-y:auto}
+.oppcards{max-height:72px}
+/* dim everything behind the card so the card stays in front; round, stars and deck stay bright */
+.cardarea{background:radial-gradient(ellipse at center,#02070dcc 0%,#02070de6 100%);border-radius:18px;margin:6px 0;box-shadow:inset 0 0 40px #000c}
+.card{box-shadow:0 0 0 2px #fff2,0 0 36px var(--c),0 16px 36px #000c}
 </style>
 </head>
 <body>
@@ -157,10 +163,10 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   <!-- HOME: profile + deck builder -->
   <div id="home" class="screen">
     <h1>⚓ NAVAL DRAFT</h1>
-    <div class="sub">PvP · her round ★10 ile en güçlü ordunu kur</div>
+    <div class="sub">PvP · every round you get more Stars. Build the strongest fleet.</div>
     <div class="profile">
       <span style="font-size:26px">🧑‍✈️</span>
-      <input id="nameIn" maxlength="14" aria-label="Oyuncu adı">
+      <input id="nameIn" maxlength="14" aria-label="Player name">
       <span class="trophy" id="trophyLbl"></span>
       <span class="gold" id="goldLbl"></span>
     </div>
@@ -168,7 +174,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     <div class="deckbar" id="deckBar"></div>
     <div class="stats" id="deckStats"></div>
     <div class="grid" id="grid"></div>
-    <div class="footer"><button class="primary" id="btnSail">⚔ RAKİP BUL</button></div>
+    <div class="footer"><button class="primary" id="btnSail">⚔ FIND OPPONENT</button></div>
   </div>
 
   <!-- MATCHMAKING -->
@@ -185,14 +191,14 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
       <div class="budget" id="budgetLbl">★10</div>
     </div>
     <div class="pips" id="pips"></div>
-    <div class="stats" style="margin:0 0 4px">SENİN ORDUN (hayatta kalanlar + yeni askerler)</div>
+    <div class="stats" style="margin:0 0 4px">YOUR FLEET (carried over + new recruits)</div>
     <div class="armyrow" id="armyRow"></div>
     <div class="cardarea" id="cardArea"></div>
-    <div class="pool"><div class="lbl">BU ROUND DESTENDE KALANLAR (sıra bilinmiyor)</div><div class="chips" id="poolRow"></div></div>
+    <div class="pool"><div class="lbl">STILL IN YOUR DECK THIS ROUND (order unknown)</div><div class="chips" id="poolRow"></div></div>
     <div class="btns">
-      <button class="bad" id="btnDiscard">✖ Pas</button>
-      <button id="btnStart">⚔ Savaş</button>
-      <button class="good" id="btnRecruit">Al ✔</button>
+      <button class="bad" id="btnDiscard">✖ Discard</button>
+      <button id="btnStart">⚔ Battle</button>
+      <button class="good" id="btnRecruit">Recruit ✔</button>
     </div>
   </div>
 
@@ -214,9 +220,10 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 <script>
 (() => {
 'use strict';
-const { UNITS, ORDER, STARTER, BUDGET, ROUNDS, WIN_ROUNDS, W, H } = SIM;
+const { UNITS, ORDER, STARTER, BUDGETS, ROUNDS, WIN_ROUNDS, W, H } = SIM;
+const MAXB = BUDGETS[BUDGETS.length - 1];
 const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
-const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 2, HEAL = 0.4;
+const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 2, HEAL = 0.4, REVIVE = 0.5;
 const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
 const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
 const $ = id => document.getElementById(id);
@@ -286,8 +293,9 @@ function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w
 
 // ---------- persistence ----------
 const KEY = 'navalDraft.v1';
-let save = { gold: 0, trophies: 1000, name: 'Kaptan', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
+let save = { gold: 0, trophies: 1000, name: 'Captain', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.owned && s.deck) save = Object.assign(save, s); } catch (e) {}
+if (save.name === 'Kaptan') save.name = 'Captain';
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
@@ -309,11 +317,11 @@ function renderHome() {
   $('nameIn').value = save.name;
   $('deckCount').textContent = `(${save.deck.length}/${DECK_MAX})`;
   const sorted = save.deck.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost);
-  $('deckBar').innerHTML = sorted.map(id => mc(id)).join('') || '<span class="stats">Aşağıdan birim ekle…</span>';
+  $('deckBar').innerHTML = sorted.map(id => mc(id)).join('') || '<span class="stats">Add units from below…</span>';
   const total = save.deck.reduce((s, id) => s + UNITS[id].cost, 0);
   const avg = save.deck.length ? (total / save.deck.length).toFixed(1) : 0;
   const roles = {}; save.deck.forEach(id => roles[UNITS[id].role] = (roles[UNITS[id].role] || 0) + 1);
-  $('deckStats').textContent = `Ort. maliyet ★${avg} · ` + (Object.entries(roles).map(([r, n]) => `${n} ${r}`).join(' · ') || 'boş') + ` · en az ${DECK_MIN} kart`;
+  $('deckStats').textContent = `Avg cost ★${avg} · ` + (Object.entries(roles).map(([r, n]) => `${n} ${r}`).join(' · ') || 'empty') + ` · min ${DECK_MIN} cards`;
   $('btnSail').disabled = save.deck.length < DECK_MIN;
   $('grid').innerHTML = ORDER.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost || a.localeCompare(b)).map(id => {
     const u = UNITS[id], c = ROLE_COLOR[u.role], own = save.owned[id];
@@ -322,7 +330,7 @@ function renderHome() {
       <div class="t"><span><img alt="" src="${shipImg(id, 'p', 28)}">${u.name}</span><span class="stars">${stars(u.cost)}</span></div>
       <div class="st">${u.role} · ${st}</div>
       ${own ? `<div class="ctl"><button data-m="${id}">−</button><span class="n">${count(id)}/${COPY_MAX}</span><button data-p="${id}">+</button></div>`
-            : `<button class="buy" data-b="${id}" ${save.gold < u.price ? 'disabled' : ''}>🔒 Aç 🪙${u.price}</button>`}
+            : `<button class="buy" data-b="${id}" ${save.gold < u.price ? 'disabled' : ''}>🔒 Unlock 🪙${u.price}</button>`}
     </div>`;
   }).join('');
 }
@@ -333,17 +341,17 @@ $('grid').addEventListener('click', e => {
   else if (b.dataset.b) { const u = UNITS[b.dataset.b]; if (save.gold >= u.price) { save.gold -= u.price; save.owned[u.id] = true; } }
   persist(); renderHome();
 });
-$('nameIn').addEventListener('input', e => { save.name = e.target.value.trim().slice(0, 14) || 'Kaptan'; persist(); });
+$('nameIn').addEventListener('input', e => { save.name = e.target.value.trim().slice(0, 14) || 'Captain'; persist(); });
 
 // ---------- matchmaking ----------
 let G = null, O = null; // G: my run state, O: opponent
 $('btnSail').onclick = async () => {
   show('match');
-  $('mmBody').innerHTML = '<div class="spin" style="margin:0 auto 14px"></div><h2>Rakip aranıyor…</h2><p class="stats">Kupa aralığı: ' + (save.trophies - 150) + ' – ' + (save.trophies + 150) + '</p>';
+  $('mmBody').innerHTML = '<div class="spin" style="margin:0 auto 14px"></div><h2>Finding an opponent…</h2><p class="stats">Trophy range: ' + (save.trophies - 150) + ' – ' + (save.trophies + 150) + '</p>';
   await wait(1300);
   const name = pick(NAMES) + (Math.random() < .4 ? Math.floor(Math.random() * 90 + 10) : '');
   O = { name, avatar: pick(AVATARS), trophies: Math.max(0, save.trophies + Math.floor(Math.random() * 200 - 100)), deck: SIM.genOpponentDeck(Object.keys(save.owned).filter(k => save.owned[k])), army: [] };
-  $('mmBody').innerHTML = `<div class="av">${O.avatar}</div><h2>${O.name}</h2><p class="trophy">🏆 ${O.trophies}</p><p class="stats">Rakip bulundu!</p>`;
+  $('mmBody').innerHTML = `<div class="av">${O.avatar}</div><h2>${O.name}</h2><p class="trophy">🏆 ${O.trophies}</p><p class="stats">Opponent found!</p>`;
   await wait(1500);
   G = { round: 1, army: [], uid: 1, wins: 0, losses: 0 };
   startRound();
@@ -353,45 +361,45 @@ $('btnSail').onclick = async () => {
 let pool = [], budget = 0, current = null, busy = false;
 function oppBar() {
   $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies}</div></div>
-    <div class="sc">${G.wins} – ${G.losses}<small>skor (sen – rakip)</small></div>`;
+    <div class="sc">${G.wins} – ${G.losses}<small>score (you – rival)</small></div>`;
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function startRound() {
-  budget = BUDGET; busy = false;
-  pool = shuffle(save.deck).map(id => ({ id, k: G.uid++ }));
+  budget = SIM.budgetFor(G.round); busy = false;
+  pool = shuffle([].concat(...Array.from({ length: SIM.poolCopies(budget) }, () => save.deck))).map(id => ({ id, k: G.uid++ }));
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
-  // rakip de aynı kurallarla ★10 ile draft yapıyor (sonuç savaş öncesi açıklanır)
-  let picks = SIM.draftBot(O.deck, BUDGET);
+  // the rival drafts with the same rules and budget (picks are revealed before the battle)
+  let picks = SIM.draftBot(O.deck, SIM.budgetFor(G.round));
   if (!picks.length && !O.army.length) picks = [O.deck.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost)[0]];
   picks.forEach(id => O.army.push({ uid: 'o' + G.uid++, id, hp: UNITS[id].hp, maxHp: UNITS[id].hp, fresh: true }));
   O.newCount = picks.length;
   show('draft'); oppBar();
-  $('waveLbl').textContent = G.round === ROUNDS ? 'FİNAL ROUND' : `ROUND ${G.round} / ${ROUNDS}`;
+  $('waveLbl').textContent = G.round === ROUNDS ? 'FINAL ROUND' : `ROUND ${G.round} / ${ROUNDS}`;
   const keep = O.army.filter(u => !u.fresh);
-  $('oppCards').innerHTML = (keep.map(u => mc(u.id, u.hp / u.maxHp, { opp: 1 })).join('') || '<span class="stats">Rakibin hayatta kalan askeri yok.</span>')
+  $('oppCards').innerHTML = (keep.map(u => mc(u.id, u.hp / u.maxHp, { opp: 1 })).join('') || '<span class="stats">Rival has no ships yet.</span>')
     + Array.from({ length: O.newCount }, () => '<div class="mc opp" style="--c:#6a2538">❓</div>').join('');
   nextCard();
 }
 function drawPips() {
-  $('pips').innerHTML = Array.from({ length: BUDGET }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
+  $('pips').innerHTML = Array.from({ length: SIM.budgetFor(G.round) }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
   $('budgetLbl').textContent = '★' + budget;
 }
 function renderArmy() {
   $('armyRow').innerHTML = G.army.length ? G.army.map(u => mc(u.id, u.hp / u.maxHp, { isNew: u.fresh })).join('')
-    : '<span class="empty">Henüz asker yok — sağa kaydırıp al.</span>';
+    : '<span class="empty">No ships yet — swipe right to recruit.</span>';
 }
 function renderPool() {
   const rest = pool.filter(c => c !== current).sort((a, b) => UNITS[a.id].cost - UNITS[b.id].cost);
   $('poolRow').innerHTML = rest.map(c => mc(c.id, null, { dead: UNITS[c.id].cost > budget })).join('') || '<span class="stats">—</span>';
 }
 function nextCard() {
-  pool = pool.filter(c => UNITS[c.id].cost <= budget); // bütçe artmadığı için sığmayanlar elenir
+  pool = pool.filter(c => UNITS[c.id].cost <= budget); // the budget never grows within a round, so cards that no longer fit are dropped
   current = pool[0] || null;
   drawPips(); renderArmy(); renderPool();
   const area = $('cardArea');
   if (!current) {
-    area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Bütçe bitti!' : 'Draft tamam'}</h2><p>${budget > 0 ? `★${budget} kullanılmadı — sığan kart kalmadı.` : 'Savaşa hazırsın.'}</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ SAVAŞ!</button></div>`;
+    area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Budget spent!' : 'Draft complete'}</h2><p>${budget > 0 ? `★${budget} unused — no card left that fits.` : 'Ready to fight.'}</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ BATTLE!</button></div>`;
     $('btnFight').onclick = startBattle;
     $('btnRecruit').disabled = $('btnDiscard').disabled = $('btnStart').disabled = true;
     return;
@@ -400,14 +408,14 @@ function nextCard() {
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
   area.innerHTML = `<div class="card enter" id="card" style="--c:${c}">
-    <div class="stamp r" id="stR">AL</div><div class="stamp l" id="stL">PAS</div>
+    <div class="stamp r" id="stR">RECRUIT</div><div class="stamp l" id="stL">DISCARD</div>
     <div class="top"><span class="role">${u.role}</span><span class="cost">${stars(u.cost)}</span></div>
     <div class="icon"><img alt="${u.name}" src="${shipImg(u.id, 'p', 132, true)}"></div>
     <div class="nm">${u.name}</div>
     <div class="ds">${u.desc}</div>
-    <div class="sg"><div>Can<b>❤ ${u.hp}</b></div><div>Hasar<b>⚔ ${u.dmg}</b></div>
-      <div>Menzil<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Patlama' : 'Saldırı hızı'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/sn'}</b></div></div>
-    <div class="after">Alırsan → <b>★${budget - u.cost}</b> kalır</div>
+    <div class="sg"><div>Health<b>❤ ${u.hp}</b></div><div>Damage<b>⚔ ${u.dmg}</b></div>
+      <div>Range<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Blast' : 'Attack speed'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/s'}</b></div></div>
+    <div class="after">Recruit → <b>★${budget - u.cost}</b> left</div>
   </div>`;
   bindCard($('card'));
   busy = false;
@@ -420,7 +428,7 @@ function act(dir) { // 1 al, -1 pas
   card.style.transform = `translateX(${dir * 520}px) rotate(${dir * 25}deg)`; card.style.opacity = 0;
   setTimeout(() => {
     const u = UNITS[current.id];
-    pool = pool.filter(c => c !== current); // alınan ya da pas geçilen kart bu round bir daha gelmez
+    pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
     if (dir > 0) { budget -= u.cost; G.army.push({ uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }); }
     current = null; nextCard();
   }, 230);
@@ -457,10 +465,10 @@ function startBattle() {
   const row = (list, opp) => list.map(u => mc(u.id, u.hp / u.maxHp, { opp })).join('') || '<span class="empty">—</span>';
   const sum = l => l.reduce((s, u) => s + UNITS[u.id].cost, 0);
   modal(`<div class="vs"><h2>ROUND ${G.round}</h2>
-    <div class="side"><div class="who"><span>${O.avatar} ${esc(O.name)}</span><span>${O.army.length} birim · ★${sum(O.army)}</span></div><div class="cards">${row(O.army, 1)}</div></div>
+    <div class="side"><div class="who"><span>${O.avatar} ${esc(O.name)}</span><span>${O.army.length} ships · ★${sum(O.army)}</span></div><div class="cards">${row(O.army, 1)}</div></div>
     <div class="mid">VS</div>
-    <div class="side"><div class="who"><span>🧑‍✈️ ${esc(save.name)}</span><span>${G.army.length} birim · ★${sum(G.army)}</span></div><div class="cards">${row(G.army, 0)}</div></div>
-    <button class="primary" id="mGo">⚔ SAVAŞ BAŞLAT</button></div>`);
+    <div class="side"><div class="who"><span>🧑‍✈️ ${esc(save.name)}</span><span>${G.army.length} ships · ★${sum(G.army)}</span></div><div class="cards">${row(G.army, 0)}</div></div>
+    <button class="primary" id="mGo">⚔ START BATTLE</button></div>`);
   $('mGo').onclick = () => { closeModal(); runBattle(); };
 }
 
@@ -472,6 +480,7 @@ function runBattle() {
   show('battle');
   $('bWave').textContent = 'ROUND ' + G.round;
   B = SIM.createBattle(G.army, O.army);
+  B.nP = G.army.length; B.nE = O.army.length;
   B.totalP = B.units.filter(u => u.team === 'p').reduce((s, u) => s + u.maxHp, 0);
   B.totalE = B.units.filter(u => u.team === 'e').reduce((s, u) => s + u.maxHp, 0);
   fx = []; last = performance.now(); B.endT = 0;
@@ -504,6 +513,7 @@ function draw(t) {
   g.fillText(O.avatar + ' ' + O.name, w / 2, 12);
   g.fillText('🧑‍✈️ ' + save.name, w / 2, h - 12);
   const live = B.units.filter(u => u.alive);
+  const sizeF = Math.max(0.85, 1.15 - Math.max(0, Math.max(B.nP, B.nE) - 6) * 0.025); // smaller ships in big fleets
   const list = B.units.slice().sort((a, b) => a.y - b.y);
   for (const u of list) {
     const x = u.x * S, y = u.y * S;
@@ -521,14 +531,14 @@ function draw(t) {
         for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(x - Math.sin(u.ang) * 0 + sd * 6 * Math.cos(u.ang), y + sd * 6 * Math.sin(u.ang)); g.lineTo(x - Math.sin(u.ang) * 22 + sd * 9 * Math.cos(u.ang), y + Math.cos(u.ang) * 22 + sd * 9 * Math.sin(u.ang)); g.stroke(); }
       }
       if (u.flash > 0) { g.shadowColor = '#fff'; g.shadowBlur = 14; }
-      drawShip(g, u.def, u.team, x, y, S * 1.15, u.ang);
+      drawShip(g, u.def, u.team, x, y, S * sizeF, u.ang);
       g.shadowColor = 'transparent'; g.shadowBlur = 0;
       const bw = 30, f = u.hp / u.maxHp;
       g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - S * 0.9, bw, 4);
       g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - S * 0.9, bw * f, 4);
       g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - S * 0.9 - 5);
     } else {
-      g.globalAlpha = 0.28; drawShip(g, u.def, u.team, x, y, S * 1.15, (u.ang || 0) + 0.5); g.globalAlpha = 1;
+      g.globalAlpha = 0.28; drawShip(g, u.def, u.team, x, y, S * sizeF, (u.ang || 0) + 0.5); g.globalAlpha = 1;
       g.font = '14px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('💀', x, y);
     }
   }
@@ -589,28 +599,31 @@ function draw(t) {
 function modal(html) { $('modal').innerHTML = html; $('overlay').classList.add('on'); }
 const closeModal = () => $('overlay').classList.remove('on');
 function endBattle() {
-  const surv = team => B.units.filter(u => u.team === team && u.alive)
-    .map(u => ({ uid: u.srcUid, id: u.id, hp: Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * HEAL)), maxHp: u.maxHp }));
+  // Every ship you drafted comes back for the next round: survivors heal, fallen ships revive at half health.
+  const carry = team => B.units.filter(u => u.team === team).map(u => ({ uid: u.srcUid, id: u.id, maxHp: u.maxHp,
+    hp: u.alive ? Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * HEAL)) : Math.ceil(u.maxHp * REVIVE) }));
   const iWon = B.winner === 'p';
-  if (iWon) { G.wins++; G.army = surv('p'); O.army = []; } else { G.losses++; O.army = surv('e'); G.army = []; }
+  const lostP = B.units.filter(u => u.team === 'p' && !u.alive).length, lostE = B.units.filter(u => u.team === 'e' && !u.alive).length;
+  if (iWon) G.wins++; else G.losses++;
+  G.army = carry('p'); O.army = carry('e');
   const done = G.wins >= WIN_ROUNDS || G.losses >= WIN_ROUNDS;
   const score = `${esc(save.name)} <b class="gold">${G.wins}</b> – <b class="gold">${G.losses}</b> ${esc(O.name)}`;
-  const kept = (iWon ? G.army : O.army).length;
   if (!done) {
-    modal(`<h2>${iWon ? '✅ Round senin!' : '❌ Round rakibin'}</h2><p>${score}</p>
-      <p>${iWon ? `${kept} askerin hayatta kaldı ve gemide kalıyor. Rakibin ordusu yok oldu.` : `Ordun yok oldu. ${esc(O.name)} ${kept} askerle devam ediyor.`}</p>
-      <p>Yeni bütçe: <b class="gold">★${BUDGET}</b></p>
-      <button class="primary" id="mOk">Sonraki round →</button>`);
+    const next = SIM.budgetFor(G.round + 1);
+    modal(`<h2>${iWon ? '✅ Round won!' : '❌ Round lost'}</h2><p>${score}</p>
+      <p>You lost ${lostP} ship${lostP === 1 ? '' : 's'}, ${esc(O.name)} lost ${lostE}.<br>Your whole fleet returns: survivors heal, fallen ships revive at ${REVIVE * 100}% health.</p>
+      <p>Next round budget: <b class="gold">★${next}</b></p>
+      <button class="primary" id="mOk">Next round →</button>`);
     $('mOk').onclick = () => { closeModal(); G.round++; startRound(); };
     return;
   }
   const win = G.wins > G.losses;
   const gold = (win ? 100 : 0) + 20 * G.wins, dT = win ? 25 : -15;
   const before = save.trophies; save.trophies = Math.max(0, save.trophies + dT); save.gold += gold; if (win) save.wins++; persist();
-  modal(`<h2>${win ? '🏆 ZAFER!' : '💀 Yenilgi'}</h2><p>${score}</p>
+  modal(`<h2>${win ? '🏆 VICTORY!' : '💀 Defeat'}</h2><p>${score}</p>
     <p class="gold">${save.trophies - before >= 0 ? '+' : ''}${save.trophies - before} 🏆 · +🪙${gold}</p>
-    <p>${win ? esc(O.name) + ' filosu batırıldı.' : 'Desteni güçlendirip tekrar dene.'}</p>
-    <button class="primary" id="mOk">Limana dön</button><button id="mAgain" style="margin-top:8px">⚔ Yeni rakip</button>`);
+    <p>${win ? esc(O.name) + "'s fleet is sunk." : 'Rebuild your deck and try again.'}</p>
+    <button class="primary" id="mOk">Back to port</button><button id="mAgain" style="margin-top:8px">⚔ New opponent</button>`);
   $('mOk').onclick = () => { closeModal(); renderHome(); };
   $('mAgain').onclick = () => { closeModal(); $('btnSail').click(); };
 }

@@ -28,7 +28,10 @@
   const ORDER = Object.keys(UNITS);
   const STARTER = ['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber'];
   const WAVES = 5;
-  const BUDGET = 10;
+  const BUDGETS = [10, 15, 20, 25, 30]; // star budget per round
+  // bigger budgets need a bigger card pool: the deck is shuffled in this many times per round
+  const poolCopies = b => Math.ceil(b / 12);
+  const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
   function rnd(rng) { return (rng || Math.random)(); }
@@ -38,17 +41,17 @@
   function genOpponentDeck(ownedIds, rng) {
     const owned = ownedIds.slice();
     const extra = ORDER.filter(id => !owned.includes(id) && UNITS[id].cost <= 5);
-    const pool = owned.concat(shuffle(extra, rng).slice(0, 1));
+    const pool = owned.concat(shuffle(extra, rng).slice(0, owned.length > 8 ? 1 : 0));
     const deck = [];
     for (const id of shuffle(pool.concat(pool), rng)) {
-      if (deck.length >= 9) break;
+      if (deck.length >= 8) break;
       if (deck.filter(x => x === id).length < 2) deck.push(id);
     }
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
   function draftBot(deck, budget, rng) {
-    let pool = shuffle(deck, rng), got = [];
+    let pool = shuffle([].concat(...Array.from({ length: poolCopies(budget) }, () => deck)), rng), got = [];
     while (budget > 0) {
       pool = pool.filter(id => UNITS[id].cost <= budget);
       if (!pool.length) break;
@@ -70,23 +73,17 @@
   function createBattle(players, enemies) {
     const units = [];
     const place = (list, team) => {
-      const rows = { front: [], mid: [], back: [] };
-      for (const u of list) {
-        const r = u.def.role;
-        (r === 'Melee' || r === 'Elite' && u.def.range < 2 ? rows.front : r === 'Artillery' ? rows.back : rows.mid).push(u);
-      }
-      const ys = { front: 9.6, mid: 11.4, back: 13.2 };
-      for (const k of Object.keys(rows)) {
-        const arr = rows[k];
-        arr.forEach((u, i) => {
-          const per = 6; // max per row before staggering
-          const n = Math.min(arr.length, per);
-          const col = i % per, rowOff = Math.floor(i / per) * 1.5;
-          u.x = 1 + (col + 0.5) / n * 8;
-          const y = ys[k] + rowOff;
-          u.y = team === 'p' ? y : H - y;
-        });
-      }
+      // front line first (melee), then ranged/bombers, artillery at the back; up to 8 ships per row
+      const rank = u => { const r = u.def.role; return (r === 'Melee' || r === 'Elite' && u.def.range < 2) ? 0 : r === 'Artillery' ? 2 : 1; };
+      const sorted = list.slice().sort((a, b) => rank(a) - rank(b) || a.def.cost - b.def.cost);
+      const per = 8, rows = Math.ceil(sorted.length / per) || 1;
+      const y0 = 9.3, y1 = 15.2, step = rows > 1 ? Math.min(1.5, (y1 - y0) / (rows - 1)) : 0;
+      sorted.forEach((u, i) => {
+        const row = Math.floor(i / per), inRow = Math.min(per, sorted.length - row * per);
+        u.x = 1 + ((i % per) + 0.5) / inRow * 8;
+        const y = y0 + row * step;
+        u.y = team === 'p' ? y : H - y;
+      });
     };
     const pu = players.map(p => { const u = makeUnit('p', p.id, p.hp, p.maxHp); u.srcUid = p.uid; return u; });
     const eu = enemies.map(e => { const u = makeUnit('e', e.id, e.hp, e.maxHp); u.srcUid = e.uid; return u; });
@@ -155,7 +152,7 @@
       for (let j = i + 1; j < alive.length; j++) {
         const b = alive[j]; if (!b.alive) continue;
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-        const min = a.team === b.team ? 1.0 : 0.55;
+        const min = a.team === b.team ? 0.85 : 0.55;
         if (d < min && d > 0.0001) {
           const push = (min - d) / 2;
           a.x -= dx / d * push; a.y -= dy / d * push;
@@ -167,7 +164,7 @@
     const pa = s.units.some(u => u.alive && u.team === 'p');
     const ea = s.units.some(u => u.alive && u.team === 'e');
     if (!ea) s.winner = 'p'; else if (!pa) s.winner = 'e';
-    else if (s.t > 90) {
+    else if (s.t > 120) {
       const hp = t => s.units.filter(u => u.alive && u.team === t).reduce((x, u) => x + u.hp, 0);
       s.winner = hp('p') >= hp('e') ? 'p' : 'e';
     }
@@ -178,6 +175,6 @@
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGET, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);

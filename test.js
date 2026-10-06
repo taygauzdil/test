@@ -1,8 +1,9 @@
 // PvP balance check: scripted player policies vs the bot, first to 3 round wins.
 const S = require('./sim.js');
+let BG = 10;
 const pick = (deck, pol) => {
-  if (pol === 'bot') return S.draftBot(deck, S.BUDGET);
-  let pool = deck.slice().sort(() => Math.random() - .5), b = S.BUDGET, got = [];
+  if (pol === 'bot') return S.draftBot(deck, BG);
+  let pool = [].concat(...Array.from({ length: S.poolCopies(BG) }, () => deck)).sort(() => Math.random() - .5), b = BG, got = [];
   while (pool.length) { pool = pool.filter(id => S.UNITS[id].cost <= b); if (!pool.length) break; const id = pool.shift(); if (pol === 'greedy' || S.UNITS[id].cost >= 4 || Math.random() < .5) { b -= S.UNITS[id].cost; got.push(id); } }
   return got;
 };
@@ -10,11 +11,11 @@ const mk = id => ({ uid: Math.random(), id, hp: S.UNITS[id].hp, maxHp: S.UNITS[i
 function match(deckA, polA, deckB) {
   let A = [], B = [], wa = 0, wb = 0;
   for (let r = 0; r < S.ROUNDS && wa < 3 && wb < 3; r++) {
-    A.push(...pick(deckA, polA).map(mk)); B.push(...S.draftBot(deckB, S.BUDGET).map(mk));
+    BG = S.budgetFor(r + 1); A.push(...pick(deckA, polA).map(mk)); B.push(...S.draftBot(deckB, BG).map(mk));
     const st = S.createBattle(A, B); let n = 0; while (!st.winner && n++ < 4000) S.step(st, 1 / 30);
     const heal = u => ({ uid: u.srcUid, id: u.id, hp: Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * .4)), maxHp: u.maxHp });
-    const surv = t => st.units.filter(u => u.alive && u.team === t).map(heal);
-    if (st.winner === 'p') { wa++; A = surv('p'); B = []; } else { wb++; B = surv('e'); A = []; }
+    const keep = t => st.units.filter(u => u.team === t).map(u => u.alive ? heal(u) : { uid: u.srcUid, id: u.id, maxHp: u.maxHp, hp: Math.ceil(u.maxHp * .5) });
+    if (st.winner === 'p') wa++; else wb++; A = keep('p'); B = keep('e');
   }
   return wa > wb;
 }
