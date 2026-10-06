@@ -131,12 +131,12 @@
         if (u.cd <= 0) {
           u.cd = d.cd;
           const dmg = d.dmg * u.dmgMul, sh = d.shot;
-          s.events.push({ k: 'muzzle', shot: sh.k, x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, t: 0, dur: 0.3 });
+          s.events.push({ k: 'muzzle', uid: u.uid, shot: sh.k, x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, t: 0, dur: 0.3 });
           if (sh.spd) {
             const dd = Math.max(0.5, dist(u, target));
             s.proj.push({ shot: sh.k, arc: sh.arc, team: u.team, sx: u.x, sy: u.y, x: u.x, y: u.y, tx: target.x, ty: target.y, tgt: target, dmg, aoe: d.aoe, dur: dd / sh.spd, t: 0 });
           } else {
-            hit(target, dmg);
+            hit(s, target, dmg, u);
             s.events.push({ k: 'melee', shot: sh.k, x: target.x, y: target.y, fx: u.x, fy: u.y, team: u.team, t: 0, dur: 0.3 });
           }
         }
@@ -155,10 +155,10 @@
       if (f >= 1) {
         p.done = true;
         if (p.aoe > 0) {
-          for (const o of s.units) if (o.alive && o.team !== p.team && Math.hypot(o.x - p.tx, o.y - p.ty) <= p.aoe) hit(o, p.dmg);
+          for (const o of s.units) if (o.alive && o.team !== p.team && Math.hypot(o.x - p.tx, o.y - p.ty) <= p.aoe) hit(s, o, p.dmg, { x: p.tx, y: p.ty });
           s.events.push({ k: 'boom', shot: p.shot, x: p.tx, y: p.ty, r: p.aoe, t: 0, dur: 0.55 });
         } else {
-          if (p.tgt.alive) hit(p.tgt, p.dmg);
+          if (p.tgt.alive) hit(s, p.tgt, p.dmg, { x: p.sx, y: p.sy });
           s.events.push({ k: 'impact', shot: p.shot, x: p.tx, y: p.ty, t: 0, dur: 0.3 });
         }
       }
@@ -188,9 +188,11 @@
     }
   }
 
-  function hit(u, dmg) {
-    u.hp -= dmg; u.flash = 0.12;
-    if (u.hp <= 0) { u.hp = 0; u.alive = false; }
+  function hit(s, u, dmg, src) {
+    u.hp -= dmg; u.flash = 0.16;
+    const killed = u.hp <= 0;
+    if (killed) { u.hp = 0; u.alive = false; u.diedAt = s.t; }
+    s.events.push({ k: 'hit', uid: u.uid, x: u.x, y: u.y, dmg, team: u.team, killed, sx: src.x, sy: src.y });
   }
 
   const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };

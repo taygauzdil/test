@@ -229,7 +229,6 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     </div>
     <div class="cardarea" id="cardArea"></div>
     <div id="myfleet" class="fleetgap"></div>
-    <div class="pool"><div class="lbl">LEFT IN THIS ROUND'S POOL (order unknown)</div><div class="chips" id="poolRow"></div></div>
     <div class="btns">
       <button class="bad" id="btnDiscard">✖ Discard</button>
       <button id="btnStart">⚔ Battle</button>
@@ -243,7 +242,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
       <b id="bWave">ROUND 1</b>
       <div class="hp"><span>🟦</span><div class="bar p"><i id="hpP"></i></div></div>
       <div class="hp"><span>🟥</span><div class="bar e"><i id="hpE"></i></div></div>
-      <button id="btnSpeed">x1</button>
+      <button id="btnSnd" aria-label="Sound">🔊</button><button id="btnSpeed">x1</button>
     </div>
     <div class="bwrap"><canvas id="cv" width="360" height="576"></canvas></div>
   </div>
@@ -406,17 +405,13 @@ function updDiscard() {
 function oppBar() {
   const bot = O.bot, l = O.last;
   const act = l ? `<div class="ra ${l.recruit ? 'ok' : 'no'}">${mc(l.id, null, { opp: 1 })}<span>${l.recruit ? 'Recruited' : 'Discarded'}<b>${UNITS[l.id].name}</b></span></div>`
-    : '<div class="ra"><span>Waiting for your first pick…</span></div>';
+    : '<div class="ra"><span>Your pick first</span></div>';
   $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ★${bot.budget} left · ✖${bot.discards}</div></div>
     ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div>`;
 }
 function drawPips() {
   $('pips').innerHTML = Array.from({ length: SIM.budgetFor(G.round) }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
   $('budgetLbl').textContent = '★' + budget;
-}
-function renderPool() {
-  const rest = pool.filter(c => c !== current).sort((a, b) => UNITS[a.id].cost - UNITS[b.id].cost);
-  $('poolRow').innerHTML = rest.map(c => mc(c.id, null, { dead: UNITS[c.id].cost > budget })).join('') || '<span class="stats">—</span>';
 }
 function startRound() {
   token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
@@ -441,7 +436,7 @@ function rivalPick() {
 function nextCard() {
   pool = pool.filter(c => UNITS[c.id].cost <= budget); // the budget never grows within a round, so cards that no longer fit are dropped
   current = pool[0] || null;
-  drawPips(); renderPool(); updDiscard();
+  drawPips(); updDiscard();
   const area = $('cardArea');
   if (!current) { finishDraft(); return; }
   $('btnStart').disabled = G.army.length === 0;
@@ -488,7 +483,7 @@ async function act(dir) { // 1 recruit, -1 discard (limited per round)
   const u = UNITS[current.id];
   pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
   if (dir > 0) { budget -= u.cost; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
-  current = null; drawPips(); renderPool();
+  current = null; drawPips();
   // the rival answers with a pick of its own
   if (!O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(450); if (my !== token) return; rivalPick(); await wait(750); if (my !== token) return; }
   nextCard();
@@ -564,6 +559,136 @@ function startBattle() {
   runBattle();
 }
 
+
+// ---------- sound (tiny synth, starts after the first tap) ----------
+let AC = null, muted = false, sfxBudget = 0;
+try { muted = localStorage.getItem('nd.mute') === '1'; } catch (e) {}
+function audio() {
+  if (muted) return null;
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function noise(dur, type, freq, q, vol, to) {
+  const a = audio(); if (!a) return;
+  const n = Math.max(1, Math.floor(a.sampleRate * dur)), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = a.createBufferSource(); src.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  if (to) f.frequency.exponentialRampToValueAtTime(to, a.currentTime + dur);
+  const gn = a.createGain(); gn.gain.value = vol;
+  src.connect(f); f.connect(gn); gn.connect(a.destination); src.start();
+}
+function tone(f0, f1, dur, vol, type) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), gn = a.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(f0, a.currentTime); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), a.currentTime + dur);
+  gn.gain.setValueAtTime(vol, a.currentTime); gn.gain.exponentialRampToValueAtTime(0.001, a.currentTime + dur);
+  o.connect(gn); gn.connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+}
+function sfx(name) {
+  if (muted || sfxBudget <= 0) return; sfxBudget--;
+  switch (name) {
+    case 'arrow': noise(0.07, 'bandpass', 2200, 1, 0.05); break;
+    case 'longarrow': noise(0.1, 'bandpass', 1800, 1, 0.06, 900); break;
+    case 'bullet': noise(0.05, 'highpass', 3000, 0.5, 0.12); tone(900, 200, 0.08, 0.05, 'square'); break;
+    case 'bomb': case 'grenade': noise(0.1, 'lowpass', 500, 0.8, 0.08); break;
+    case 'comet': noise(0.3, 'bandpass', 500, 0.7, 0.1, 1800); break;
+    case 'ball': tone(120, 40, 0.25, 0.22); noise(0.2, 'lowpass', 600, 0.8, 0.16); break;
+    case 'shell': tone(75, 28, 0.5, 0.3); noise(0.4, 'lowpass', 400, 0.8, 0.22); break;
+    case 'slash': case 'slash2': noise(0.07, 'bandpass', 1600, 0.8, 0.07); break;
+    case 'bash': tone(160, 60, 0.12, 0.2); break;
+    case 'saber': tone(1300, 900, 0.18, 0.05, 'triangle'); noise(0.06, 'bandpass', 2500, 1, 0.06); break;
+    case 'boom': noise(0.35, 'lowpass', 900, 0.8, 0.18); tone(95, 35, 0.35, 0.2); break;
+    case 'bigboom': noise(0.55, 'lowpass', 600, 0.8, 0.26); tone(70, 25, 0.55, 0.3); break;
+    case 'hit': tone(230, 90, 0.07, 0.13, 'triangle'); break;
+    case 'sink': noise(0.6, 'lowpass', 500, 0.8, 0.2, 120); tone(130, 40, 0.5, 0.18, 'sawtooth'); break;
+  }
+}
+$('btnSnd').onclick = () => { muted = !muted; $('btnSnd').textContent = muted ? '🔇' : '🔊'; try { localStorage.setItem('nd.mute', muted ? '1' : '0'); } catch (e) {} if (!muted) audio(); };
+$('btnSnd').textContent = muted ? '🔇' : '🔊';
+
+// ---------- hit feel: particles, damage numbers, recoil ----------
+let parts = [], floats = [];
+const rnd = (a, b) => a + Math.random() * (b - a);
+function burst(x, y, n, o) { // x,y in px
+  for (let i = 0; i < n; i++) {
+    const an = o.dir != null ? o.dir + rnd(-o.spread, o.spread) : rnd(0, 6.283), sp = rnd(o.v0, o.v1);
+    parts.push({ x, y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, g: o.g || 0, life: rnd(o.l0, o.l1), max: 1, r: rnd(o.r0, o.r1), col: o.col[Math.floor(Math.random() * o.col.length)], k: o.k || 'dot', rot: rnd(0, 6), vr: rnd(-8, 8), grow: o.grow || 0 });
+    parts[parts.length - 1].max = parts[parts.length - 1].life;
+  }
+  if (parts.length > 400) parts.splice(0, parts.length - 400);
+}
+const SPARKS = ['#fff6c8', '#ffd34d', '#ff9a3c'], WOOD = ['#8a4a2a', '#c99c62', '#5a3b22'], SMOKE = ['#9aa0a8', '#6c717a'], WATER = ['#cfeaff', '#8fd0ff', '#ffffff'];
+function updateJuice(dt) {
+  for (const p of parts) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.vx *= (1 - 1.5 * dt); p.rot += p.vr * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const f of floats) f.t += dt;
+  floats = floats.filter(f => f.t < 0.9);
+  for (const u of B.units) { if (u.kx || u.ky) { const k = Math.pow(0.02, dt); u.kx *= k; u.ky *= k; if (Math.abs(u.kx) + Math.abs(u.ky) < 0.002) u.kx = u.ky = 0; } }
+}
+function drawJuice(g) {
+  for (const p of parts) {
+    const a = Math.max(0, p.life / p.max);
+    g.save(); g.globalAlpha = p.k === 'smoke' ? a * 0.45 : a; g.fillStyle = p.col; g.translate(p.x, p.y);
+    if (p.k === 'rect') { g.rotate(p.rot); g.fillRect(-p.r, -p.r * 0.4, p.r * 2, p.r * 0.8); }
+    else { g.beginPath(); g.arc(0, 0, p.r * (1 + (1 - a) * p.grow), 0, 7); g.fill(); }
+    g.restore();
+  }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  for (const f of floats) {
+    const a = f.t / 0.9, y = f.y - 26 * (1 - Math.pow(1 - a, 2)), pop = a < 0.12 ? 0.6 + a / 0.12 * 0.6 : 1.2 - Math.min(0.2, (a - 0.12) * 0.4);
+    g.save(); g.globalAlpha = Math.min(1, (1 - a) * 2.2); g.translate(f.x, y); g.scale(pop, pop);
+    g.font = `900 ${f.size}px system-ui,sans-serif`; g.lineWidth = 3; g.strokeStyle = '#000c'; g.strokeText(f.txt, 0, 0);
+    g.fillStyle = f.col; g.fillText(f.txt, 0, 0); g.restore();
+  }
+}
+function unitOf(uid) { return B.byUid[uid]; }
+// react to what the simulation reports this frame
+function handleEvent(e) {
+  if (e.k === 'hit') {
+    const u = unitOf(e.uid); if (!u) return;
+    const dx = e.x - e.sx, dy = e.y - e.sy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, px = e.x * S, py = e.y * S;
+    const kick = Math.min(0.4, 0.05 + e.dmg * 0.006);
+    u.kx = (u.kx || 0) + ux * kick; u.ky = (u.ky || 0) + uy * kick;       // knocked away from the attacker
+    const big = e.dmg >= 30;
+    floats.push({ x: px + rnd(-6, 6), y: py - S * 0.5, txt: String(Math.round(e.dmg)), size: Math.min(22, 11 + e.dmg / 4), col: e.team === 'e' ? (big ? '#ffd34d' : '#fff') : '#ff7a7e', t: 0 });
+    burst(px, py, big ? 10 : 6, { dir: Math.atan2(uy, ux), spread: 1.0, v0: 40, v1: 130, l0: 0.2, l1: 0.45, r0: 1.2, r1: 2.4, col: SPARKS });
+    burst(px, py, big ? 5 : 3, { dir: Math.atan2(uy, ux), spread: 1.4, v0: 30, v1: 90, l0: 0.4, l1: 0.8, r0: 2, r1: 3.4, col: WOOD, k: 'rect', g: 120 });
+    B.shake = Math.max(B.shake || 0, e.killed ? 4.5 : e.dmg >= 40 ? 3 : e.dmg >= 20 ? 1.4 : 0);
+    if (e.killed) {
+      u.deadX = px; u.deadY = py;
+      burst(px, py, 16, { v0: 30, v1: 150, l0: 0.4, l1: 0.9, r0: 2, r1: 4, col: SPARKS.concat(['#ff5a3c']) });
+      burst(px, py, 8, { v0: 10, v1: 50, l0: 0.8, l1: 1.5, r0: 5, r1: 9, col: SMOKE, k: 'smoke', grow: 1.6, g: -30 });
+      burst(px, py, 8, { v0: 20, v1: 90, l0: 0.5, l1: 1.0, r0: 2, r1: 4, col: WOOD, k: 'rect', g: 140 });
+      fx.push({ k: 'boom', shot: 'ball', x: e.x, y: e.y, r: 0.9, t: 0, dur: 0.5 });
+      B.freeze = 0.07; sfx('sink');
+    } else { if (e.dmg >= 40) B.freeze = Math.max(B.freeze || 0, 0.04); sfx('hit'); }
+    return;
+  }
+  fx.push(e);
+  const x = e.x * S, y = e.y * S;
+  if (e.k === 'muzzle') {
+    const u = unitOf(e.uid);
+    const dx = e.tx - e.x, dy = e.ty - e.y, L = Math.hypot(dx, dy) || 1;
+    const rec = { ball: 0.28, shell: 0.5, comet: 0.2, bomb: 0.1, grenade: 0.1, bullet: 0.12, bash: 0.1, saber: 0.08 }[e.shot] || 0.04;
+    if (u) { u.kx = (u.kx || 0) - dx / L * rec; u.ky = (u.ky || 0) - dy / L * rec; } // recoil
+    if (e.shot === 'ball' || e.shot === 'shell') { burst(x + dx / L * S * 0.6, y + dy / L * S * 0.6, e.shot === 'shell' ? 9 : 6, { dir: Math.atan2(dy, dx), spread: 0.5, v0: 40, v1: 120, l0: 0.5, l1: 1.0, r0: 3, r1: 6, col: SMOKE, k: 'smoke', grow: 1.4 }); B.shake = Math.max(B.shake || 0, e.shot === 'shell' ? 3 : 1.5); }
+    sfx(e.shot);
+  } else if (e.k === 'melee') {
+    burst(x, y, 6, { v0: 40, v1: 120, l0: 0.15, l1: 0.35, r0: 1, r1: 2, col: e.shot === 'saber' ? ['#ffe9a0', '#ffd34d'] : ['#fff', '#cfd6e0'] });
+    sfx(e.shot);
+  } else if (e.k === 'impact') {
+    burst(x, y, 4, { v0: 30, v1: 80, l0: 0.2, l1: 0.4, r0: 1, r1: 2, col: SPARKS });
+  } else if (e.k === 'boom') {
+    const big = e.shot === 'shell' || e.shot === 'comet';
+    burst(x, y, big ? 14 : 8, { v0: 40, v1: 170, l0: 0.3, l1: 0.8, r0: 1.5, r1: 3.5, col: SPARKS });
+    burst(x, y, big ? 8 : 4, { v0: 15, v1: 60, l0: 0.7, l1: 1.4, r0: 5, r1: 10, col: SMOKE, k: 'smoke', grow: 1.6, g: -25 });
+    if (e.shot === 'ball' || e.shot === 'shell') burst(x, y, 10, { v0: 30, v1: 110, l0: 0.5, l1: 0.9, r0: 1.5, r1: 3, col: WATER, g: 160 });
+    if (e.shot !== 'ball' || e.r > 1) sfx(big ? 'bigboom' : 'boom');
+  }
+}
+
 // ---------- battle ----------
 const cv = $('cv'), ctx = cv.getContext('2d');
 const S = cv.width / W;
@@ -575,18 +700,24 @@ function runBattle() {
   B.nP = G.army.length; B.nE = O.army.length;
   B.totalP = B.units.filter(u => u.team === 'p').reduce((s, u) => s + u.maxHp, 0);
   B.totalE = B.units.filter(u => u.team === 'e').reduce((s, u) => s + u.maxHp, 0);
+  B.byUid = Object.fromEntries(B.units.map(u => [u.uid, u]));
+  parts = []; floats = []; B.freeze = 0; B.shake = 0;
   fx = []; last = performance.now(); B.endT = 0;
   cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
 }
 $('btnSpeed').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; $('btnSpeed').textContent = 'x' + speed; };
 function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  sfxBudget = 5;
   let t = dt * speed;
+  if (B.freeze > 0) { B.freeze -= dt; t = 0; } // tiny hit-stop on big hits and kills
   while (t > 0 && !B.winner) { const d = Math.min(1 / 30, t); SIM.step(B, d); t -= d; }
-  for (const e of B.events) { fx.push(e); if (e.k === 'boom' && (e.shot === 'shell' || e.shot === 'ball' || e.shot === 'comet')) B.shake = e.shot === 'shell' ? 7 : 3.5; } B.events.length = 0;
-  B.shake = (B.shake || 0) * 0.88;
+  for (const e of B.events) handleEvent(e);
+  B.events.length = 0;
+  B.shake = (B.shake || 0) * 0.86;
   for (const e of fx) { e.t += dt * speed; }
   fx = fx.filter(e => e.t < (e.dur || 0.45));
+  updateJuice(dt * speed);
   draw(now / 1000);
   const hp = team => B.units.filter(u => u.team === team && u.alive).reduce((s, u) => s + u.hp, 0);
   $('hpP').style.width = (hp('p') / B.totalP * 100) + '%';
@@ -608,7 +739,7 @@ function draw(t) {
   const sizeF = Math.max(0.85, 1.15 - Math.max(0, Math.max(B.nP, B.nE) - 6) * 0.025); // smaller ships in big fleets
   const list = B.units.slice().sort((a, b) => a.y - b.y);
   for (const u of list) {
-    const x = u.x * S, y = u.y * S;
+    const x = (u.x + (u.kx || 0)) * S, y = (u.y + (u.ky || 0)) * S;
     // heading: face the nearest enemy; ships that moved leave a wake
     if (u.alive) {
       let tg = null, bd = 1e9;
@@ -622,16 +753,23 @@ function draw(t) {
         g.strokeStyle = '#ffffff40'; g.lineWidth = 2;
         for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(x - Math.sin(u.ang) * 0 + sd * 6 * Math.cos(u.ang), y + sd * 6 * Math.sin(u.ang)); g.lineTo(x - Math.sin(u.ang) * 22 + sd * 9 * Math.cos(u.ang), y + Math.cos(u.ang) * 22 + sd * 9 * Math.sin(u.ang)); g.stroke(); }
       }
-      if (u.flash > 0) { g.shadowColor = '#fff'; g.shadowBlur = 14; }
+      const fl = Math.max(0, u.flash / 0.16);
+      if (fl > 0) { g.shadowColor = '#fff'; g.shadowBlur = 16 * fl; }
       drawShip(g, u.def, u.team, x, y, S * sizeF, u.ang);
       g.shadowColor = 'transparent'; g.shadowBlur = 0;
+      if (fl > 0) { g.fillStyle = `rgba(255,255,255,${0.55 * fl})`; g.beginPath(); g.ellipse(x, y, S * 0.2 * sizeF * 2, S * 0.52 * sizeF, u.ang, 0, 7); g.fill(); } // white hit flash
       const bw = 30, f = u.hp / u.maxHp;
       g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - S * 0.9, bw, 4);
       g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - S * 0.9, bw * f, 4);
       g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - S * 0.9 - 5);
     } else {
-      g.globalAlpha = 0.28; drawShip(g, u.def, u.team, x, y, S * sizeF, (u.ang || 0) + 0.5); g.globalAlpha = 1;
-      g.font = '14px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('💀', x, y);
+      // sinking: the wreck tilts, shrinks and fades while bubbles rise
+      const age = B.t - (u.diedAt || 0);
+      if (age < 1.6) {
+        const k = age / 1.6;
+        g.globalAlpha = 1 - k; drawShip(g, u.def, u.team, x, y + k * 6, S * sizeF * (1 - 0.3 * k), (u.ang || 0) + k * 1.1); g.globalAlpha = 1;
+        if (Math.random() < 0.35) parts.push({ x: x + rnd(-8, 8), y: y + rnd(-8, 8), vx: rnd(-6, 6), vy: -rnd(10, 30), g: 0, life: 0.7, max: 0.7, r: rnd(1.5, 3), col: '#cfeaff', k: 'dot', rot: 0, vr: 0, grow: 0 });
+      }
     }
   }
   // ---- projectiles in flight (each unit type has its own) ----
@@ -684,6 +822,7 @@ function draw(t) {
       for (let k = 0; k < n; k++) { const an = k * 6.283 / n + 0.4, r = R * (0.4 + 0.9 * p); dot(x + Math.cos(an) * r, y + Math.sin(an) * r, 2.2 * a + 0.5, `rgb(${pal[1]})`, a); }
     }
   }
+  drawJuice(g);
   g.restore();
 }
 
