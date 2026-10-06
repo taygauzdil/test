@@ -35,6 +35,7 @@
   function drawPool(deck, budget, rng) {
     return Array.from({ length: deck.length * poolCopies(budget) }, () => deck[Math.floor(rnd(rng) * deck.length)]);
   }
+  const MAX_DISCARDS = 3; // discards allowed per round
   const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
@@ -51,13 +52,14 @@
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
   function draftBot(deck, budget, rng) {
-    let pool = drawPool(deck, budget, rng), got = [];
+    let pool = drawPool(deck, budget, rng), got = [], discards = MAX_DISCARDS;
     while (budget > 0) {
       pool = pool.filter(id => UNITS[id].cost <= budget);
       if (!pool.length) break;
       const id = pool.shift(), c = UNITS[id].cost;
       // takes strong cards, gambles on cheap ones when there is room for a better pair
-      if (c >= 5 || budget - c <= 2 || rnd(rng) < 0.55) { budget -= c; got.push(id); }
+      const want = c >= 5 || budget - c <= 2 || rnd(rng) < 0.55;
+      if (want || discards <= 0) { budget -= c; got.push(id); } else discards--;
     }
     return got;
   }
@@ -175,6 +177,6 @@
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);

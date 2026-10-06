@@ -194,7 +194,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     <div class="stats" style="margin:0 0 4px">YOUR FLEET (carried over + new recruits)</div>
     <div class="armyrow" id="armyRow"></div>
     <div class="cardarea" id="cardArea"></div>
-    <div class="pool"><div class="lbl">STILL IN YOUR DECK THIS ROUND (order unknown)</div><div class="chips" id="poolRow"></div></div>
+    <div class="pool"><div class="lbl">STILL IN THIS ROUND'S POOL (order unknown) · DISCARDS ARE LIMITED</div><div class="chips" id="poolRow"></div></div>
     <div class="btns">
       <button class="bad" id="btnDiscard">✖ Discard</button>
       <button id="btnStart">⚔ Battle</button>
@@ -254,6 +254,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   function drawPool(deck, budget, rng) {
     return Array.from({ length: deck.length * poolCopies(budget) }, () => deck[Math.floor(rnd(rng) * deck.length)]);
   }
+  const MAX_DISCARDS = 3; // discards allowed per round
   const budgetFor = r => BUDGETS[Math.min(r, BUDGETS.length) - 1];
   const ROUNDS = 5, WIN_ROUNDS = 3;
 
@@ -270,13 +271,14 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
   function draftBot(deck, budget, rng) {
-    let pool = drawPool(deck, budget, rng), got = [];
+    let pool = drawPool(deck, budget, rng), got = [], discards = MAX_DISCARDS;
     while (budget > 0) {
       pool = pool.filter(id => UNITS[id].cost <= budget);
       if (!pool.length) break;
       const id = pool.shift(), c = UNITS[id].cost;
       // takes strong cards, gambles on cheap ones when there is room for a better pair
-      if (c >= 5 || budget - c <= 2 || rnd(rng) < 0.55) { budget -= c; got.push(id); }
+      const want = c >= 5 || budget - c <= 2 || rnd(rng) < 0.55;
+      if (want || discards <= 0) { budget -= c; got.push(id); } else discards--;
     }
     return got;
   }
@@ -394,7 +396,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -542,14 +544,18 @@ $('btnSail').onclick = async () => {
 };
 
 // ---------- draft ----------
-let pool = [], budget = 0, current = null, busy = false;
+let pool = [], budget = 0, current = null, busy = false, discards = 0;
+function updDiscard() {
+  $('btnDiscard').textContent = `✖ Discard (${discards})`;
+  $('btnDiscard').disabled = !current || discards <= 0;
+}
 function oppBar() {
   $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies}</div></div>
     <div class="sc">${G.wins} – ${G.losses}<small>score (you – rival)</small></div>`;
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function startRound() {
-  budget = SIM.budgetFor(G.round); busy = false;
+  budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
   pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
@@ -585,10 +591,10 @@ function nextCard() {
   if (!current) {
     area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Budget spent!' : 'Draft complete'}</h2><p>${budget > 0 ? `★${budget} unused — no card left that fits.` : 'Ready to fight.'}</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ BATTLE!</button></div>`;
     $('btnFight').onclick = startBattle;
-    $('btnRecruit').disabled = $('btnDiscard').disabled = $('btnStart').disabled = true;
+    $('btnRecruit').disabled = $('btnStart').disabled = true; updDiscard();
     return;
   }
-  $('btnRecruit').disabled = $('btnDiscard').disabled = false;
+  $('btnRecruit').disabled = false; updDiscard();
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
   area.innerHTML = `<div class="card enter" id="card" style="--c:${c}">
@@ -604,9 +610,10 @@ function nextCard() {
   bindCard($('card'));
   busy = false;
 }
-function act(dir) { // 1 al, -1 pas
-  if (!current || busy) return;
+function act(dir) { // 1 recruit, -1 discard (limited per round)
+  if (!current || busy || (dir < 0 && discards <= 0)) return;
   busy = true;
+  if (dir < 0) discards--;
   const card = $('card');
   card.style.transition = 'transform .25s ease-in, opacity .25s';
   card.style.transform = `translateX(${dir * 520}px) rotate(${dir * 25}deg)`; card.style.opacity = 0;
@@ -629,7 +636,7 @@ function bindCard(card) {
   const end = e => {
     if (sx == null) return;
     const dx = e.clientX - sx; sx = null;
-    if (dx > 90) act(1); else if (dx < -90) act(-1);
+    if (dx > 90) act(1); else if (dx < -90 && discards > 0) act(-1);
     else { card.style.transition = 'transform .2s'; set(0); }
   };
   card.addEventListener('pointerup', end);
