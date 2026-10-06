@@ -65,7 +65,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .card .top{display:flex;justify-content:space-between;align-items:center}
 .card .role{font-size:12px;font-weight:800;color:var(--c);text-transform:uppercase;letter-spacing:1px}
 .card .cost{font-size:22px;font-weight:900;color:var(--gold)}
-.card .icon{font-size:76px;text-align:center;margin:6px 0 2px;filter:drop-shadow(0 4px 4px #0008)}
+.card .icon{text-align:center}
 .card .nm{text-align:center;font-size:21px;font-weight:900}
 .card .ds{text-align:center;color:var(--mute);font-size:12px;margin:2px 0 10px}
 .card .sg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -108,48 +108,98 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 .modal p{color:var(--mute);margin:4px 0}
 .modal .chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin:10px 0}
 .modal button{width:100%;margin-top:10px}
+
+/* mini unit cards */
+.mc{flex:0 0 auto;width:44px;height:60px;border-radius:9px;background:linear-gradient(#1f4f80,#14385a);border:2px solid var(--c,#888);position:relative;flex-direction:column;align-items:center;justify-content:center;font-size:22px;line-height:1;box-shadow:0 2px 4px #0006}
+.mc.opp{background:linear-gradient(#6a2538,#431726)}
+.mc .s{position:absolute;top:1px;left:3px;font-size:9px;font-weight:900;color:var(--gold)}
+.mc .hpb{position:absolute;left:4px;right:4px;bottom:3px;height:4px;background:#0008;border-radius:2px}
+.mc .hpb i{display:block;height:100%;background:var(--good);border-radius:2px}
+.mc.new{box-shadow:0 0 0 2px var(--acc),0 0 10px var(--acc)}
+.pool .mc{width:34px;height:46px;font-size:17px}
+.pool .mc.dead{opacity:.28}
+.pool .mc .s{font-size:8px}
+.armyrow .mc,.deckbar .mc{margin:0}
+.armyrow{min-height:72px}
+.deckbar{min-height:72px}
+
+/* PvP */
+.opp{display:flex;align-items:center;gap:8px;background:#2a1220;border:1px solid #6a2538;border-radius:12px;padding:6px 10px;margin-bottom:6px}
+.opp .av{font-size:26px;width:38px;height:38px;border-radius:50%;background:#431726;display:flex;align-items:center;justify-content:center}
+.opp .nm{font-weight:800;font-size:14px;line-height:1.1}
+.opp .tr{font-size:11px;color:var(--mute)}
+.opp .sc{margin-left:auto;font-weight:900;font-size:20px;letter-spacing:1px;text-align:right}
+.opp .sc small{display:block;font-size:10px;color:var(--mute);letter-spacing:0;font-weight:700}
+.oppcards{display:flex;gap:4px;overflow-x:auto;padding:2px 0}
+.profile{display:flex;align-items:center;gap:8px;background:#0a1626;border-radius:12px;padding:8px 10px;margin-bottom:8px}
+.profile input{flex:1;min-width:0;background:#12304d;border:1px solid #2a5a8a;color:var(--ink);border-radius:8px;padding:6px 8px;font:inherit;font-weight:800}
+.trophy{color:var(--gold);font-weight:900}
+.mm{align-items:center;justify-content:center;text-align:center;gap:10px}
+.mm .spin{width:54px;height:54px;border-radius:50%;border:5px solid #1d3c5c;border-top-color:var(--acc);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.mm .av{font-size:64px}
+.vs .side{margin:6px 0}
+.vs .who{font-weight:800;font-size:13px;margin-bottom:4px;display:flex;justify-content:space-between}
+.vs .cards{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;min-height:60px}
+.vs .mid{font-size:26px;font-weight:900;color:var(--gold);letter-spacing:3px;margin:2px 0}
+.vs .empty{color:var(--mute);font-size:12px;align-self:center}
+
+.mc img{width:40px;height:40px;margin-top:7px;pointer-events:none}
+.pool .mc img{width:30px;height:30px;margin-top:6px}
+.card .icon{margin:4px 0 2px}
+.card .icon img{width:132px;height:132px;border-radius:18px;box-shadow:0 4px 10px #0008;pointer-events:none}
+.ucard img{width:28px;height:28px;vertical-align:middle;margin-right:2px}
 </style>
 </head>
 <body>
 <div id="app">
 
-  <!-- DECK BUILDER -->
+  <!-- HOME: profile + deck builder -->
   <div id="home" class="screen">
     <h1>⚓ NAVAL DRAFT</h1>
-    <div class="sub">Build the strongest army you can with ★20.</div>
-    <div class="row between" style="margin-bottom:6px">
-      <b>Your Deck <span id="deckCount"></span></b>
+    <div class="sub">PvP · her round ★10 ile en güçlü ordunu kur</div>
+    <div class="profile">
+      <span style="font-size:26px">🧑‍✈️</span>
+      <input id="nameIn" maxlength="14" aria-label="Oyuncu adı">
+      <span class="trophy" id="trophyLbl"></span>
       <span class="gold" id="goldLbl"></span>
     </div>
+    <div class="row between" style="margin-bottom:6px"><b>Destem <span id="deckCount"></span></b></div>
     <div class="deckbar" id="deckBar"></div>
     <div class="stats" id="deckStats"></div>
     <div class="grid" id="grid"></div>
-    <div class="footer"><button class="primary" id="btnSail">⛵ SET SAIL</button></div>
+    <div class="footer"><button class="primary" id="btnSail">⚔ RAKİP BUL</button></div>
+  </div>
+
+  <!-- MATCHMAKING -->
+  <div id="match" class="screen mm">
+    <div id="mmBody"></div>
   </div>
 
   <!-- DRAFT -->
   <div id="draft" class="screen">
+    <div class="opp" id="oppBar"></div>
+    <div class="oppcards" id="oppCards"></div>
     <div class="topbar">
-      <div class="wave" id="waveLbl">WAVE 1 / 5</div>
-      <div class="budget" id="budgetLbl">★20</div>
+      <div class="wave" id="waveLbl">ROUND 1 / 5</div>
+      <div class="budget" id="budgetLbl">★10</div>
     </div>
     <div class="pips" id="pips"></div>
-    <div class="stats" style="margin:0 0 4px">YOUR ARMY (survivors + recruits)</div>
+    <div class="stats" style="margin:0 0 4px">SENİN ORDUN (hayatta kalanlar + yeni askerler)</div>
     <div class="armyrow" id="armyRow"></div>
     <div class="cardarea" id="cardArea"></div>
-    <div class="pool"><div class="lbl">STILL IN YOUR DECK THIS WAVE (order unknown)</div><div class="chips" id="poolRow"></div></div>
+    <div class="pool"><div class="lbl">BU ROUND DESTENDE KALANLAR (sıra bilinmiyor)</div><div class="chips" id="poolRow"></div></div>
     <div class="btns">
-      <button class="bad" id="btnDiscard">✖ Discard</button>
-      <button id="btnStart">⚔ Start Battle</button>
-      <button class="good" id="btnRecruit">Recruit ✔</button>
+      <button class="bad" id="btnDiscard">✖ Pas</button>
+      <button id="btnStart">⚔ Savaş</button>
+      <button class="good" id="btnRecruit">Al ✔</button>
     </div>
-    <div class="toast" id="toast"></div>
   </div>
 
   <!-- BATTLE -->
   <div id="battle" class="screen">
     <div class="bhud">
-      <b id="bWave">WAVE 1</b>
+      <b id="bWave">ROUND 1</b>
       <div class="hp"><span>🟦</span><div class="bar p"><i id="hpP"></i></div></div>
       <div class="hp"><span>🟥</span><div class="bar e"><i id="hpE"></i></div></div>
       <button id="btnSpeed">x1</button>
@@ -164,49 +214,117 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 <script>
 (() => {
 'use strict';
-const { UNITS, ORDER, STARTER, WAVES, BUDGET, W, H } = SIM;
-const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d', Boss: '#ff4d8d' };
+const { UNITS, ORDER, STARTER, BUDGET, ROUNDS, WIN_ROUNDS, W, H } = SIM;
+const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
 const DECK_MIN = 6, DECK_MAX = 12, COPY_MAX = 2, HEAL = 0.4;
+const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
+const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
 const $ = id => document.getElementById(id);
 const stars = n => '★'.repeat(n);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+
+// ---------- 2D ship art (procedural, drawn on canvas) ----------
+const HULL = { Melee: '#8a4a2a', Archer: '#5d7a3c', Bomber: '#a4602a', Artillery: '#5b4a82', Elite: '#7a6420' };
+const TEAM = { p: '#35a7ff', e: '#ff5a5f' };
+function hullPath(g, hl, hw) {
+  g.beginPath(); g.moveTo(0, -hl);
+  g.bezierCurveTo(hw * 1.35, -hl * 0.35, hw * 1.15, hl * 0.7, hw * 0.65, hl);
+  g.lineTo(-hw * 0.65, hl);
+  g.bezierCurveTo(-hw * 1.15, hl * 0.7, -hw * 1.35, -hl * 0.35, 0, -hl); g.closePath();
+}
+// x,y = centre, s = tile size in px, ang = 0 means bow points up
+function drawShip(g, def, team, x, y, s, ang) {
+  const hl = s * (0.42 + 0.035 * def.cost), hw = hl * 0.46, role = def.role, tc = TEAM[team];
+  g.save(); g.translate(x, y); g.rotate(ang);
+  // hull + deck
+  hullPath(g, hl, hw); g.fillStyle = HULL[role]; g.fill();
+  g.lineWidth = Math.max(1.5, s * 0.06); g.strokeStyle = role === 'Elite' ? '#ffd34d' : tc; g.stroke();
+  g.save(); g.scale(0.7, 0.8); g.translate(0, hl * 0.06); hullPath(g, hl, hw); g.fillStyle = '#c99c62'; g.fill(); g.restore();
+  // role equipment
+  if (role === 'Melee' || role === 'Elite' && def.range < 2) {
+    g.fillStyle = '#c9ced6'; g.beginPath(); g.moveTo(-hw * 0.28, -hl * 0.88); g.lineTo(0, -hl * 1.16); g.lineTo(hw * 0.28, -hl * 0.88); g.fill(); // ram
+    const sh = def.id === 'guard' ? 5 : def.id === 'captain' ? 4 : 2;
+    for (let i = 0; i < sh; i++) for (const sd of [-1, 1]) { g.fillStyle = i % 2 ? '#d8dde6' : tc; g.beginPath(); g.arc(sd * hw * 0.62, -hl * 0.2 + i * hl * (1.0 / sh) * 0.9, hw * 0.17, 0, 7); g.fill(); }
+  } else if (role === 'Archer') {
+    g.fillStyle = '#2f7d32'; for (let i = 0; i < 2 + (def.cost > 3); i++) for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * hw * 0.4, -hl * 0.55 + i * hl * 0.38, hw * 0.16, 0, 7); g.fill(); g.strokeStyle = '#5a3b22'; g.lineWidth = 1; g.beginPath(); g.arc(sd * hw * 0.4, -hl * 0.62 + i * hl * 0.38, hw * 0.24, Math.PI, 0); g.stroke(); }
+  } else if (role === 'Bomber') {
+    for (let i = 0; i < def.cost - 1; i++) { const bx = (i % 2 ? 1 : -1) * hw * 0.32, by = hl * 0.1 + Math.floor(i / 2) * hl * 0.32; g.fillStyle = '#e07a2c'; g.beginPath(); g.arc(bx, by, hw * 0.24, 0, 7); g.fill(); g.strokeStyle = '#3a1f0a'; g.lineWidth = 1.2; g.stroke(); g.fillStyle = '#ffd34d'; g.fillRect(bx - 1, by - hw * 0.4, 2, hw * 0.18); }
+  } else if (role === 'Artillery') {
+    const n = def.cost >= 8 ? 3 : 2;
+    for (let i = 0; i < n; i++) { const cx = (i - (n - 1) / 2) * hw * 0.55; g.fillStyle = '#2a2a33'; g.fillRect(cx - hw * 0.13, -hl * 0.78, hw * 0.26, hl * 1.05); g.fillStyle = '#555'; g.beginPath(); g.arc(cx, hl * 0.3, hw * 0.2, 0, 7); g.fill(); g.fillStyle = '#ff9a3c'; g.fillRect(cx - hw * 0.1, -hl * 0.8, hw * 0.2, hl * 0.06); }
+  }
+  // masts + sails
+  const masts = def.cost >= 7 ? 3 : def.cost >= 5 ? 2 : 1;
+  const sailCol = def.id === 'captain' ? '#2b2b33' : def.id === 'raider' ? '#c8483f' : def.id === 'elitebomb' ? '#ffb347' : '#f3ecd8';
+  for (let i = 0; i < masts; i++) {
+    const my = masts === 1 ? -hl * 0.05 : -hl * 0.35 + i * (hl * 0.9 / (masts - 1)) * 0.75;
+    g.fillStyle = sailCol; g.strokeStyle = tc; g.lineWidth = 1.2;
+    g.beginPath(); g.ellipse(0, my, hw * 1.15, hl * 0.09, 0, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#4a2f18'; g.beginPath(); g.arc(0, my, hw * 0.1, 0, 7); g.fill();
+  }
+  // flag at stern
+  g.fillStyle = tc; g.beginPath(); g.moveTo(0, hl * 0.62); g.lineTo(hw * 0.5, hl * 0.78); g.lineTo(0, hl * 0.9); g.fill();
+  g.restore();
+}
+const imgCache = {};
+function shipImg(id, team, px, sea) {
+  const key = id + team + px + (sea ? 's' : '');
+  if (imgCache[key]) return imgCache[key];
+  const c = document.createElement('canvas'); c.width = c.height = px * 2;
+  const g = c.getContext('2d'), n = px * 2;
+  if (sea) {
+    const gr = g.createRadialGradient(n / 2, n / 2, n * 0.1, n / 2, n / 2, n * 0.75); gr.addColorStop(0, '#2a86b8'); gr.addColorStop(1, '#0f3d63');
+    rr(g, 0, 0, n, n, n * 0.14); g.fillStyle = gr; g.fill();
+    g.strokeStyle = '#ffffff30'; g.lineWidth = 2; for (let i = 1; i < 6; i++) { g.beginPath(); for (let x = 0; x <= n; x += 8) g.lineTo(x, i * n / 6 + Math.sin(x / 14 + i) * 4); g.stroke(); }
+  }
+  drawShip(g, UNITS[id], team, n / 2, n / 2, n * 0.62, team === 'e' ? Math.PI : 0);
+  return imgCache[key] = c.toDataURL();
+}
+function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 
 // ---------- persistence ----------
 const KEY = 'navalDraft.v1';
-let save = { gold: 0, owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
-try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.owned && s.deck) save = s; } catch (e) {}
+let save = { gold: 0, trophies: 1000, name: 'Kaptan', owned: Object.fromEntries(STARTER.map(i => [i, true])), deck: ['deckhand', 'deckhand', 'raider', 'guard', 'archer', 'archer', 'longbow', 'bomber'], wins: 0 };
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.owned && s.deck) save = Object.assign(save, s); } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 const count = id => save.deck.filter(x => x === id).length;
 
+// mini unit card (used for deck, army, pool and VS screens)
+function mc(id, hp, o = {}) {
+  const u = UNITS[id];
+  const bar = hp != null ? `<span class="hpb"><i style="width:${Math.max(0, hp) * 100}%"></i></span>` : '';
+  return `<div class="mc ${o.opp ? 'opp' : ''} ${o.isNew ? 'new' : ''} ${o.dead ? 'dead' : ''}" title="${u.name}" style="--c:${ROLE_COLOR[u.role]}"><span class="s">${u.cost}★</span><img alt="" src="${shipImg(id, o.opp ? 'e' : 'p', 40)}">${bar}</div>`;
+}
+
 // ---------- deck builder ----------
 function renderHome() {
   show('home');
   $('goldLbl').textContent = '🪙 ' + save.gold;
+  $('trophyLbl').textContent = '🏆 ' + save.trophies;
+  $('nameIn').value = save.name;
   $('deckCount').textContent = `(${save.deck.length}/${DECK_MAX})`;
   const sorted = save.deck.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost);
-  $('deckBar').innerHTML = sorted.map(id => chipHTML(id)).join('') || '<span class="stats">Add units below…</span>';
+  $('deckBar').innerHTML = sorted.map(id => mc(id)).join('') || '<span class="stats">Aşağıdan birim ekle…</span>';
   const total = save.deck.reduce((s, id) => s + UNITS[id].cost, 0);
   const avg = save.deck.length ? (total / save.deck.length).toFixed(1) : 0;
   const roles = {}; save.deck.forEach(id => roles[UNITS[id].role] = (roles[UNITS[id].role] || 0) + 1);
-  $('deckStats').textContent = `Avg cost ★${avg} · ` + (Object.entries(roles).map(([r, n]) => `${n} ${r}`).join(' · ') || 'empty') + ` · min ${DECK_MIN} cards`;
+  $('deckStats').textContent = `Ort. maliyet ★${avg} · ` + (Object.entries(roles).map(([r, n]) => `${n} ${r}`).join(' · ') || 'boş') + ` · en az ${DECK_MIN} kart`;
   $('btnSail').disabled = save.deck.length < DECK_MIN;
   $('grid').innerHTML = ORDER.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost || a.localeCompare(b)).map(id => {
     const u = UNITS[id], c = ROLE_COLOR[u.role], own = save.owned[id];
     const st = `❤${u.hp} ⚔${u.dmg} ➶${u.range}${u.aoe ? ' 💥' + u.aoe : ''}`;
     return `<div class="ucard ${own ? '' : 'locked'}" style="--c:${c}">
-      <div class="t"><span>${u.icon} ${u.name}</span><span class="stars">${stars(u.cost)}</span></div>
+      <div class="t"><span><img alt="" src="${shipImg(id, 'p', 28)}">${u.name}</span><span class="stars">${stars(u.cost)}</span></div>
       <div class="st">${u.role} · ${st}</div>
       ${own ? `<div class="ctl"><button data-m="${id}">−</button><span class="n">${count(id)}/${COPY_MAX}</span><button data-p="${id}">+</button></div>`
-            : `<button class="buy" data-b="${id}" ${save.gold < u.price ? 'disabled' : ''}>🔒 Unlock 🪙${u.price}</button>`}
+            : `<button class="buy" data-b="${id}" ${save.gold < u.price ? 'disabled' : ''}>🔒 Aç 🪙${u.price}</button>`}
     </div>`;
   }).join('');
-}
-function chipHTML(id, hp, isNew) {
-  const u = UNITS[id];
-  const bar = hp != null ? `<span class="hpb"><i style="width:${Math.max(0, hp) * 100}%"></i></span>` : '';
-  return `<div class="chip ${isNew ? 'new' : ''}" title="${u.name}" style="border-bottom:3px solid ${ROLE_COLOR[u.role]}">${u.icon}<small>${u.cost ? stars(u.cost).length + '★' : ''}</small>${bar}</div>`;
 }
 $('grid').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
@@ -215,72 +333,86 @@ $('grid').addEventListener('click', e => {
   else if (b.dataset.b) { const u = UNITS[b.dataset.b]; if (save.gold >= u.price) { save.gold -= u.price; save.owned[u.id] = true; } }
   persist(); renderHome();
 });
+$('nameIn').addEventListener('input', e => { save.name = e.target.value.trim().slice(0, 14) || 'Kaptan'; persist(); });
 
-// ---------- run state ----------
-let G = null;
-$('btnSail').onclick = () => {
-  G = { wave: 1, army: [], uid: 1, earned: 0 };
-  startDraft();
+// ---------- matchmaking ----------
+let G = null, O = null; // G: my run state, O: opponent
+$('btnSail').onclick = async () => {
+  show('match');
+  $('mmBody').innerHTML = '<div class="spin" style="margin:0 auto 14px"></div><h2>Rakip aranıyor…</h2><p class="stats">Kupa aralığı: ' + (save.trophies - 150) + ' – ' + (save.trophies + 150) + '</p>';
+  await wait(1300);
+  const name = pick(NAMES) + (Math.random() < .4 ? Math.floor(Math.random() * 90 + 10) : '');
+  O = { name, avatar: pick(AVATARS), trophies: Math.max(0, save.trophies + Math.floor(Math.random() * 200 - 100)), deck: SIM.genOpponentDeck(Object.keys(save.owned).filter(k => save.owned[k])), army: [] };
+  $('mmBody').innerHTML = `<div class="av">${O.avatar}</div><h2>${O.name}</h2><p class="trophy">🏆 ${O.trophies}</p><p class="stats">Rakip bulundu!</p>`;
+  await wait(1500);
+  G = { round: 1, army: [], uid: 1, wins: 0, losses: 0 };
+  startRound();
 };
 
 // ---------- draft ----------
-let pool = [], budget = 0, current = null, busy = false, seen = [];
-function startDraft() {
+let pool = [], budget = 0, current = null, busy = false;
+function oppBar() {
+  $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies}</div></div>
+    <div class="sc">${G.wins} – ${G.losses}<small>skor (sen – rakip)</small></div>`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function startRound() {
   budget = BUDGET; busy = false;
   pool = shuffle(save.deck).map(id => ({ id, k: G.uid++ }));
-  seen = [];
   G.army.forEach(u => u.fresh = false);
-  show('draft');
-  $('waveLbl').textContent = G.wave === WAVES ? 'WAVE 5 · BOSS' : `WAVE ${G.wave} / ${WAVES}`;
-  nextCard(true);
+  O.army.forEach(u => u.fresh = false);
+  // rakip de aynı kurallarla ★10 ile draft yapıyor (sonuç savaş öncesi açıklanır)
+  let picks = SIM.draftBot(O.deck, BUDGET);
+  if (!picks.length && !O.army.length) picks = [O.deck.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost)[0]];
+  picks.forEach(id => O.army.push({ uid: 'o' + G.uid++, id, hp: UNITS[id].hp, maxHp: UNITS[id].hp, fresh: true }));
+  O.newCount = picks.length;
+  show('draft'); oppBar();
+  $('waveLbl').textContent = G.round === ROUNDS ? 'FİNAL ROUND' : `ROUND ${G.round} / ${ROUNDS}`;
+  const keep = O.army.filter(u => !u.fresh);
+  $('oppCards').innerHTML = (keep.map(u => mc(u.id, u.hp / u.maxHp, { opp: 1 })).join('') || '<span class="stats">Rakibin hayatta kalan askeri yok.</span>')
+    + Array.from({ length: O.newCount }, () => '<div class="mc opp" style="--c:#6a2538">❓</div>').join('');
+  nextCard();
 }
-function drawPips(hold) {
+function drawPips() {
   $('pips').innerHTML = Array.from({ length: BUDGET }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
   $('budgetLbl').textContent = '★' + budget;
 }
 function renderArmy() {
-  $('armyRow').innerHTML = G.army.length
-    ? G.army.map(u => chipHTML(u.id, u.hp / u.maxHp, u.fresh)).join('')
-    : '<span class="empty">No units yet — swipe right to recruit.</span>';
+  $('armyRow').innerHTML = G.army.length ? G.army.map(u => mc(u.id, u.hp / u.maxHp, { isNew: u.fresh })).join('')
+    : '<span class="empty">Henüz asker yok — sağa kaydırıp al.</span>';
 }
 function renderPool() {
   const rest = pool.filter(c => c !== current).sort((a, b) => UNITS[a.id].cost - UNITS[b.id].cost);
-  $('poolRow').innerHTML = rest.map(c => {
-    const fits = UNITS[c.id].cost <= budget;
-    return chipHTML(c.id).replace('class="chip', `class="chip ${fits ? '' : 'dead'}`);
-  }).join('') || '<span class="stats">—</span>';
+  $('poolRow').innerHTML = rest.map(c => mc(c.id, null, { dead: UNITS[c.id].cost > budget })).join('') || '<span class="stats">—</span>';
 }
-function nextCard(first) {
-  // cards that can never fit again (budget never grows during a wave) are dropped
-  pool = pool.filter(c => UNITS[c.id].cost <= budget);
-  current = pool.shift() || null;
-  if (current) pool.unshift(current); // keep current inside pool list for rendering
+function nextCard() {
+  pool = pool.filter(c => UNITS[c.id].cost <= budget); // bütçe artmadığı için sığmayanlar elenir
+  current = pool[0] || null;
   drawPips(); renderArmy(); renderPool();
   const area = $('cardArea');
   if (!current) {
-    area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Budget spent!' : 'Draft complete'}</h2><p>${budget > 0 ? `★${budget} unused — no card left that fits.` : 'Ready to fight.'}</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ BATTLE!</button></div>`;
+    area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Bütçe bitti!' : 'Draft tamam'}</h2><p>${budget > 0 ? `★${budget} kullanılmadı — sığan kart kalmadı.` : 'Savaşa hazırsın.'}</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ SAVAŞ!</button></div>`;
     $('btnFight').onclick = startBattle;
-    $('btnRecruit').disabled = $('btnDiscard').disabled = true;
-    $('btnStart').disabled = true;
+    $('btnRecruit').disabled = $('btnDiscard').disabled = $('btnStart').disabled = true;
     return;
   }
   $('btnRecruit').disabled = $('btnDiscard').disabled = false;
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
   area.innerHTML = `<div class="card enter" id="card" style="--c:${c}">
-    <div class="stamp r" id="stR">RECRUIT</div><div class="stamp l" id="stL">DISCARD</div>
+    <div class="stamp r" id="stR">AL</div><div class="stamp l" id="stL">PAS</div>
     <div class="top"><span class="role">${u.role}</span><span class="cost">${stars(u.cost)}</span></div>
-    <div class="icon">${u.icon}</div>
+    <div class="icon"><img alt="${u.name}" src="${shipImg(u.id, 'p', 132, true)}"></div>
     <div class="nm">${u.name}</div>
     <div class="ds">${u.desc}</div>
-    <div class="sg"><div>Health<b>❤ ${u.hp}</b></div><div>Damage<b>⚔ ${u.dmg}</b></div>
-      <div>Range<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Blast' : 'Attack speed'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/s'}</b></div></div>
-    <div class="after">Recruit → <b>★${budget - u.cost}</b> left</div>
+    <div class="sg"><div>Can<b>❤ ${u.hp}</b></div><div>Hasar<b>⚔ ${u.dmg}</b></div>
+      <div>Menzil<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Patlama' : 'Saldırı hızı'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/sn'}</b></div></div>
+    <div class="after">Alırsan → <b>★${budget - u.cost}</b> kalır</div>
   </div>`;
   bindCard($('card'));
   busy = false;
 }
-function act(dir) { // 1 recruit, -1 discard
+function act(dir) { // 1 al, -1 pas
   if (!current || busy) return;
   busy = true;
   const card = $('card');
@@ -288,13 +420,9 @@ function act(dir) { // 1 recruit, -1 discard
   card.style.transform = `translateX(${dir * 520}px) rotate(${dir * 25}deg)`; card.style.opacity = 0;
   setTimeout(() => {
     const u = UNITS[current.id];
-    pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the wave
-    if (dir > 0) {
-      budget -= u.cost;
-      G.army.push({ uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true });
-    }
-    current = null;
-    nextCard();
+    pool = pool.filter(c => c !== current); // alınan ya da pas geçilen kart bu round bir daha gelmez
+    if (dir > 0) { budget -= u.cost; G.army.push({ uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }); }
+    current = null; nextCard();
   }, 230);
 }
 function bindCard(card) {
@@ -323,14 +451,27 @@ addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') act(1); else if (e.key === 'ArrowLeft') act(-1);
 });
 
+// ---------- VS screen ----------
+function startBattle() {
+  O.army.forEach(u => u.fresh = true);
+  const row = (list, opp) => list.map(u => mc(u.id, u.hp / u.maxHp, { opp })).join('') || '<span class="empty">—</span>';
+  const sum = l => l.reduce((s, u) => s + UNITS[u.id].cost, 0);
+  modal(`<div class="vs"><h2>ROUND ${G.round}</h2>
+    <div class="side"><div class="who"><span>${O.avatar} ${esc(O.name)}</span><span>${O.army.length} birim · ★${sum(O.army)}</span></div><div class="cards">${row(O.army, 1)}</div></div>
+    <div class="mid">VS</div>
+    <div class="side"><div class="who"><span>🧑‍✈️ ${esc(save.name)}</span><span>${G.army.length} birim · ★${sum(G.army)}</span></div><div class="cards">${row(G.army, 0)}</div></div>
+    <button class="primary" id="mGo">⚔ SAVAŞ BAŞLAT</button></div>`);
+  $('mGo').onclick = () => { closeModal(); runBattle(); };
+}
+
 // ---------- battle ----------
 const cv = $('cv'), ctx = cv.getContext('2d');
-const S = cv.width / W; // px per tile
+const S = cv.width / W;
 let B = null, speed = 1, raf = 0, last = 0, fx = [];
-function startBattle() {
+function runBattle() {
   show('battle');
-  $('bWave').textContent = G.wave === WAVES ? 'BOSS' : 'WAVE ' + G.wave;
-  B = SIM.createBattle(G.army, SIM.genEnemies(G.wave));
+  $('bWave').textContent = 'ROUND ' + G.round;
+  B = SIM.createBattle(G.army, O.army);
   B.totalP = B.units.filter(u => u.team === 'p').reduce((s, u) => s + u.maxHp, 0);
   B.totalE = B.units.filter(u => u.team === 'e').reduce((s, u) => s + u.maxHp, 0);
   fx = []; last = performance.now(); B.endT = 0;
@@ -357,24 +498,38 @@ function draw(t) {
   g.fillStyle = sea; g.fillRect(0, 0, w, h);
   g.strokeStyle = '#ffffff22'; g.lineWidth = 2;
   for (let y = 0; y < h; y += 28) { g.beginPath(); for (let x = 0; x <= w; x += 12) g.lineTo(x, y + Math.sin(x / 22 + t * 1.5 + y) * 3); g.stroke(); }
-  // ships
-  ship(g, 0, 6.2, '#5a3b22', '#3a2514', true);
-  ship(g, H - 6.4, H, '#5a3b22', '#3a2514', false);
-  // units
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '800 12px system-ui,sans-serif'; g.fillStyle = '#ffffffaa';
+  g.fillText(O.avatar + ' ' + O.name, w / 2, 12);
+  g.fillText('🧑‍✈️ ' + save.name, w / 2, h - 12);
+  const live = B.units.filter(u => u.alive);
   const list = B.units.slice().sort((a, b) => a.y - b.y);
-  g.textAlign = 'center'; g.textBaseline = 'middle';
   for (const u of list) {
-    const x = u.x * S, y = u.y * S, big = u.id === 'kraken', r = (big ? 0.95 : 0.4) * S;
-    if (!u.alive) { g.globalAlpha = 0.25; g.font = r * 1.4 + 'px serif'; g.fillText('💀', x, y); g.globalAlpha = 1; continue; }
-    g.fillStyle = u.team === 'p' ? '#2c8fe8' : '#d23d44';
-    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
-    g.lineWidth = 2; g.strokeStyle = u.flash > 0 ? '#fff' : ROLE_COLOR[u.def.role]; g.stroke();
-    g.font = r * 1.25 + 'px serif'; g.fillStyle = '#fff'; g.fillText(u.def.icon, x, y + 1);
-    const bw = r * 2.2, f = u.hp / u.maxHp;
-    g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - r - 7, bw, 4);
-    g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - r - 7, bw * f, 4);
+    const x = u.x * S, y = u.y * S;
+    // heading: face the nearest enemy; ships that moved leave a wake
+    if (u.alive) {
+      let tg = null, bd = 1e9;
+      for (const o of live) if (o.team !== u.team) { const d = Math.hypot(o.x - u.x, o.y - u.y); if (d < bd) { bd = d; tg = o; } }
+      const want = tg ? Math.atan2(tg.x - u.x, -(tg.y - u.y)) : (u.team === 'p' ? 0 : Math.PI);
+      if (u.ang == null) u.ang = want;
+      let df = want - u.ang; df = Math.atan2(Math.sin(df), Math.cos(df)); u.ang += df * 0.12;
+      const moved = u.lx != null && Math.hypot(u.x - u.lx, u.y - u.ly) > 0.004;
+      u.lx = u.x; u.ly = u.y;
+      if (moved) {
+        g.strokeStyle = '#ffffff40'; g.lineWidth = 2;
+        for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(x - Math.sin(u.ang) * 0 + sd * 6 * Math.cos(u.ang), y + sd * 6 * Math.sin(u.ang)); g.lineTo(x - Math.sin(u.ang) * 22 + sd * 9 * Math.cos(u.ang), y + Math.cos(u.ang) * 22 + sd * 9 * Math.sin(u.ang)); g.stroke(); }
+      }
+      if (u.flash > 0) { g.shadowColor = '#fff'; g.shadowBlur = 14; }
+      drawShip(g, u.def, u.team, x, y, S * 1.15, u.ang);
+      g.shadowColor = 'transparent'; g.shadowBlur = 0;
+      const bw = 30, f = u.hp / u.maxHp;
+      g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - S * 0.9, bw, 4);
+      g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - S * 0.9, bw * f, 4);
+      g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - S * 0.9 - 5);
+    } else {
+      g.globalAlpha = 0.28; drawShip(g, u.def, u.team, x, y, S * 1.15, (u.ang || 0) + 0.5); g.globalAlpha = 1;
+      g.font = '14px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('💀', x, y);
+    }
   }
-  // effects
   for (const e of fx) {
     const p = e.t / 0.45;
     if (e.k === 'boom') {
@@ -388,42 +543,44 @@ function draw(t) {
     }
   }
 }
-function ship(g, y0, y1, c1, c2, top) {
-  const s = S, a = y0 * s, b = y1 * s, w = cv.width;
-  g.fillStyle = c1; g.beginPath();
+function ship(g, y0, y1, top) {
+  const a = y0 * S, b = y1 * S, w = cv.width;
+  g.fillStyle = '#5a3b22'; g.beginPath();
   if (top) { g.moveTo(0, a); g.lineTo(w, a); g.lineTo(w - 10, b - 14); g.quadraticCurveTo(w / 2, b + 24, 10, b - 14); }
   else { g.moveTo(0, b); g.lineTo(w, b); g.lineTo(w - 10, a + 14); g.quadraticCurveTo(w / 2, a - 24, 10, a + 14); }
   g.closePath(); g.fill();
-  g.strokeStyle = c2; g.lineWidth = 2;
+  g.strokeStyle = '#3a2514'; g.lineWidth = 2;
   for (let y = a + 20; y < b - 10; y += 22) { g.beginPath(); g.moveTo(8, y); g.lineTo(w - 8, y); g.stroke(); }
 }
 
-// ---------- battle end ----------
+// ---------- round / match end ----------
 function modal(html) { $('modal').innerHTML = html; $('overlay').classList.add('on'); }
 const closeModal = () => $('overlay').classList.remove('on');
 function endBattle() {
-  const survivors = B.units.filter(u => u.team === 'p' && u.alive);
-  if (B.winner === 'p') {
-    const reward = 25 + G.wave * 5; G.earned += reward;
-    G.army = survivors.map(u => ({ uid: u.srcUid, id: u.id, hp: Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * HEAL)), maxHp: u.maxHp }));
-    const lost = B.units.filter(u => u.team === 'p').length - survivors.length;
-    if (G.wave === WAVES) {
-      const bonus = 150; G.earned += bonus; save.gold += G.earned; save.wins++; persist();
-      modal(`<h2>🏆 VICTORY!</h2><p>The Kraken Captain is slain.</p><p class="gold">+🪙${G.earned} earned</p><button class="primary" id="mOk">Back to Port</button>`);
-      $('mOk').onclick = () => { closeModal(); renderHome(); };
-    } else {
-      modal(`<h2>Wave ${G.wave} cleared!</h2><p>${survivors.length} survived · ${lost} lost</p>
-        <div class="chips">${G.army.map(u => chipHTML(u.id, u.hp / u.maxHp)).join('')}</div>
-        <p>Survivors heal ${HEAL * 100}% and stay aboard.<br>New budget: <b class="gold">★${BUDGET}</b></p>
-        <button class="primary" id="mOk">Reinforce → Wave ${G.wave + 1}</button>`);
-      $('mOk').onclick = () => { closeModal(); G.wave++; startDraft(); };
-    }
-  } else {
-    save.gold += G.earned; persist();
-    modal(`<h2>💀 Defeated</h2><p>Your fleet sank on ${G.wave === WAVES ? 'the Boss wave' : 'wave ' + G.wave}.</p><p class="gold">+🪙${G.earned} earned</p>
-      <p>Tip: unlock stronger units and rebalance your deck.</p><button class="primary" id="mOk">Back to Port</button>`);
-    $('mOk').onclick = () => { closeModal(); renderHome(); };
+  const surv = team => B.units.filter(u => u.team === team && u.alive)
+    .map(u => ({ uid: u.srcUid, id: u.id, hp: Math.min(u.maxHp, Math.ceil(u.hp + u.maxHp * HEAL)), maxHp: u.maxHp }));
+  const iWon = B.winner === 'p';
+  if (iWon) { G.wins++; G.army = surv('p'); O.army = []; } else { G.losses++; O.army = surv('e'); G.army = []; }
+  const done = G.wins >= WIN_ROUNDS || G.losses >= WIN_ROUNDS;
+  const score = `${esc(save.name)} <b class="gold">${G.wins}</b> – <b class="gold">${G.losses}</b> ${esc(O.name)}`;
+  const kept = (iWon ? G.army : O.army).length;
+  if (!done) {
+    modal(`<h2>${iWon ? '✅ Round senin!' : '❌ Round rakibin'}</h2><p>${score}</p>
+      <p>${iWon ? `${kept} askerin hayatta kaldı ve gemide kalıyor. Rakibin ordusu yok oldu.` : `Ordun yok oldu. ${esc(O.name)} ${kept} askerle devam ediyor.`}</p>
+      <p>Yeni bütçe: <b class="gold">★${BUDGET}</b></p>
+      <button class="primary" id="mOk">Sonraki round →</button>`);
+    $('mOk').onclick = () => { closeModal(); G.round++; startRound(); };
+    return;
   }
+  const win = G.wins > G.losses;
+  const gold = (win ? 100 : 0) + 20 * G.wins, dT = win ? 25 : -15;
+  const before = save.trophies; save.trophies = Math.max(0, save.trophies + dT); save.gold += gold; if (win) save.wins++; persist();
+  modal(`<h2>${win ? '🏆 ZAFER!' : '💀 Yenilgi'}</h2><p>${score}</p>
+    <p class="gold">${save.trophies - before >= 0 ? '+' : ''}${save.trophies - before} 🏆 · +🪙${gold}</p>
+    <p>${win ? esc(O.name) + ' filosu batırıldı.' : 'Desteni güçlendirip tekrar dene.'}</p>
+    <button class="primary" id="mOk">Limana dön</button><button id="mAgain" style="margin-top:8px">⚔ Yeni rakip</button>`);
+  $('mOk').onclick = () => { closeModal(); renderHome(); };
+  $('mAgain').onclick = () => { closeModal(); $('btnSail').click(); };
 }
 
 renderHome();
