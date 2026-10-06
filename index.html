@@ -256,7 +256,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 'use strict';
 const { UNITS, ORDER, STARTER, BUDGETS, ROUNDS, WIN_ROUNDS, W, H } = SIM;
 const MAXB = BUDGETS[BUDGETS.length - 1];
-const ROLE_COLOR = { Melee: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
+const ROLE_COLOR = { Gunboat: '#e0554f', Archer: '#4cc46a', Bomber: '#f0903a', Artillery: '#a56bff', Elite: '#ffd34d' };
 const DECK_MIN = 3, DECK_MAX = 5, COPY_MAX = 1, HEAL = 0.4, REVIVE = 0.5;
 const NAMES = ['Kaptan_Kara', 'xX_Barbaros_Xx', 'DeniZ', 'SeaWolf92', 'Poseidon_TR', 'Reis_Piri', 'NightRaider', 'Mavi_Kurt', 'StormBreaker', 'AnchorMan', 'Ege_Kaplan', 'CaptainMia', 'SkullJack', 'Marina', 'Tsunami', 'IronTide', 'Albatros', 'Korsan_Ali', 'LadyKraken', 'BlackSail'];
 const AVATARS = ['☠️', '🐺', '🦈', '🐙', '🦅', '🔱', '🌊', '🦑'];
@@ -267,7 +267,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
 
 // ---------- 2D ship art (procedural, drawn on canvas) ----------
-const HULL = { Melee: '#8a4a2a', Archer: '#5d7a3c', Bomber: '#a4602a', Artillery: '#5b4a82', Elite: '#7a6420' };
+const HULL = { Gunboat: '#8a4a2a', Archer: '#5d7a3c', Bomber: '#a4602a', Artillery: '#5b4a82', Elite: '#7a6420' };
 const TEAM = { p: '#35a7ff', e: '#ff5a5f' };
 function hullPath(g, hl, hw) {
   g.beginPath(); g.moveTo(0, -hl);
@@ -284,7 +284,7 @@ function drawShip(g, def, team, x, y, s, ang) {
   g.lineWidth = Math.max(1.5, s * 0.06); g.strokeStyle = role === 'Elite' ? '#ffd34d' : tc; g.stroke();
   g.save(); g.scale(0.7, 0.8); g.translate(0, hl * 0.06); hullPath(g, hl, hw); g.fillStyle = '#c99c62'; g.fill(); g.restore();
   // role equipment
-  if (role === 'Melee' || role === 'Elite' && def.range < 2) {
+  if (def.front) {
     g.fillStyle = '#c9ced6'; g.beginPath(); g.moveTo(-hw * 0.28, -hl * 0.88); g.lineTo(0, -hl * 1.16); g.lineTo(hw * 0.28, -hl * 0.88); g.fill(); // ram
     const sh = def.id === 'guard' ? 5 : def.id === 'captain' ? 4 : 2;
     for (let i = 0; i < sh; i++) for (const sd of [-1, 1]) { g.fillStyle = i % 2 ? '#d8dde6' : tc; g.beginPath(); g.arc(sd * hw * 0.62, -hl * 0.2 + i * hl * (1.0 / sh) * 0.9, hw * 0.17, 0, 7); g.fill(); }
@@ -592,6 +592,10 @@ function sfx(name) {
     case 'arrow': noise(0.07, 'bandpass', 2200, 1, 0.05); break;
     case 'longarrow': noise(0.1, 'bandpass', 1800, 1, 0.06, 900); break;
     case 'bullet': noise(0.05, 'highpass', 3000, 0.5, 0.12); tone(900, 200, 0.08, 0.05, 'square'); break;
+    case 'pistol': noise(0.05, 'highpass', 2500, 0.5, 0.1); tone(700, 150, 0.06, 0.05, 'square'); break;
+    case 'scatter': noise(0.15, 'bandpass', 900, 0.7, 0.16); tone(180, 60, 0.12, 0.14); break;
+    case 'swivel': tone(150, 60, 0.12, 0.14); noise(0.1, 'lowpass', 700, 0.8, 0.1); break;
+    case 'flintlock': noise(0.08, 'highpass', 2000, 0.5, 0.14); tone(500, 120, 0.1, 0.08, 'square'); break;
     case 'bomb': case 'grenade': noise(0.1, 'lowpass', 500, 0.8, 0.08); break;
     case 'comet': noise(0.3, 'bandpass', 500, 0.7, 0.1, 1800); break;
     case 'ball': tone(120, 40, 0.25, 0.22); noise(0.2, 'lowpass', 600, 0.8, 0.16); break;
@@ -671,9 +675,10 @@ function handleEvent(e) {
   if (e.k === 'muzzle') {
     const u = unitOf(e.uid);
     const dx = e.tx - e.x, dy = e.ty - e.y, L = Math.hypot(dx, dy) || 1;
-    const rec = { ball: 0.28, shell: 0.5, comet: 0.2, bomb: 0.1, grenade: 0.1, bullet: 0.12, bash: 0.1, saber: 0.08 }[e.shot] || 0.04;
+    const rec = { ball: 0.28, shell: 0.5, comet: 0.2, bomb: 0.1, grenade: 0.1, bullet: 0.12, pistol: 0.05, scatter: 0.2, swivel: 0.12, flintlock: 0.12 }[e.shot] || 0.04;
     if (u) { u.kx = (u.kx || 0) - dx / L * rec; u.ky = (u.ky || 0) - dy / L * rec; } // recoil
     if (e.shot === 'ball' || e.shot === 'shell') { burst(x + dx / L * S * 0.6, y + dy / L * S * 0.6, e.shot === 'shell' ? 9 : 6, { dir: Math.atan2(dy, dx), spread: 0.5, v0: 40, v1: 120, l0: 0.5, l1: 1.0, r0: 3, r1: 6, col: SMOKE, k: 'smoke', grow: 1.4 }); B.shake = Math.max(B.shake || 0, e.shot === 'shell' ? 3 : 1.5); }
+    if (e.shot === 'scatter' || e.shot === 'swivel') burst(x + dx / L * S * 0.6, y + dy / L * S * 0.6, 4, { dir: Math.atan2(dy, dx), spread: 0.5, v0: 30, v1: 80, l0: 0.4, l1: 0.7, r0: 2.5, r1: 4.5, col: SMOKE, k: 'smoke', grow: 1.3 });
     sfx(e.shot);
   } else if (e.k === 'melee') {
     burst(x, y, 6, { v0: 40, v1: 120, l0: 0.15, l1: 0.35, r0: 1, r1: 2, col: e.shot === 'saber' ? ['#ffe9a0', '#ffd34d'] : ['#fff', '#cfd6e0'] });
@@ -782,6 +787,10 @@ function draw(t) {
     const tr = (n, step, col, r0, a0) => { for (let k = 1; k <= n; k++) { const [tx, ty] = at(p, Math.max(0, f - k * step)); dot(tx * S, ty * S, r0 * (1 - k / (n + 1)), col, a0 * (1 - k / (n + 1))); } };
     const line = (len, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(x, y); g.lineTo(x - ux * len, y - uy * len); g.stroke(); };
     switch (p.shot) {
+      case 'pistol': line(14, '#ffe9a0', 2); dot(x, y, 2.2, '#fff', 1); break;
+      case 'scatter': for (let q = -1; q <= 1; q++) { const o = q * (2 + f * 9); dot(x - uy * o, y + ux * o, 1.8, '#ddd', 1); } line(8, '#aaa', 1.2); break;
+      case 'swivel': dot(x, y, 3.3, '#2b2b30', 1); dot(x - 1, y - 1, 1, '#999', 1); line(8, '#aaa', 1.5); break;
+      case 'flintlock': line(20, '#ffd34d', 2.8); dot(x, y, 3.2, '#fff6c8', 1); break;
       case 'arrow': line(10, '#f1e3b0', 1.6); dot(x, y, 1.6, '#fff', 1); break;
       case 'longarrow': line(16, '#ffffff', 2); line(4, '#9be28f', 3); dot(x, y, 2, '#fff', 1); break;
       case 'bullet': line(30, '#ffe27a', 2.2); dot(x, y, 3.5, '#fff6c8', 0.9); break;
@@ -803,6 +812,7 @@ function draw(t) {
       else if (e.shot === 'comet') { g.strokeStyle = `rgba(255,170,60,${a})`; g.lineWidth = 3; g.beginPath(); g.arc(mx, my, 4 + 10 * p, 0, 7); g.stroke(); }
       else if (e.shot === 'bomb' || e.shot === 'grenade') dot(mx, my, 3 + 5 * p, '#ddd', 0.5 * a);
       else if (e.shot === 'arrow' || e.shot === 'longarrow') dot(mx, my, 2 + 2 * p, '#fff', 0.6 * a);
+      else if (e.shot === 'pistol' || e.shot === 'scatter' || e.shot === 'swivel' || e.shot === 'flintlock') { const r0 = { pistol: 5, scatter: 10, swivel: 7, flintlock: 8 }[e.shot]; dot(mx, my, r0 * (1 - p * 0.5), e.shot === 'flintlock' ? '#ffd34d' : '#ffd88a', 0.9 * a); dot(mx + dx / L * 8 * p, my + dy / L * 8 * p, r0 * 0.5 + 6 * p, '#bbb', 0.45 * a); }
     } else if (e.k === 'melee') {
       g.lineCap = 'round';
       if (e.shot === 'bash') { g.strokeStyle = `rgba(170,210,255,${a})`; g.lineWidth = 5 * a + 1; g.beginPath(); g.arc(x, y, 6 + 18 * p, 0, 7); g.stroke(); }

@@ -4,22 +4,23 @@
 
   // cost = Star cost. Power grows faster than linearly with cost.
   const UNITS = {
-    deckhand:  { id: 'deckhand',  name: 'Deckhand',      icon: '🗡️', role: 'Melee',     cost: 3, hp: 70,  dmg: 9,  range: 1.3, spd: 2.2, cd: 0.8, aoe: 0,   price: 0,   desc: 'Cheap, reliable frontliner.' },
-    raider:    { id: 'raider',    name: 'Cutlass Raider',icon: '⚔️', role: 'Melee',     cost: 4, hp: 100, dmg: 14, range: 1.3, spd: 2.3, cd: 0.8, aoe: 0,   price: 0,   desc: 'Fast and hard-hitting.' },
-    guard:     { id: 'guard',     name: 'Shield Guard',  icon: '🛡️', role: 'Melee',     cost: 5, hp: 210, dmg: 8,  range: 1.3, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Tanky wall. Soaks damage.' },
-    captain:   { id: 'captain',   name: 'Elite Captain', icon: '🏴‍☠️', role: 'Elite',     cost: 6, hp: 270, dmg: 22, range: 1.4, spd: 2.2, cd: 0.8, aoe: 0,   price: 290, desc: 'Elite duelist. Stronger than two cheap units.' },
-    archer:    { id: 'archer',    name: 'Archer',        icon: '🏹', role: 'Archer',    cost: 3, hp: 40,  dmg: 10, range: 5,   spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Ranged single-target damage.' },
-    longbow:   { id: 'longbow',   name: 'Longbow',       icon: '🎯', role: 'Archer',    cost: 4, hp: 55,  dmg: 18, range: 6.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 0,   desc: 'Longer range, harder hits.' },
-    sharp:     { id: 'sharp',     name: 'Sharpshooter',  icon: '🔫', role: 'Archer',    cost: 5, hp: 60,  dmg: 32, range: 7.5, spd: 1.8, cd: 1.4, aoe: 0,   price: 200, desc: 'Deadly sniper.' },
-    bomber:    { id: 'bomber',    name: 'Bomber',        icon: '💣', role: 'Bomber',    cost: 4, hp: 60,  dmg: 15, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Area damage vs groups.' },
-    grenadier: { id: 'grenadier', name: 'Grenadier',     icon: '🧨', role: 'Bomber',    cost: 5, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
-    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',  icon: '☄️', role: 'Elite',     cost: 6, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Elite AoE devastation.' },
-    cannon:    { id: 'cannon',    name: 'Cannon',        icon: '💥', role: 'Artillery', cost: 7, hp: 90, dmg: 46, range: 9,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Long-range explosive shells.' },
-    mortar:    { id: 'mortar',    name: 'Siege Mortar',  icon: '🌋', role: 'Artillery', cost: 8, hp: 115, dmg: 72, range: 12,  spd: 1.0, cd: 2.6, aoe: 2.5, price: 510, desc: 'Extreme range, enormous blast.' },
+    // Every ship shoots. Rule of thumb: the further it reaches, the less each shot hurts (front = leads the formation).
+    deckhand:  { id: 'deckhand',  name: 'Pistol Deckhand',   icon: '🗡️', role: 'Gunboat',   front: true, cost: 3, hp: 70,  dmg: 11, range: 3,   spd: 2.2, cd: 0.9, aoe: 0,   price: 0,   desc: 'Cheap brawler. Pistols hit hard up close.' },
+    raider:    { id: 'raider',    name: 'Blunderbuss Raider',icon: '⚔️', role: 'Gunboat',   front: true, cost: 4, hp: 100, dmg: 22, range: 2.5, spd: 2.3, cd: 1.2, aoe: 0,   price: 0,   desc: 'Shortest reach, heavy scatter blast.' },
+    guard:     { id: 'guard',     name: 'Shield Guard',      icon: '🛡️', role: 'Gunboat',   front: true, cost: 5, hp: 210, dmg: 12, range: 3.5, spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Armored wall with a swivel gun.' },
+    captain:   { id: 'captain',   name: 'Elite Captain',     icon: '🏴‍☠️', role: 'Elite',     front: true, cost: 6, hp: 270, dmg: 34, range: 4,   spd: 2.2, cd: 1.0, aoe: 0,   price: 290, desc: 'Elite duelist with a flintlock cannon.' },
+    archer:    { id: 'archer',    name: 'Archer',            icon: '🏹', role: 'Archer',    cost: 3, hp: 45,  dmg: 8,  range: 5,   spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Mid range, light arrows.' },
+    longbow:   { id: 'longbow',   name: 'Longbow',           icon: '🎯', role: 'Archer',    cost: 4, hp: 55,  dmg: 11, range: 6.5, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Long range, weaker arrows.' },
+    sharp:     { id: 'sharp',     name: 'Sharpshooter',      icon: '🔫', role: 'Archer',    cost: 5, hp: 60,  dmg: 18, range: 8.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 200, desc: 'Sniper. Longest reach, lighter bullets.' },
+    bomber:    { id: 'bomber',    name: 'Bomber',            icon: '💣', role: 'Bomber',    cost: 4, hp: 60,  dmg: 18, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Lobbed bombs, area damage.' },
+    grenadier: { id: 'grenadier', name: 'Grenadier',         icon: '🧨', role: 'Bomber',    cost: 5, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
+    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',      icon: '☄️', role: 'Elite',     cost: 6, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Fire comets. Elite area damage.' },
+    cannon:    { id: 'cannon',    name: 'Cannon',            icon: '💥', role: 'Artillery', cost: 7, hp: 90,  dmg: 56, range: 8,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Heavy shells from afar.' },
+    mortar:    { id: 'mortar',    name: 'Siege Mortar',      icon: '🌋', role: 'Artillery', cost: 8, hp: 125, dmg: 52, range: 11,  spd: 1.0, cd: 2.4, aoe: 3.0, price: 510, desc: 'Extreme range, huge blast, lighter hit.' },
   };
   // Every unit has its own attack. spd = projectile speed in tiles/s (none = instant melee), arc = lob height in tiles.
   const SHOTS = {
-    deckhand: { k: 'slash' }, raider: { k: 'slash2' }, guard: { k: 'bash' }, captain: { k: 'saber' },
+    deckhand: { k: 'pistol', spd: 22, arc: 0 }, raider: { k: 'scatter', spd: 16, arc: 0 }, guard: { k: 'swivel', spd: 14, arc: 0.2 }, captain: { k: 'flintlock', spd: 26, arc: 0 },
     archer: { k: 'arrow', spd: 11, arc: 0.4 }, longbow: { k: 'longarrow', spd: 15, arc: 0.6 }, sharp: { k: 'bullet', spd: 34, arc: 0 },
     bomber: { k: 'bomb', spd: 6, arc: 1.3 }, grenadier: { k: 'grenade', spd: 7, arc: 1.1 }, elitebomb: { k: 'comet', spd: 9, arc: 1.8 },
     cannon: { k: 'ball', spd: 15, arc: 1.2 }, mortar: { k: 'shell', spd: 9, arc: 3.2 },
@@ -83,7 +84,7 @@
   function createBattle(players, enemies) {
     const units = [];
     // Fleets start at the screen edges: yours at the bottom, the rival's at the top.
-    // Melee leads (closest to the middle), then archers/bombers, artillery at the back.
+    // Gunboats lead (closest to the middle), then archers/bombers, artillery at the back.
     const place = (list, team) => {
       const rows = formationRows(list);
       rows.forEach((row, ri) => row.forEach((u, i) => {
@@ -101,7 +102,7 @@
 
   // Splits ships (anything with .def) into formation rows: melee first, artillery last, up to 8 per row.
   function formationRows(list) {
-    const rank = d => (d.role === 'Melee' || d.role === 'Elite' && d.range < 2) ? 0 : d.role === 'Artillery' ? 2 : 1;
+    const rank = d => d.front ? 0 : d.role === 'Artillery' ? 2 : 1;
     const rows = [];
     for (let g = 0; g < 3; g++) {
       const grp = list.filter(u => rank(u.def) === g);
