@@ -47,14 +47,9 @@ h1{margin:0 0 2px;font-size:clamp(26px,5vw,48px);letter-spacing:.06em;text-trans
 
 <div id="menu" class="screen on">
   <h1>Magnet Tanks</h1>
-  <p class="sub">Turn-based 1v1 tank duel. Your tracks are magnetic — climb walls, cross ceilings, burrow through tunnels, then pull back the slingshot and fire.</p>
+  <p class="sub">Turn-based 1v1 tank duel against the computer. Your tracks are magnetic — climb walls, cross ceilings, burrow through tunnels, then pull back the slingshot and fire.</p>
   <div class="lbl">Arena</div>
   <div class="row" id="mapRow"></div>
-  <div class="lbl">Mode</div>
-  <div class="row">
-    <button class="opt sel" id="mPvp"><b>2 Players</b><small>Pass &amp; play, same screen</small></button>
-    <button class="opt" id="mAi"><b>vs Computer</b><small>Practice against a simple AI</small></button>
-  </div>
   <div class="lbl">Turn timer</div>
   <div class="row" id="timeRow">
     <button class="opt" data-t="20"><b>20s</b></button><button class="opt sel" data-t="30"><b>30s</b></button><button class="opt" data-t="45"><b>45s</b></button>
@@ -64,7 +59,7 @@ h1{margin:0 0 2px;font-size:clamp(26px,5vw,48px);letter-spacing:.06em;text-trans
 </div>
 
 <div id="draft" class="screen">
-  <h1 style="font-size:clamp(20px,3.4vw,32px)" id="dTitle">Player 1 — pick 4 tanks</h1>
+  <h1 style="font-size:clamp(20px,3.4vw,32px)" id="dTitle">Pick your 4 tanks</h1>
   <p class="sub">Four different tanks per team. Mix long-range, brawlers and utility — you can switch between them every turn.</p>
   <div id="grid"></div>
   <div id="picked"></div>
@@ -75,7 +70,7 @@ h1{margin:0 0 2px;font-size:clamp(26px,5vw,48px);letter-spacing:.06em;text-trans
 </div>
 
 <div id="over" class="screen" style="background:#0a0e18cc">
-  <h1 id="oTitle">Player 1 wins!</h1>
+  <h1 id="oTitle">You win!</h1>
   <p class="sub" id="oSub"></p>
   <div class="row"><button class="btn" id="oAgain">Rematch (same teams)</button><button class="btn alt" id="oMenu">Main menu</button></div>
 </div>
@@ -115,7 +110,7 @@ const TANKS=[
   wpn:{kind:'burst',name:'Rapid Fire',dmg:13,r:27,crater:.6,knock:100,n:7,gap:.09,spread:.045},
   abil:{name:'Adrenaline',desc:'+30 fuel while below half health.'}},
  {id:'mortar',name:'Howitzer',role:'Mortar',hp:95,speed:90,eff:2.2,vmax:830,grav:1,color:'#9d8cff',minElev:50,
-  st:[3,4,3,2],look:{w:18,h:11,dome:8,len:13,bw:9,tr:7},
+  st:[3,4,3,2],look:{w:18,h:16,dome:8,len:13,bw:9,tr:7},
   wpn:{kind:'shell',name:'Mortar (high arc only)',dmg:54,r:64,crater:1.5,knock:300,big:true},
   abil:{name:'Bunker Buster',desc:'Craters are 50% wider; must lob at 50°+ above its surface.'}},
  {id:'shover',name:'Shover',role:'Knockback',hp:110,speed:100,eff:2.4,vmax:800,grav:1,color:'#4dd0c8',
@@ -135,6 +130,9 @@ const TANKS=[
   wpn:{kind:'spread',name:'Triple Shot',dmg:24,r:30,crater:.7,knock:150,n:3,spread:.075},
   abil:{name:'Magnet Boost',desc:'Wall and ceiling driving costs half the fuel.'}},
 ];
+const SC={ranger:1,sniper:.88,behemoth:1.55,cluster:1.05,gatling:.95,mortar:1.25,shover:1.2,bouncer:1,driller:1.1,scout:.75};
+const SHAPE={sniper:'wedge',scout:'wedge',behemoth:'heavy',bouncer:'round',mortar:'tall',shover:'wedge'};
+TANKS.forEach(d=>{d.sc=SC[d.id];d.look.shape=SHAPE[d.id]||'box'});
 const TBY={};TANKS.forEach(t=>TBY[t.id]=t);
 
 /* ------------------------------------------------------------------- maps */
@@ -253,7 +251,7 @@ function tankClear(t,ox,oy){
   for(const o of S.tanks){
     if(o===t||!o.alive)continue;
     const dn=hyp(o.x-t.x,o.y-t.y);
-    if(dn<2*R-3&&dn<hyp(o.x-ox,o.y-oy))return false;
+    if(dn<t.hr+o.hr-3&&dn<hyp(o.x-ox,o.y-oy))return false;
   }
   return true;
 }
@@ -282,40 +280,59 @@ function spawnOn(t,x,y,d){
   t.x=x+dir[0]*(k-R);t.y=y+dir[1]*(k-R);t.n={x:-dir[0],y:-dir[1]};snap(t,t.n);
 }
 /* ----------------------------------------------------------------- state */
-let S=null; const opt={map:0,mode:'pvp',time:30,teams:[[],[]]};
+let S=null; const opt={map:0,mode:'ai',time:30,teams:[[],[]]};
 const alive=p=>S.tanks.filter(t=>t.alive&&t.owner===p);
 function makeTank(owner,slot,id,sp){
   const def=TBY[id],t={owner,slot,def,hp:def.hp,maxHp:def.hp,alive:true,x:0,y:0,n:{x:0,y:-1},ang:0,fuel:0,fly:false,vx:0,vy:0,
-    aimDir:{x:owner?-.6:.6,y:-.8},aimPow:.6,flash:0,hover:0};
-  spawnOn(t,sp.x,sp.y,sp.d);t.ang=Math.atan2(t.n.x,-t.n.y);return t;
+    hr:Math.max(12,R*def.sc),aimDir:{x:owner?-.6:.6,y:-.8},aimPow:.6,flash:0,hover:0};
+  t.x=sp.x;t.y=sp.y;t.n=sp.n;t.ang=Math.atan2(t.n.x,-t.n.y);return t;
+}
+function inHazard(x,y,pad){for(const h of curMap.hazards)if(x>h[0]-pad&&x<h[0]+h[2]+pad&&y>h[1]-pad&&y<h[1]+h[3]+pad)return true;return false}
+/* random surface positions for all 8 tanks: each team spread out, enemies not on top of each other */
+function pickSpawns(){
+  const pts=[],teams=[0,0,0,0,1,1,1,1].sort(()=>rnd()-.5),V={d:[0,1],u:[0,-1],l:[-1,0],r:[1,0]},dk=['d','u','l','r'];
+  let same=400,diff=250,tries=0;
+  while(pts.length<8){
+    if(++tries%400===0){same*=.85;diff*=.85}
+    const team=teams[pts.length],x=BORDER+40+rnd()*(W-2*BORDER-80),y=BORDER+40+rnd()*(H-2*BORDER-80);
+    if(solid(x,y))continue;
+    const v=V[dk[Math.floor(rnd()*4)]];let k=0;while(k<300&&!solid(x+v[0]*k,y+v[1]*k))k++;
+    if(k>=300)continue;
+    const q={x:x+v[0]*(k-R),y:y+v[1]*(k-R),n:{x:-v[0],y:-v[1]}};
+    if(!snap(q,q.n)||solid(q.x,q.y)||inHazard(q.x,q.y,30))continue;
+    const r=nearest(q.x,q.y,R+3,null);if(!r||Math.abs(r.d-R)>2)continue;
+    if(rayDist(q.x,q.y,q.n.x,q.n.y,60)<60)continue; // needs headroom
+    if(pts.some(p=>hyp(p.x-q.x,p.y-q.y)<(p.team===team?same:diff)))continue;
+    pts.push({x:q.x,y:q.y,n:q.n,team});
+  }
+  return pts;
 }
 function newMatch(){
   const m=MAPS[opt.map];buildMap(m);
   S={map:m,tanks:[],turn:0,phase:'play',timer:opt.time,sel:null,locked:false,drag:null,aimShow:false,
     projs:[],burst:null,blasts:[],parts:[],floats:[],rings:[],shake:0,settle:0,stage:0,winner:-1,
     banner:{text:'',t:0},ai:null,count:0,hint:0,follow:null,hold:null,time:0};
-  for(let p=0;p<2;p++)for(let i=0;i<4;i++){
-    const sp=m.spawns[i],q=p?{x:W-sp.x,y:sp.y,d:{l:'r',r:'l',u:'u',d:'d'}[sp.d]}:sp;
-    S.tanks.push(makeTank(p,i,opt.teams[p][i],q));
-  }
+  const sp=pickSpawns(),cnt=[0,0];
+  for(const q of sp){S.tanks.push(makeTank(q.team,cnt[q.team],opt.teams[q.team][cnt[q.team]],q));cnt[q.team]++}
   for(const t of S.tanks)faceEnemy(t);
   startTurn(0);
 }
 function faceEnemy(t){
-  const T={x:-t.n.y,y:t.n.x},sg=(t.owner?-1:1)*(T.x>=0?1:-1)*(Math.abs(T.x)<.2?1:1);
+  const T={x:-t.n.y,y:t.n.x},foe=S.tanks.filter(o=>o.owner!==t.owner).sort((a,b)=>hyp(a.x-t.x,a.y-t.y)-hyp(b.x-t.x,b.y-t.y))[0];
+  const sg=((foe.x-t.x)*T.x+(foe.y-t.y)*T.y)>=0?1:-1;
   const d=norm({x:t.n.x*.6+T.x*sg*.8,y:t.n.y*.6+T.y*sg*.8});t.aimDir=d;
 }
 const norm=v=>{const l=hyp(v.x,v.y)||1;return{x:v.x/l,y:v.y/l}};
-function isAI(){return opt.mode==='ai'&&S.turn===1}
+function isAI(){return S.turn===1}
 function startTurn(p){
   S.turn=p;S.phase='play';S.timer=opt.time;S.sel=null;S.locked=false;S.drag=null;S.aimShow=false;S.follow=null;S.hold=null;S.stage=0;
-  S.banner={text:(opt.mode==='ai'&&p===1?'COMPUTER':'PLAYER '+(p+1))+"'S TURN",t:1.6,col:P_COL[p]};
+  S.banner={text:p===1?"COMPUTER'S TURN":'YOUR TURN',t:1.6,col:P_COL[p]};
   S.ai=isAI()?{stage:0,t:0,plan:null,moved:false,mv:0,sg:1}:null;
   const a=alive(p);if(a.length===1)select(a[0],true);
 }
 function select(t,auto){
   if(S.locked||!t.alive||t.owner!==S.turn)return;
-  S.sel=t;t.fuel=100+((t.def.id==='gatling'&&t.hp<t.maxHp/2)?30:0);t.fuelMax=t.fuel;
+  S.tip={t,t0:S.time};S.sel=t;t.fuel=100+((t.def.id==='gatling'&&t.hp<t.maxHp/2)?30:0);t.fuelMax=t.fuel;
   if(!auto)sfx('click');
 }
 function lock(){
@@ -323,7 +340,9 @@ function lock(){
   if(t.def.id==='ranger'&&t.hp<t.maxHp){const h=Math.min(12,t.maxHp-t.hp);t.hp+=h;floatText(t.x,t.y-34,'+'+h,'#58e08a')}
 }
 /* ----------------------------------------------------------------- aiming */
-function pivotOf(t){const k=t.def.look;return{x:t.x+t.n.x*(k.h-9),y:t.y+t.n.y*(k.h-9)}}
+function pivotOff(def){const k=def.look,hy=R-k.tr-k.h+3;return R+(hy-R)*def.sc}
+function pivotOf(t){const o=pivotOff(t.def);return{x:t.x-t.n.x*o,y:t.y-t.n.y*o}}
+const muzzleLen=t=>t.def.look.len*t.def.sc+2;
 function clampAim(t,dir){
   const el=t.def.minElev?Math.sin(t.def.minElev*Math.PI/180):-.12;
   const n=t.n,T={x:-n.y,y:n.x};
@@ -333,15 +352,15 @@ function clampAim(t,dir){
 }
 const SPEED=(t,p)=>t.def.vmax*(.14+.86*p);
 function simShot(t,dir,pow,maxT,pts){
-  const pv=pivotOf(t),L=t.def.look.len+2,sp=SPEED(t,pow);
+  const pv=pivotOf(t),L=muzzleLen(t),sp=SPEED(t,pow);
   let x=pv.x+dir.x*L,y=pv.y+dir.y*L,vx=dir.x*sp,vy=dir.y*sp,age=0,acc=0;
-  const g=G*t.def.grav,foes=S.tanks.filter(o=>o.alive);
+  const g=G*t.def.grav,foes=S.tanks.filter(o=>o.alive&&o.owner!==t.owner);
   while(age<maxT){
     const v=hyp(vx,vy),h=clamp(4/(v||1),.002,.03);
     vy+=g*h;x+=vx*h;y+=vy*h;age+=h;
     if(pts){acc+=v*h;if(acc>=13){acc=0;pts.push([x,y])}}
     if(solid(x,y))return{x,y,hit:null,t:age};
-    for(const o of foes){if(o===t&&age<.15)continue;if(hyp(o.x-x,o.y-y)<R+3)return{x,y,hit:o,t:age}}
+    for(const o of foes){if(hyp(o.x-x,o.y-y)<o.hr+3)return{x,y,hit:o,t:age}}
   }
   return{x,y,hit:null,t:age};
 }
@@ -359,7 +378,7 @@ function fire(t){
   if(S.phase!=='play')return;
   lock();
   const d=t.def,w=d.wpn,dir=clampAim(t,t.aimDir),pow=Math.max(.08,t.aimPow),sp=SPEED(t,pow),pv=pivotOf(t);
-  const mx=pv.x+dir.x*(d.look.len+2),my=pv.y+dir.y*(d.look.len+2);
+  const mx=pv.x+dir.x*muzzleLen(t),my=pv.y+dir.y*muzzleLen(t);
   S.phase='flight';S.aimShow=false;S.drag=null;S.count++;S.settle=0;S.stage=0;
   sfx('fire');S.shake=Math.max(S.shake,3);
   const launch=(ang,extra)=>{const c=Math.cos(ang),s=Math.sin(ang),dx=dir.x*c-dir.y*s,dy=dir.x*s+dir.y*c;
@@ -379,8 +398,6 @@ function autoShot(t,noise){ // brute-force best aim: used by AI and by timer-exp
     for(let p=.25;p<=1.001;p+=.0625){
       const r=simShot(t,dir,p,t.def.preview||6,null);
       let e=1e9;for(const f of foes)e=Math.min(e,hyp(f.x-r.x,f.y-r.y));
-      for(const m of mine){const d=hyp(m.x-r.x,m.y-r.y);if(d<t.def.wpn.r+R)e+=240}
-      if(hyp(t.x-r.x,t.y-r.y)<t.def.wpn.r+R+12)e+=300;
       if(!best||e<best.err)best={dir,pow:p,err:e};
     }
   }
@@ -410,7 +427,7 @@ function damageTank(t,amt,src){
 function explode(x,y,w,src,direct,opts){
   opts=opts||{};
   sfx('boom',clamp(w.r/80,.3,1));S.shake=Math.max(S.shake,clamp(w.r/9,3,12));
-  const cr=w.r*(w.crater||1)*(src&&src.def&&src.def.id==='mortar'&&!opts.death?1:1);
+  const cr=w.r*(w.crater||1)*1.3;
   carve(x,y,cr);
   S.rings.push({x,y,r:w.r,t:.35,max:.35});
   const n=Math.round(10+w.r/3);
@@ -418,7 +435,8 @@ function explode(x,y,w,src,direct,opts){
     S.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,life:.5+rnd()*.5,max:1,size:3+rnd()*(w.r/10+3),col:['#ffdd77','#ff9d3d','#ff5a2a','#5b4a40'][i%4],g:200})}
   for(const t of S.tanks){
     if(!t.alive)continue;
-    const d=hyp(t.x-x,t.y-y),e=Math.max(0,d-R);if(e>=w.r)continue;
+    if(src&&src.owner===t.owner)continue; // no friendly fire (incl. self)
+    const d=hyp(t.x-x,t.y-y),e=Math.max(0,d-t.hr);if(e>=w.r)continue;
     const f=direct===t?1:1-e/w.r;
     let dmg=w.dmg*(.35+.65*f);
     if(src&&src.def&&!opts.death){
@@ -474,8 +492,8 @@ function stepProj(p,dt){
     const px=p.x,py=p.y;p.x+=p.vx*h;p.y+=p.vy*h;
     if(p.x<BORDER-4||p.x>W-BORDER+4||p.y>H||p.y<-200){p.dead=true;if(p.y<=H)explode(clamp(p.x,BORDER,W-BORDER),clamp(p.y,BORDER,H-BORDER),p.w,p.owner);break}
     for(const t of S.tanks){
-      if(!t.alive||(t===p.owner&&p.age<.15))continue;
-      if(hyp(t.x-p.x,t.y-p.y)<R+2){p.dead=true;explode(p.x,p.y,p.w,p.owner,t);return}
+      if(!t.alive||t.owner===p.owner.owner)continue;
+      if(hyp(t.x-p.x,t.y-p.y)<t.hr+2){p.dead=true;explode(p.x,p.y,p.w,p.owner,t);return}
     }
     if(p.kind==='drill'&&p.drilling){
       carve(p.x,p.y,7);p.drillLeft-=sp*h;
@@ -589,7 +607,7 @@ function update(dt){
       const b=S.burst;b.timer-=dt;
       while(b.timer<=0&&b.left>0){
         const a=(rnd()-.5)*2*b.w.spread,c=Math.cos(a),s=Math.sin(a),dx=b.dir.x*c-b.dir.y*s,dy=b.dir.x*s+b.dir.y*c;
-        const pv=pivotOf(b.t),L=b.t.def.look.len+2;
+        const pv=pivotOf(b.t),L=muzzleLen(b.t);
         S.projs.push(mkProj(b.t,pv.x+b.dir.x*L,pv.y+b.dir.y*L,dx*b.sp,dy*b.sp,b.w));sfx('fire');
         b.left--;b.timer+=b.w.gap;
       }
@@ -642,12 +660,18 @@ function updateAI(dt){
 /* ----------------------------------------------------------------- rendering */
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
 function drawTankBody(c,def,col,s){
-  const k=def.look;c.save();c.scale(s,s);
+  const k=def.look;c.save();c.scale(s,s);c.translate(0,R);c.scale(def.sc,def.sc);c.translate(0,-R);
   c.fillStyle='#161a22';rr(c,-k.w-2,R-k.tr-1,2*k.w+4,k.tr+1,3.5);c.fill();
   c.fillStyle='#2b3140';for(let i=-k.w+3;i<k.w;i+=6){c.beginPath();c.arc(i,R-k.tr/2,k.tr/2-.6,0,TAU);c.fill()}
   const hy=R-k.tr-k.h+3;
-  c.fillStyle=col;rr(c,-k.w+2,hy,2*k.w-4,k.h,3);c.fill();
+  c.fillStyle=col;
+  if(k.shape==='wedge'){c.beginPath();c.moveTo(-k.w+2,hy+k.h);c.lineTo(k.w-2,hy+k.h);c.lineTo(k.w-2,hy+k.h*.55);c.lineTo(k.w-8,hy);c.lineTo(-k.w+6,hy);c.lineTo(-k.w+2,hy+k.h*.4);c.closePath();c.fill()}
+  else if(k.shape==='round'){c.beginPath();c.ellipse(0,hy+k.h/2,k.w-1,k.h/2+2,0,0,TAU);c.fill()}
+  else if(k.shape==='heavy'){rr(c,-k.w+1,hy,2*k.w-2,k.h,2);c.fill();c.fillStyle='rgba(0,0,0,.28)';c.fillRect(-k.w+3,hy+2,6,k.h-4);c.fillRect(k.w-9,hy+2,6,k.h-4);
+    c.fillStyle='#161a22';for(let i=-k.w+5;i<k.w-3;i+=7)c.fillRect(i,hy+k.h-3,3,2)}
+  else{rr(c,-k.w+2,hy,2*k.w-4,k.h,k.shape==='tall'?2:3);c.fill()}
   c.fillStyle='rgba(255,255,255,.18)';c.fillRect(-k.w+4,hy+1,2*k.w-8,2);
+  c.fillStyle=def.color;c.fillRect(-k.w+4,hy+k.h-3,2*k.w-8,2);  // class stripe
   if(k.extra==='pods'){c.fillStyle=def.color;c.fillRect(-k.w+3,hy-3,5,4);c.fillRect(k.w-8,hy-3,5,4)}
   if(k.extra==='plow'){c.fillStyle=def.color;c.beginPath();c.moveTo(k.w+3,R-k.tr-2);c.lineTo(k.w-3,R-2);c.lineTo(k.w-3,hy);c.closePath();c.fill()}
   if(k.extra==='drill'){c.fillStyle='#ccc';c.beginPath();c.moveTo(k.w+9,hy+k.h/2);c.lineTo(k.w-1,hy+1);c.lineTo(k.w-1,hy+k.h-1);c.closePath();c.fill()}
@@ -656,7 +680,7 @@ function drawTankBody(c,def,col,s){
   c.restore();
 }
 function drawBarrel(c,def,px,py,ang,s){
-  const k=def.look;c.save();c.translate(px,py);c.rotate(ang);c.scale(s,s);
+  const k=def.look;c.save();c.translate(px,py);c.rotate(ang);c.scale(s*def.sc,s*def.sc);
   c.fillStyle='#2a303c';
   if(k.extra==='multi'){for(let i=-1;i<=1;i++)c.fillRect(0,i*2.6-1,k.len,2)}
   else c.fillRect(0,-k.bw/2,k.len,k.bw);
@@ -674,7 +698,7 @@ function drawTank(t){
   drawBarrel(c,def,pv.x,pv.y,Math.atan2(dir.y,dir.x),1);
 }
 function drawHealth(t){
-  const c=ctx,w=34,x=t.x-w/2,y=t.y-(t.n.y>.5?-30:34);
+  const c=ctx,w=34,off=18+16*t.def.sc,x=t.x-w/2,y=t.y-(t.n.y>.5?-off+4:off);
   c.fillStyle='rgba(0,0,0,.6)';rr(c,x-1,y-1,w+2,7,3);c.fill();
   const f=t.hp/t.maxHp;c.fillStyle=f>.5?'#58e08a':f>.25?'#ffd24a':'#ff5a64';rr(c,x,y,w*f,5,2.5);c.fill();
   c.fillStyle=P_COL[t.owner];c.fillRect(x-1,y-1,2,7);
@@ -704,19 +728,33 @@ function drawWorld(){
     if(!t.alive)continue;
     if(humanSel&&t.owner===S.turn&&S.sel!==t){
       c.strokeStyle=P_COL[t.owner];c.globalAlpha=.5+.4*Math.sin(S.time*5);c.lineWidth=2;c.setLineDash([4,4]);
-      c.beginPath();c.arc(t.x,t.y,R+9,0,TAU);c.stroke();c.setLineDash([]);c.globalAlpha=1;
+      c.beginPath();c.arc(t.x,t.y,t.hr+9,0,TAU);c.stroke();c.setLineDash([]);c.globalAlpha=1;
     }
   }
   for(const t of S.tanks){if(t.alive)drawTank(t)}
   // active marker
   if(S.sel&&S.sel.alive&&S.phase==='play'){
-    const t=S.sel,bob=Math.sin(S.time*5)*3,ax=t.x+t.n.x*(44+bob),ay=t.y+t.n.y*(44+bob);
+    const t=S.sel,bob=Math.sin(S.time*5)*3,ax=t.x+t.n.x*(28+16*t.def.sc+bob),ay=t.y+t.n.y*(28+16*t.def.sc+bob);
     c.save();c.translate(ax,ay);c.rotate(Math.atan2(t.n.y,t.n.x)+Math.PI/2);c.fillStyle=P_COL[t.owner];
     c.beginPath();c.moveTo(0,9);c.lineTo(-8,-5);c.lineTo(8,-5);c.closePath();c.fill();c.restore();
-    c.strokeStyle=P_COL[t.owner];c.lineWidth=2;c.globalAlpha=.7;c.beginPath();c.arc(t.x,t.y,R+6,0,TAU);c.stroke();c.globalAlpha=1;
+    c.strokeStyle=P_COL[t.owner];c.lineWidth=2;c.globalAlpha=.7;c.beginPath();c.arc(t.x,t.y,t.hr+6,0,TAU);c.stroke();c.globalAlpha=1;
   }
   for(const t of S.tanks)if(t.alive)drawHealth(t);
   drawAim();
+  if(S.tip&&S.tip.t.alive&&S.phase==='play'){
+    const a=S.tip.t,age=S.time-S.tip.t0;
+    if(age<4.5){
+      const al=clamp(Math.min(age*5,(4.5-age)*2),0,1),z=cam.z,fs=13*u/z,d=a.def;
+      c.globalAlpha=al;c.font='800 '+fs+'px system-ui';const l1=d.name+' · '+d.role+' — ★ '+d.abil.name;
+      const w1=c.measureText(l1).width;c.font='600 '+(fs*.9)+'px system-ui';const w2=c.measureText(d.abil.desc).width;
+      const bw=Math.max(w1,w2)+18/z,bh=40/z;
+      const bx=clamp(a.x-bw/2,BORDER+4,W-BORDER-4-bw),by=Math.max(BORDER+4,a.y-(40+24*d.sc)-bh);
+      c.fillStyle='rgba(8,12,24,.88)';rr(c,bx,by,bw,bh,8/z);c.fill();c.strokeStyle='#ffd24a';c.lineWidth=1.5/z;c.stroke();
+      c.textAlign='left';c.font='800 '+fs+'px system-ui';c.fillStyle='#ffd24a';c.fillText(l1,bx+9/z,by+16/z);
+      c.font='600 '+(fs*.9)+'px system-ui';c.fillStyle='#e6ecff';c.fillText(d.abil.desc,bx+9/z,by+31/z);
+      c.globalAlpha=1;
+    }
+  }
   // projectiles
   for(const p of S.projs){
     c.strokeStyle='rgba(255,230,160,.55)';c.lineWidth=p.small?2:3;c.lineCap='round';c.beginPath();
@@ -743,8 +781,8 @@ function drawAim(){
   c.beginPath();c.moveTo(pv.x+px,pv.y+py);c.lineTo(bx,by);c.lineTo(pv.x-px,pv.y-py);c.stroke();
   c.fillStyle=P_COL[t.owner];c.beginPath();c.arc(bx,by,7,0,TAU);c.fill();
   // power ring
-  c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=3;c.beginPath();c.arc(t.x,t.y,R+16,0,TAU);c.stroke();
-  c.strokeStyle=pow<.5?'#58e08a':pow<.8?'#ffd24a':'#ff6a5a';c.beginPath();c.arc(t.x,t.y,R+16,-Math.PI/2,-Math.PI/2+pow*TAU);c.stroke();
+  c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=3;c.beginPath();c.arc(t.x,t.y,t.hr+16,0,TAU);c.stroke();
+  c.strokeStyle=pow<.5?'#58e08a':pow<.8?'#ffd24a':'#ff6a5a';c.beginPath();c.arc(t.x,t.y,t.hr+16,-Math.PI/2,-Math.PI/2+pow*TAU);c.stroke();
   // trajectory
   const pts=[];const r=simShot(t,dir,pow,t.def.preview||2.2,pts);
   pts.forEach((q,i)=>{c.globalAlpha=1-i/(pts.length+4)*.8;c.fillStyle='#fff';c.beginPath();c.arc(q[0],q[1],2.6,0,TAU);c.fill()});
@@ -760,7 +798,7 @@ function drawHUD(){
   const tb=46*u;c.fillStyle='rgba(8,12,24,.72)';c.fillRect(0,0,vw,tb);
   for(let p=0;p<2;p++){
     const x0=p?vw-12*u:12*u,w=26*u;
-    txt(p===1&&opt.mode==='ai'?'COMPUTER':'PLAYER '+(p+1),x0,16*u,12*u,P_COL[p],p?'right':'left',800);
+    txt(p===1?'COMPUTER':'YOU',x0,16*u,12*u,P_COL[p],p?'right':'left',800);
     S.tanks.filter(t=>t.owner===p).sort((a,b)=>a.slot-b.slot).forEach((t,i)=>{
       const x=p?vw-12*u-(4-i)*(w+5*u)+5*u:12*u+i*(w+5*u),y=22*u;
       c.fillStyle=t.alive?'#1c2540':'#0d1020';rr(c,x,y,w,18*u,4);c.fill();
@@ -780,7 +818,7 @@ function drawHUD(){
   let msg='';
   if(S.phase==='play'){
     if(isAI())msg='Computer is thinking…';
-    else if(!S.sel)msg=(opt.mode==='ai'?'Your turn':'Player '+(S.turn+1))+' — choose a tank (click it or press 1-4)';
+    else if(!S.sel)msg='Your turn — choose a tank (click it or press 1-4)';
     else if(!S.locked)msg=S.sel.def.name+' — move, or drag back from the tank to aim';
     else msg=S.sel.def.name+' — drag back from the tank to aim · release to fire';
   }else if(S.phase==='flight')msg='';
@@ -795,7 +833,7 @@ function drawHUD(){
     c.fillStyle=t.alive?(sel?'rgba(34,48,86,.97)':'rgba(16,22,40,.9)'):'rgba(10,12,22,.7)';rr(c,x,y0,cw,chh,9*u);c.fill();
     c.lineWidth=2.5;c.strokeStyle=sel?P_COL[mine]:'#2a3556';rr(c,x,y0,cw,chh,9*u);c.stroke();
     if(!t.alive){txt(t.def.name+' ✕',x+cw/2,y0+chh/2+4*u,12*u,'#47506e','center');return}
-    c.save();c.translate(x+25*u,y0+chh/2+2*u);c.scale(.95*u,.95*u);drawTankBodyFlat(c,t);c.restore();
+    c.save();c.translate(x+25*u,y0+chh/2+2*u);c.scale(.62*u,.62*u);drawTankBodyFlat(c,t);c.restore();
     txt((i+1)+' · '+t.def.name,x+48*u,y0+16*u,12.5*u,'#fff','left',700);
     txt(t.def.wpn.name,x+48*u,y0+29*u,10*u,'#9fb0dc','left',500);
     c.fillStyle='#0a0e1c';rr(c,x+48*u,y0+34*u,cw-58*u,7*u,3.5*u);c.fill();
@@ -887,8 +925,8 @@ const $=id=>document.getElementById(id);
 function show(id){for(const s of document.querySelectorAll('.screen'))s.classList.toggle('on',s.id===id)}
 let draftP=0,draftSel=[];
 function iconCanvas(def,col,w,h,s){const c=cv(w*2,h*2),x=c.getContext('2d');c.style.width=w+'px';c.style.height=h+'px';
-  x.scale(2,2);x.translate(w/2,h/2-2);x.scale(s,s);drawTankBody(x,def,col,1);
-  const k=def.look;drawBarrel(x,def,0,k.h-9,-.5,1);return c}
+  x.scale(2,2);x.translate(w/2,h/2+2);x.scale(s,s);x.translate(0,-R);drawTankBody(x,def,col,1);
+  drawBarrel(x,def,0,pivotOff(def),-.5,1);return c}
 function buildMenu(){
   const mr=$('mapRow');mr.innerHTML='';
   MAPS.forEach((m,i)=>{
@@ -906,7 +944,7 @@ function buildDraft(){
   const pc=P_COL[draftP];g.style.setProperty('--pc',pc);
   TANKS.forEach(d=>{
     const el=document.createElement('div');el.className='tcard';el.style.setProperty('--pc',pc);
-    const ic=iconCanvas(d,pc,110,52,1.25);el.appendChild(ic);
+    const ic=iconCanvas(d,pc,110,62,1.0);el.appendChild(ic);
     const lab=['HP','DMG','RNG','MOB'];
     el.insertAdjacentHTML('beforeend','<h3>'+d.name+'<span>'+d.role+'</span></h3><div class="stat">'+
       d.st.map((v,i)=>'<span>'+lab[i]+'</span><div class="bar"><i style="width:'+v*20+'%"></i></div>').join('')+'</div>'+
@@ -917,8 +955,7 @@ function buildDraft(){
   refreshDraft();
 }
 function refreshDraft(){
-  const who=draftP===1&&opt.mode==='ai'?'Computer':'Player '+(draftP+1);
-  $('dTitle').textContent='Player '+(draftP+1)+' — pick 4 tanks ('+draftSel.length+'/4)';
+  $('dTitle').textContent='Pick your 4 tanks ('+draftSel.length+'/4)';
   $('dTitle').style.color=P_COL[draftP];
   for(const el of $('grid').children){
     const i=draftSel.indexOf(el.dataset.id);el.classList.toggle('pick',i>=0);
@@ -931,7 +968,7 @@ function refreshDraft(){
 function randomTeam(){const a=TANKS.map(t=>t.id);for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a.slice(0,4)}
 function showOver(){
   const w=S.winner;
-  $('oTitle').textContent=w<0?'Draw!':(w===1&&opt.mode==='ai'?'Computer':'Player '+(w+1))+' wins!';
+  $('oTitle').textContent=w<0?'Draw!':(w===1?'Computer':'You')+' win'+(w===1?'s':'')+'!';
   $('oTitle').style.color=w<0?'#fff':P_COL[w];
   $('oSub').textContent='Turns played: '+S.count;
   setTimeout(()=>{if(S&&S.phase==='over')show('over')},1400);
@@ -949,16 +986,12 @@ window.addEventListener('load',()=>{
   addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false;hold=null});
   buildMenu();
-  $('mPvp').onclick=()=>{opt.mode='pvp';$('mPvp').classList.add('sel');$('mAi').classList.remove('sel')};
-  $('mAi').onclick=()=>{opt.mode='ai';$('mAi').classList.add('sel');$('mPvp').classList.remove('sel')};
   for(const b of $('timeRow').children)b.onclick=()=>{opt.time=+b.dataset.t;[...$('timeRow').children].forEach(c=>c.classList.toggle('sel',c===b))};
   $('goDraft').onclick=()=>{draftP=0;draftSel=[];buildDraft();show('draft')};
   $('dRand').onclick=()=>{draftSel=randomTeam();refreshDraft()};
   $('dOk').onclick=()=>{
     opt.teams[draftP]=draftSel.slice();
-    if(draftP===0){draftP=1;draftSel=[];
-      if(opt.mode==='ai'){opt.teams[1]=randomTeam();start()}else buildDraft()}
-    else start();
+    opt.teams[1]=randomTeam();start();
   };
   $('oAgain').onclick=start;$('oMenu').onclick=()=>{S=null;buildMenu();show('menu')};
   requestAnimationFrame(frame);
