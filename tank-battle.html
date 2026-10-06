@@ -3,11 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e18">
 <title>Magnet Tanks</title>
 <style>
 :root{--bg:#0a0e18;--panel:#141b2d;--panel2:#1c2640;--ink:#eaf0ff;--mute:#8a98bd;--p1:#4fc3ff;--p2:#ff8a3d;--good:#58e08a;--bad:#ff5a64;--gold:#ffd24a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;touch-action:none}
+html,body{margin:0;height:100%;overscroll-behavior:none;-webkit-touch-callout:none;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;touch-action:none}
 canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block}
 .screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#1b2748 0%,#0a0e18 70%);padding:12px;overflow:auto;touch-action:pan-y}
 .screen.on{display:flex}
@@ -36,6 +40,13 @@ h1{margin:0 0 2px;font-size:clamp(26px,5vw,48px);letter-spacing:.06em;text-trans
 .tick{position:absolute;top:6px;right:8px;font-weight:800;color:var(--pc,var(--gold));font-size:16px}
 #picked{display:flex;gap:6px;margin:8px 0;min-height:22px;font-size:13px;color:var(--mute)}
 .chip{padding:3px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--pc);color:var(--ink)}
+@media (max-height:520px){
+  .screen{justify-content:flex-start;padding:8px 10px}
+  h1{font-size:22px!important}.sub{display:none}.lbl{margin-top:2px}.opt{padding:5px}.btn{padding:10px 22px;margin-top:6px}
+  #grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.tcard{padding:4px 6px}.tcard p{font-size:9px}.tcard h3{font-size:12px}
+  #draft .row{position:sticky;bottom:0;background:#0a0e18ee;width:100%;padding:4px 0;margin:0}
+  #menu .sub.hint{display:block;font-size:11px}
+}
 #rotate{position:fixed;inset:0;background:#0a0e18;z-index:50;display:none;align-items:center;justify-content:center;flex-direction:column;font-size:18px;text-align:center}
 @media (orientation:portrait) and (max-width:760px){#rotate{display:flex}}
 #rotate span{font-size:64px;display:block;animation:rot 2s infinite}
@@ -55,7 +66,7 @@ h1{margin:0 0 2px;font-size:clamp(26px,5vw,48px);letter-spacing:.06em;text-trans
     <button class="opt" data-t="20"><b>20s</b></button><button class="opt sel" data-t="30"><b>30s</b></button><button class="opt" data-t="45"><b>45s</b></button>
   </div>
   <button class="btn" id="goDraft">Choose Tanks</button>
-  <p class="sub" style="margin-top:14px">Move: <b>← →</b> / <b>A D</b> (or on-screen buttons) — right climbs a wall you drive into, left climbs down · Aim: <b>drag back from your tank</b>, release to fire · Pick tank: click it or keys <b>1–4</b></p>
+  <p class="sub hint" id="hint" style="margin-top:14px">Move: <b>← →</b> / <b>A D</b> (or on-screen buttons) — right climbs a wall you drive into, left climbs down · Aim: <b>drag back from your tank</b>, release to fire · Pick tank: click it or keys <b>1–4</b></p>
 </div>
 
 <div id="draft" class="screen">
@@ -311,7 +322,7 @@ function newMatch(){
   const m=MAPS[opt.map];buildMap(m);
   S={map:m,tanks:[],turn:0,phase:'play',timer:opt.time,sel:null,locked:false,drag:null,aimShow:false,
     projs:[],burst:null,blasts:[],parts:[],floats:[],rings:[],shake:0,settle:0,stage:0,winner:-1,
-    banner:{text:'',t:0},ai:null,count:0,hint:0,follow:null,hold:null,time:0};
+    closeCam:cmp||TOUCH,banner:{text:'',t:0},ai:null,count:0,hint:0,follow:null,hold:null,time:0};
   const sp=pickSpawns(),cnt=[0,0];
   for(const q of sp){S.tanks.push(makeTank(q.team,cnt[q.team],opt.teams[q.team][cnt[q.team]],q));cnt[q.team]++}
   for(const t of S.tanks)faceEnemy(t);
@@ -364,11 +375,13 @@ function simShot(t,dir,pow,maxT,pts){
   }
   return{x,y,hit:null,t:age};
 }
+const dragMax=()=>Math.max(115*fit(),Math.min(vh*.4,170)),MIN_DRAG=22;
 function setAimFromPointer(sx,sy){
-  const t=S.sel,pv=toScreen(pivotOf(t)),vx=pv.x-sx,vy=pv.y-sy,len=hyp(vx,vy)/fit();
-  S.drag.len=len;
+  const t=S.sel,d=S.drag,vx=d.ax-sx,vy=d.ay-sy,len=hyp(vx,vy);
+  d.len=len;
   if(len<8)return;
-  t.aimDir=clampAim(t,norm({x:vx,y:vy}));t.aimPow=clamp(len/115,0,1);
+  t.aimDir=clampAim(t,norm({x:vx,y:vy}));t.aimPow=clamp(len/dragMax(),0,1);
+  if(len>=MIN_DRAG)t.aimed=true;
 }
 /* ----------------------------------------------------------------- firing */
 function mkProj(t,x,y,vx,vy,w,extra){
@@ -416,7 +429,7 @@ function autoFire(){
 function floatText(x,y,text,col,size){S.floats.push({x,y,text,col,t:1.2,size:size||20})}
 function damageTank(t,amt,src){
   amt=Math.round(amt);if(amt<=0||!t.alive)return;
-  t.hp-=amt;t.flash=.25;floatText(t.x+(rnd()-.5)*20,t.y-30,'-'+amt,'#ffe27a');
+  t.hp-=amt;t.flash=.25;if(t.owner===0)buzz(t.hp<=0?80:30);floatText(t.x+(rnd()-.5)*20,t.y-30,'-'+amt,'#ffe27a');
   if(t.hp<=0){
     t.hp=0;t.alive=false;
     const db=t.def.deathBlast;
@@ -540,14 +553,21 @@ function sfx(type,v){
 }
 /* ------------------------------------------------------------------- camera */
 let cvs,ctx,vw=0,vh=0,dpr=1,cam={x:W/2,y:H/2,z:1},scx=0,scy=0,u=1;
-function layout(){u=clamp(Math.min(vw/1100,vh/640),.6,1.15)}
-function fit(){return Math.min(vw/W,(vh-118*u)/H)}
+let cmp=false,SA={l:0,r:0,t:0,b:0};
+const TOUCH=matchMedia('(pointer:coarse)').matches;
+const topH=()=>cmp?36:46*u, CARDW=92;
+function layout(){u=clamp(Math.min(vw/1100,vh/640),.6,1.15);cmp=vh<520;if(cmp)u=Math.max(u,.8)}
+function fit(){return cmp?Math.min((vw-CARDW-SA.l-SA.r)/W,(vh-topH())/H):Math.min(vw/W,(vh-118*u)/H)}
+function readSafeArea(){
+  const d=document.createElement('div');d.style.cssText='position:fixed;left:0;top:0;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  document.body.appendChild(d);const cs=getComputedStyle(d);SA={t:parseFloat(cs.paddingTop)||0,r:parseFloat(cs.paddingRight)||0,b:parseFloat(cs.paddingBottom)||0,l:parseFloat(cs.paddingLeft)||0};d.remove();
+}
 function toScreen(p){return{x:(p.x-cam.x)*cam.z+scx,y:(p.y-cam.y)*cam.z+scy}}
 function toWorld(sx,sy){return{x:(sx-scx)/cam.z+cam.x,y:(sy-scy)/cam.z+cam.y}}
 function resize(){
-  dpr=Math.min(2,window.devicePixelRatio||1);vw=innerWidth;vh=innerHeight;
+  dpr=Math.min(TOUCH?1.75:2,window.devicePixelRatio||1);vw=innerWidth;vh=innerHeight;readSafeArea();
   cvs.width=Math.round(vw*dpr);cvs.height=Math.round(vh*dpr);layout();
-  scx=vw/2;scy=46*u+(vh-118*u)/2;
+  if(cmp){scx=SA.l+(vw-CARDW-SA.l-SA.r)/2;scy=topH()+(vh-topH())/2}else{scx=vw/2;scy=46*u+(vh-118*u)/2}
 }
 function updateCamera(dt){
   const f=fit();let tx=W/2,ty=H/2,tz=f;
@@ -555,7 +575,8 @@ function updateCamera(dt){
     let lead=null;for(const p of S.projs)if(!p.dead){lead=p;break}
     if(lead){S.follow=lead;S.hold={x:lead.x,y:lead.y,t:.9}}
     if(S.hold){tx=S.hold.x;ty=S.hold.y;tz=f*1.28;if(!lead)S.hold.t-=dt;if(S.hold.t<=0)S.hold=null}
-  }else if(S&&S.drag&&S.sel){tz=f*(1-.11*S.sel.aimPow)}
+  }else if(S&&S.phase==='play'&&!isAI()&&S.sel&&S.closeCam){tx=S.sel.x;ty=S.sel.y;tz=f*1.9*(S.drag?1-.4*S.sel.aimPow:1)}
+  else if(S&&S.drag&&S.sel){tz=f*(1-.11*S.sel.aimPow)}
   if(tz>f+.001){const hw=vw/2/tz,hh=(vh/2)/tz;tx=clamp(tx,Math.min(hw,W/2),Math.max(W-hw,W/2));ty=clamp(ty,Math.min(hh,H/2),Math.max(H-hh,H/2))}
   const k=1-Math.exp(-dt*5);
   cam.x+=(tx-cam.x)*k;cam.y+=(ty-cam.y)*k;cam.z+=(tz-cam.z)*k;
@@ -793,16 +814,16 @@ function drawAim(){
 }
 /* ------------------------------------------------------------------- HUD */
 const ui={btns:[]};
-function txt(s,x,y,size,col,al,wt){const c=ctx;c.font=(wt||700)+' '+size+'px system-ui,sans-serif';c.textAlign=al||'left';c.fillStyle=col||'#fff';c.fillText(s,x,y)}
+function txt(s,x,y,size,col,al,wt,mw){const c=ctx;c.font=(wt||700)+' '+size+'px system-ui,sans-serif';c.textAlign=al||'left';c.fillStyle=col||'#fff';if(mw)c.fillText(s,x,y,mw);else c.fillText(s,x,y)}
 function drawHUD(){
   const c=ctx;ui.btns=[];
   // top bar
-  const tb=46*u;c.fillStyle='rgba(8,12,24,.72)';c.fillRect(0,0,vw,tb);
+  const tb=topH();c.fillStyle='rgba(8,12,24,.72)';c.fillRect(0,0,vw,tb);
   for(let p=0;p<2;p++){
-    const x0=p?vw-12*u:12*u,w=26*u;
-    txt(p===1?'COMPUTER':'YOU',x0,16*u,12*u,P_COL[p],p?'right':'left',800);
+    const x0=p?vw-12*u-SA.r:12*u+SA.l,w=26*u;
+    txt(p===1?'COMPUTER':'YOU',x0,cmp?10:16*u,cmp?9:12*u,P_COL[p],p?'right':'left',800);
     S.tanks.filter(t=>t.owner===p).sort((a,b)=>a.slot-b.slot).forEach((t,i)=>{
-      const x=p?vw-12*u-(4-i)*(w+5*u)+5*u:12*u+i*(w+5*u),y=22*u;
+      const x=p?vw-12*u-SA.r-(4-i)*(w+5*u)+5*u:12*u+SA.l+i*(w+5*u),y=cmp?14:22*u;
       c.fillStyle=t.alive?'#1c2540':'#0d1020';rr(c,x,y,w,18*u,4);c.fill();
       if(t.alive){c.fillStyle=t.hp/t.maxHp>.5?'#58e08a':t.hp/t.maxHp>.25?'#ffd24a':'#ff5a64';rr(c,x+2,y+13*u,(w-4)*t.hp/t.maxHp,3.5*u,2);c.fill();
         c.save();c.translate(x+w/2,y+7*u);c.scale(.4*u/1,.4*u/1);c.translate(0,-3);drawTankBodyFlat(c,t);c.restore()}
@@ -810,27 +831,40 @@ function drawHUD(){
     });
   }
   // timer
-  const cx=vw/2,cy=tb/2+2*u;
+  const cx=cmp?scx:vw/2,cy=tb/2+(cmp?0:2*u),TR=cmp?17:25*u;
   const tm=S.phase==='play'?Math.max(0,S.timer):0,low=tm<=8&&S.phase==='play';
-  c.fillStyle=low?'rgba(120,20,30,.9)':'rgba(20,30,56,.95)';c.beginPath();c.arc(cx,cy,25*u,0,TAU);c.fill();
-  c.strokeStyle=P_COL[S.turn];c.lineWidth=3*u;c.beginPath();c.arc(cx,cy,25*u,-Math.PI/2,-Math.PI/2+TAU*(S.phase==='play'?tm/opt.time:1));c.stroke();
+  c.fillStyle=low?'rgba(120,20,30,.9)':'rgba(20,30,56,.95)';c.beginPath();c.arc(cx,cy,TR,0,TAU);c.fill();
+  c.strokeStyle=P_COL[S.turn];c.lineWidth=3*u;c.beginPath();c.arc(cx,cy,TR,-Math.PI/2,-Math.PI/2+TAU*(S.phase==='play'?tm/opt.time:1));c.stroke();
   const pulse=low?1+.08*Math.sin(S.time*10):1;
-  txt(S.phase==='play'?Math.ceil(tm):'⌁',cx,cy+9*u*pulse,26*u*pulse,low?'#ff9aa2':'#fff','center',800);
+  const tfs=cmp?19:26*u;txt(S.phase==='play'?Math.ceil(tm):'⌁',cx,cy+tfs*.36*pulse,tfs*pulse,low?'#ff9aa2':'#fff','center',800);
   // status
   let msg='';
   if(S.phase==='play'){
     if(isAI())msg='Computer is thinking…';
-    else if(!S.sel)msg='Your turn — choose a tank (click it or press 1-4)';
-    else if(!S.locked)msg=S.sel.def.name+' — move, or drag back from the tank to aim';
-    else msg=S.sel.def.name+' — drag back from the tank to aim · release to fire';
+    else if(!S.sel)msg=TOUCH?'Your turn — tap one of your tanks':'Your turn — choose a tank (click it or press 1-4)';
+    else if(!S.locked)msg=S.sel.def.name+(TOUCH?' — hold ◀ ▶ to drive, drag back anywhere to aim':' — move, or drag back from the tank to aim');
+    else msg=S.sel.def.name+(TOUCH?' — drag back anywhere to aim · release to fire':' — drag back from the tank to aim · release to fire');
   }else if(S.phase==='flight')msg='';
-  txt(msg,cx,tb+16*u,13*u,'#dfe6ff','center',600);
+  txt(msg,cx,tb+16*u,(cmp?11:13)*u,'#dfe6ff','center',600);
   // bottom: cards
-  const cw=150*u,chh=54*u,gap=8*u,total=4*cw+3*gap,y0=vh-chh-8*u;
+  const cw=150*u,chh=54*u,gap=8*u,total=4*cw+3*gap,y0=vh-chh-8*u-SA.b;
   const mine=S.turn,showSel=S.phase==='play';
   const list=S.tanks.filter(t=>t.owner===mine).sort((a,b)=>a.slot-b.slot);
   const canClick=S.phase==='play'&&!isAI()&&!S.locked;
   list.forEach((t,i)=>{
+    if(cmp){ // compact: vertical strip on the right edge
+      const x=vw-CARDW-SA.r+6,y=tb+6+i*48,w=CARDW-8,h=44,sel=S.sel===t;
+      c.fillStyle=t.alive?(sel?'rgba(34,48,86,.97)':'rgba(16,22,40,.9)'):'rgba(10,12,22,.7)';rr(c,x,y,w,h,8);c.fill();
+      c.lineWidth=2.5;c.strokeStyle=sel?P_COL[mine]:'#2a3556';rr(c,x,y,w,h,8);c.stroke();
+      if(!t.alive){txt('✕',x+w/2,y+h/2+5,15,'#47506e','center');return}
+      c.save();c.translate(x+22,y+h/2+2);c.scale(.5,.5);drawTankBodyFlat(c,t);c.restore();
+      txt(t.def.name,x+43,y+16,11,'#fff','left',700,w-48);
+      c.fillStyle='#0a0e1c';rr(c,x+43,y+24,w-50,7,3.5);c.fill();
+      const f2=t.hp/t.maxHp;c.fillStyle=f2>.5?'#58e08a':f2>.25?'#ffd24a':'#ff5a64';rr(c,x+43,y+24,(w-50)*f2,7,3.5);c.fill();
+      txt(Math.ceil(t.hp),x+43,y+40,9.5,'#c7d2f5','left',600);
+      if(canClick)ui.btns.push({x,y,w,h,fn:()=>select(t)});
+      return;
+    }
     const x=(vw-total)/2+i*(cw+gap),sel=S.sel===t;
     c.fillStyle=t.alive?(sel?'rgba(34,48,86,.97)':'rgba(16,22,40,.9)'):'rgba(10,12,22,.7)';rr(c,x,y0,cw,chh,9*u);c.fill();
     c.lineWidth=2.5;c.strokeStyle=sel?P_COL[mine]:'#2a3556';rr(c,x,y0,cw,chh,9*u);c.stroke();
@@ -845,33 +879,35 @@ function drawHUD(){
   });
   // fuel bar + ability (top bar, left of the timer)
   if(S.sel&&S.phase==='play'){
-    const t=S.sel,bw=170*u,bx=vw/2-48*u-bw;
+    const t=S.sel,bw=(cmp?120:170*u),bx=cx-(cmp?24:48*u)-bw;
     txt('FUEL',bx,15*u,10*u,'#9fb0dc','left',800);
     c.fillStyle='#0a0e1c';rr(c,bx+34*u,7*u,bw-34*u,10*u,5*u);c.fill();
     const ff=clamp(t.fuel/(t.fuelMax||100),0,1);
     const fg=c.createLinearGradient(bx,0,bx+bw,0);fg.addColorStop(0,'#ffb74d');fg.addColorStop(1,'#ffe27a');c.fillStyle=fg;rr(c,bx+34*u,7*u,(bw-34*u)*ff,10*u,5*u);c.fill();
-    txt('★ '+t.def.abil.name,bx,36*u,10.5*u,'#ffd24a','left',700);
+    if(!cmp)txt('★ '+t.def.abil.name,bx,36*u,10.5*u,'#ffd24a','left',700);
   }
   // move pad
   if(S.phase==='play'&&!isAI()){
-    const bs=52*u,px=12*u,py=vh-bs-14*u;
+    const bs=cmp?64:52*u,px=12*u+SA.l,py=vh-bs-14*u-SA.b;
     const pad=[['◀','left',0,0],['▶','right',1,0]];
     for(const [g,k,cx2,cy2] of pad){
       const x=px+cx2*(bs+4*u),y=py+cy2*(bs+4*u);
       c.fillStyle=hold===k?'rgba(120,150,255,.8)':'rgba(20,30,60,.75)';rr(c,x,y,bs,bs,10*u);c.fill();
       c.strokeStyle='#3a4a7a';c.lineWidth=2;rr(c,x,y,bs,bs,10*u);c.stroke();
-      txt(g,x+bs/2,y+bs/2+6*u,17*u,'#cfe0ff','center');
+      txt(g,x+bs/2,y+bs/2+bs*.12,bs*.34,'#cfe0ff','center');
       ui.btns.push({x,y,w:bs,h:bs,hold:k});
     }
   }
   // power readout
   if(S.drag&&S.sel&&S.aimShow){
     const t=S.sel,a=Math.round(-Math.atan2(t.aimDir.y,t.aimDir.x)*180/Math.PI);
-    txt('POWER '+Math.round(t.aimPow*100)+'%   ANGLE '+((a+360)%360)+'°',vw/2,y0-10*u,14*u,'#fff','center',800);
+    txt('POWER '+Math.round(t.aimPow*100)+'%   ANGLE '+((a+360)%360)+'°',cmp?scx:vw/2,cmp?vh-12:y0-10*u,14*u,'#fff','center',800);
   }
   // sound toggle
-  txt(muted?'🔇':'🔊',vw-16*u,vh-16*u,18*u,'#fff','right');
-  ui.btns.push({x:vw-44*u,y:vh-40*u,w:44*u,h:40*u,fn:()=>{muted=!muted}});
+  const bx0=cmp?vw-CARDW-SA.r+6:vw-48*u-SA.r,by0=vh-46-SA.b;
+  txt(muted?'🔇':'🔊',bx0+22,by0+30,20,'#fff','center');ui.btns.push({x:bx0,y:by0,w:44,h:44,fn:()=>{muted=!muted}});
+  const zx=cmp?bx0:bx0-46,zy=cmp?by0-46:by0;
+  c.globalAlpha=.9;txt(S.closeCam?'🔭':'🔍',zx+22,zy+30,20,'#fff','center');c.globalAlpha=1;ui.btns.push({x:zx,y:zy,w:44,h:44,fn:()=>{S.closeCam=!S.closeCam}});
   // banner
   if(S.banner.t>0&&S.phase!=='over'){
     const a=clamp(S.banner.t,0,1)*clamp((1.6-S.banner.t)*6,0,1);
@@ -902,26 +938,33 @@ function onDown(e){
   const p=pt(e);
   for(const b of ui.btns){
     if(p.x>=b.x&&p.x<=b.x+b.w&&p.y>=b.y&&p.y<=b.y+b.h){
-      if(b.hold){hold=b.hold;cvs.setPointerCapture(e.pointerId);S.holdPtr=e.pointerId}else b.fn();return}
+      if(b.hold){hold=b.hold;cvs.setPointerCapture(e.pointerId);S.holdPtr=e.pointerId}else{b.fn();buzz(8)}return}
   }
   if(S.phase!=='play'||isAI())return;
   const w=toWorld(p.x,p.y);
-  if(S.sel&&hyp(w.x-pivotOf(S.sel).x,w.y-pivotOf(S.sel).y)<Math.max(48,60/cam.z)){
-    S.drag={len:0,id:e.pointerId};S.aimShow=true;S.sel.aimed=true;lock();cvs.setPointerCapture(e.pointerId);setAimFromPointer(p.x,p.y);return;
-  }
-  // click a tank to select
-  let bt=null,bd=40;
+  // tap one of your tanks to choose it (until you commit by moving/aiming)
+  let bt=null,bd=Math.max(34,46/cam.z);
   for(const t of S.tanks){if(!t.alive||t.owner!==S.turn)continue;const d=hyp(t.x-w.x,t.y-w.y);if(d<bd){bd=d;bt=t}}
-  if(bt&&bt!==S.sel&&!S.locked)select(bt);
+  if(bt&&bt!==S.sel&&!S.locked){select(bt);return}
+  if(!S.sel||S.drag)return;
+  // slingshot: drag back from the tank, or from anywhere on screen (finger never hides the tank)
+  const pv=toScreen(pivotOf(S.sel)),near=hyp(p.x-pv.x,p.y-pv.y)<56;
+  S.drag={len:0,id:e.pointerId,ax:near?pv.x:p.x,ay:near?pv.y:p.y};S.aimShow=true;
+  cvs.setPointerCapture(e.pointerId);setAimFromPointer(p.x,p.y);
 }
-function onMove(e){if(S&&S.drag&&S.phase==='play'&&!S.drag.ai){const p=pt(e);setAimFromPointer(p.x,p.y)}}
+function onMove(e){if(S&&S.drag&&S.drag.id===e.pointerId&&S.phase==='play'&&!S.drag.ai){const p=pt(e);setAimFromPointer(p.x,p.y)}}
 function onUp(e){
   if(hold&&S&&S.holdPtr===e.pointerId){hold=null;S.holdPtr=null}
-  if(S&&S.drag&&!S.drag.ai&&S.phase==='play'){
+  if(S&&S.drag&&S.drag.id===e.pointerId&&!S.drag.ai&&S.phase==='play'){
     const d=S.drag;S.drag=null;S.aimShow=false;
-    if(d.len>=16&&S.sel)fire(S.sel);
+    if(d.len>=MIN_DRAG&&S.sel){buzz(18);fire(S.sel)}
   }
 }
+function onCancel(e){
+  if(hold&&S&&S.holdPtr===e.pointerId){hold=null;S.holdPtr=null}
+  if(S&&S.drag&&S.drag.id===e.pointerId&&!S.drag.ai){S.drag=null;S.aimShow=false}
+}
+const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
 /* ----------------------------------------------------------------------- menus */
 const $=id=>document.getElementById(id);
 function show(id){for(const s of document.querySelectorAll('.screen'))s.classList.toggle('on',s.id===id)}
@@ -978,7 +1021,7 @@ function showOver(){
 window.addEventListener('load',()=>{
   cvs=$('game');ctx=cvs.getContext('2d');resize();addEventListener('resize',resize);
   cvs.addEventListener('pointerdown',onDown);cvs.addEventListener('pointermove',onMove);
-  cvs.addEventListener('pointerup',onUp);cvs.addEventListener('pointercancel',onUp);
+  cvs.addEventListener('pointerup',onUp);cvs.addEventListener('pointercancel',onCancel);cvs.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('gesturestart',e=>e.preventDefault());
   addEventListener('keydown',e=>{
     const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=true;
     if(S&&S.phase==='play'&&!isAI()&&k>='1'&&k<='4'){const t=S.tanks.find(t=>t.owner===S.turn&&t.slot===+k-1&&t.alive);if(t)select(t)}
@@ -988,8 +1031,9 @@ window.addEventListener('load',()=>{
   addEventListener('keyup',e=>{const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=false});
   addEventListener('blur',()=>{for(const k in keys)keys[k]=false;hold=null});
   buildMenu();
+  if(TOUCH)$('hint').innerHTML='Hold <b>◀ ▶</b> to drive — right climbs a wall ahead, left climbs down · <b>Drag back anywhere</b> on the screen to aim, release to fire · Tap a tank to choose it · <b>🔍</b> toggles close-up camera';
   for(const b of $('timeRow').children)b.onclick=()=>{opt.time=+b.dataset.t;[...$('timeRow').children].forEach(c=>c.classList.toggle('sel',c===b))};
-  $('goDraft').onclick=()=>{draftP=0;draftSel=[];buildDraft();show('draft')};
+  $('goDraft').onclick=()=>{try{const de=document.documentElement;if(!document.fullscreenElement&&de.requestFullscreen)de.requestFullscreen({navigationUI:'hide'}).then(()=>screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{})).catch(()=>{})}catch(e){};draftP=0;draftSel=[];buildDraft();show('draft')};
   $('dRand').onclick=()=>{draftSel=randomTeam();refreshDraft()};
   $('dOk').onclick=()=>{
     opt.teams[draftP]=draftSel.slice();
