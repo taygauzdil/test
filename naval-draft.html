@@ -348,7 +348,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
         let cur = 0.7 + gap;
         row.forEach((u, i) => {
           u.x = cur + ws[i] / 2; cur += ws[i] + gap;
-          const d = 0.9 + (rows.length - 1 - ri) * 1.35; // distance from our own edge
+          const d = 1.4 + (rows.length - 1 - ri) * 1.5; // distance from our own edge
           u.y = team === 'p' ? H - d : d;
         });
       });
@@ -362,18 +362,19 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 
   // Splits ships (anything with .def) into formation rows: melee first, artillery last, up to 8 per row.
   function formationRows(list) {
+    // Ships line up side by side. A new row starts only when the current one is full; gunboats fill the first row.
     const rank = d => d.front ? 0 : d.role === 'Artillery' ? 2 : 1;
+    const sorted = list.slice().sort((a, b) => rank(a.def) - rank(b.def));
     const rows = [];
-    for (let g = 0; g < 3; g++) {
-      let row = [], w = 0;
-      for (const u of list.filter(u => rank(u.def) === g)) {
-        const uw = 2 * u.def.rad + 0.1;
-        if (row.length && w + uw > 8.6) { rows.push(row); row = []; w = 0; }
-        row.push(u); w += uw;
-      }
-      if (row.length) rows.push(row);
+    let row = [], w = 0;
+    for (const u of sorted) {
+      const uw = 2 * u.def.rad + 0.1;
+      if (row.length && w + uw > 8.6) { rows.push(row); row = []; w = 0; }
+      row.push(u); w += uw;
     }
-    return rows;
+    if (row.length) rows.push(row);
+    // inside a row the most front-line ships sit in the middle, the rest fan out to both sides
+    return rows.map(r => { const out = []; r.forEach((u, i) => (i % 2 ? out.unshift(u) : out.push(u))); return out; });
   }
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
