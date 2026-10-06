@@ -160,7 +160,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 #draft{padding-left:10px;padding-right:10px}
 #pv{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
 #draft > :not(canvas){position:relative;z-index:1}
-.fleetgap{flex:0 0 clamp(96px,17vh,140px)}
+.fleetgap{flex:0 0 clamp(104px,19vh,152px)}
 #draft .opp{margin:0;padding:5px 8px;gap:8px;background:#2a1220e6}
 #draft .opp .who{min-width:0}
 #draft .opp .tr{white-space:nowrap}
@@ -611,7 +611,8 @@ addEventListener('keydown', e => {
 
 // ---------- draft backdrop: both fleets on the sea ----------
 const pv = $('pv'), pg = pv.getContext('2d');
-let pvRAF = 0;
+let pvRAF = 0, pvRoot = { left: 0, top: 0 };
+const pvPos = {}; // ship uid -> where it was drawn on screen, so the battle can continue from there
 function pvLoop(now) {
   if (!$('draft').classList.contains('on')) return;
   drawPreview(now / 1000);
@@ -625,13 +626,14 @@ function drawPreview(t) {
   g.fillStyle = sea; g.fillRect(0, 0, w, h);
   g.strokeStyle = '#ffffff22'; g.lineWidth = 2;
   for (let y = 0; y < h; y += 28) { g.beginPath(); for (let x = 0; x <= w; x += 12) g.lineTo(x, y + Math.sin(x / 22 + t * 1.5 + y) * 3); g.stroke(); }
+  pvRoot = root;
   const sky = $('sky').getBoundingClientRect(), mine = $('myfleet').getBoundingClientRect();
   fleet(G.army, 'p', mine.top - root.top, mine.bottom - root.top, w, t);
   fleet(O.army, 'e', sky.top - root.top, sky.bottom - root.top, w, t);
 }
 function fleet(list, team, top, bottom, w, t) {
   const rows = SIM.formationRows(list.map(u => Object.assign({ def: UNITS[u.id] }, u)));
-  const pitch = Math.min(26, (bottom - top - 40) / Math.max(1, rows.length)), size = w / 10 * 0.62, now = performance.now();
+  const pitch = Math.min(46, (bottom - top - 36) / Math.max(1, rows.length)), size = w / 10 * 0.62, now = performance.now();
   rows.forEach((row, ri) => row.forEach((u, i) => {
     const x = w * (1 + (i + 0.5) / row.length * 8) / 10;
     const y = (team === 'p' ? top + 26 + ri * pitch : bottom - 26 - ri * pitch) + Math.sin(t * 1.7 + (parseInt(String(u.uid).replace(/\D/g, '')) || 0) * 1.3 + i) * 1.5;
@@ -639,6 +641,7 @@ function fleet(list, team, top, bottom, w, t) {
     if (age < 0.7) { pg.strokeStyle = `rgba(255,255,255,${0.8 * (1 - age / 0.7)})`; pg.lineWidth = 2; pg.beginPath(); pg.arc(x, y, 6 + age * 40, 0, 7); pg.stroke(); }
     if (u.fresh && age < 4) { pg.fillStyle = `rgba(${team === 'p' ? '53,167,255' : '255,90,95'},${0.25 * (1 - age / 4)})`; pg.beginPath(); pg.arc(x, y, size * 0.8, 0, 7); pg.fill(); }
     drawShip(pg, u.def, team, x, y, size * k, team === 'p' ? 0 : Math.PI);
+    pvPos[u.uid] = { x: x + pvRoot.left, y: y + pvRoot.top, size: size * k };
     if (u.hp < u.maxHp) { const f = u.hp / u.maxHp; pg.fillStyle = '#000a'; pg.fillRect(x - 10, y + 10, 20, 3); pg.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; pg.fillRect(x - 10, y + 10, 20 * f, 3); }
   }));
 }
@@ -798,9 +801,14 @@ function runBattle() {
   B.totalE = B.units.filter(u => u.team === 'e').reduce((s, u) => s + u.maxHp, 0);
   B.byUid = Object.fromEntries(B.units.map(u => [u.uid, u]));
   parts = []; floats = []; B.freeze = 0; B.shake = 0;
-  // intro: ships spawn in one by one (back rows first) before the fight starts
-  B.introLen = Math.min(2.2, 0.9 + B.units.length * 0.07); B.introT = 0;
-  ['p', 'e'].forEach(tm => B.units.filter(u => u.team === tm).sort((a, b) => Math.abs(b.y - H / 2) - Math.abs(a.y - H / 2)).forEach((u, i, arr) => { u.spawnIdx = i / Math.max(1, arr.length - 1); }));
+  // the fleets continue from where they stood on the draft screen and glide into battle formation (no re-spawn)
+  const rc = cv.getBoundingClientRect(), kx = rc.width ? cv.width / rc.width : 1, ky = rc.height ? cv.height / rc.height : 1;
+  B.glideLen = 0.9; B.introLen = B.glideLen; B.introT = 0;
+  for (const u of B.units) {
+    u.ang = u.team === 'p' ? 0 : Math.PI;
+    const src = pvPos[u.srcUid];
+    if (src && rc.width) u.from = { x: (src.x - rc.left) * kx, y: (src.y - rc.top) * ky, size: src.size * kx };
+  }
   fx = []; last = performance.now(); B.endT = 0;
   cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
 }
@@ -839,11 +847,14 @@ function draw(t) {
   const sizeF = Math.max(0.7, 0.98 - Math.max(0, Math.max(B.nP, B.nE) - 6) * 0.02); // smaller ships in big fleets
   const list = B.units.slice().sort((a, b) => a.y - b.y);
   for (const u of list) {
-    const x = (u.x + (u.kx || 0)) * S, y = (u.y + (u.ky || 0)) * S;
-    const sk = B.introT >= B.introLen ? 1 : Math.max(0, Math.min(1, (B.introT - u.spawnIdx * (B.introLen - 0.8)) / 0.4));
-    if (sk <= 0) continue;
-    if (sk < 1) { g.strokeStyle = `rgba(255,255,255,${0.8 * (1 - sk)})`; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 8 + sk * 34, 0, 7); g.stroke(); }
-    const popK = 0.25 + 0.75 * (1 - Math.pow(1 - sk, 3));
+    let x = (u.x + (u.kx || 0)) * S, y = (u.y + (u.ky || 0)) * S;
+    const gl = B.introT >= B.glideLen ? 1 : 1 - Math.pow(1 - B.introT / B.glideLen, 3);
+    let szK = 1, popK = 1, sk = 1;
+    if (gl < 1) {
+      if (u.from) { x = u.from.x + (x - u.from.x) * gl; y = u.from.y + (y - u.from.y) * gl; szK = (u.from.size / (S * sizeF)) * (1 - gl) + gl; }
+      else { sk = Math.min(1, B.introT / 0.4); popK = 0.25 + 0.75 * (1 - Math.pow(1 - sk, 3)); // ships added after the draft view (rival's instant picks) pop in
+        g.strokeStyle = `rgba(255,255,255,${0.8 * (1 - sk)})`; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 8 + sk * 34, 0, 7); g.stroke(); }
+    }
     // heading: face the nearest enemy; ships that moved leave a wake
     if (u.alive) {
       let tg = null, bd = 1e9;
@@ -859,7 +870,7 @@ function draw(t) {
       }
       const dm0 = shipDims(u.def, S * sizeF), fl = Math.max(0, u.flash / 0.16);
       if (fl > 0) { g.shadowColor = '#fff'; g.shadowBlur = 16 * fl; }
-      drawShip(g, u.def, u.team, x, y, S * sizeF * popK, u.ang);
+      drawShip(g, u.def, u.team, x, y, S * sizeF * popK * szK, u.ang);
       g.shadowColor = 'transparent'; g.shadowBlur = 0;
       if (fl > 0) { g.fillStyle = `rgba(255,255,255,${0.55 * fl})`; const dm = shipDims(u.def, S * sizeF); g.beginPath(); g.ellipse(x, y, dm.hw * 1.1, dm.hl * 0.95, u.ang, 0, 7); g.fill(); } // white hit flash
       if (sk < 1) g.globalAlpha = sk;
