@@ -190,6 +190,14 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 @media (max-height:700px){#draft .card .ds{display:none}}
 
 #draft .cardarea{background:none;box-shadow:none}
+
+/* a card you cannot afford: shown greyed out with an explanation */
+.card.blocked{filter:grayscale(.75) brightness(.78)}
+.card .need{position:absolute;left:8px;right:8px;top:50%;z-index:3;background:#240b0ef2;border:2px solid #ff5a5f;border-radius:12px;padding:8px 6px;text-align:center;font-size:12px;color:#ffd0d2;transform:rotate(-4deg);box-shadow:0 6px 18px #000a;filter:none}
+.card .need b{display:block;font-size:15px;color:#ff7a7e;letter-spacing:.5px;text-transform:uppercase}
+.card .need small{display:block;margin-top:3px;color:#fff;font-weight:700;font-size:11px}
+#btnStart.pulse{background:linear-gradient(#37b3ff,#1f7fd6);box-shadow:0 0 0 0 #35a7ffaa,0 4px 0 #14568f;animation:pls 1s infinite;font-size:15px}
+@keyframes pls{70%{box-shadow:0 0 0 12px #35a7ff00,0 4px 0 #14568f}100%{box-shadow:0 0 0 0 #35a7ff00,0 4px 0 #14568f}}
 </style>
 </head>
 <body>
@@ -458,13 +466,15 @@ $('btnSail').onclick = async () => {
 };
 
 // ---------- draft (alternating picks: you, then the rival) ----------
-let pool = [], budget = 0, current = null, busy = false, discards = 0, token = 0;
+let pool = [], budget = 0, current = null, busy = false, discards = 0, token = 0, curCan = true, forced = false;
 const born = {}; // ship uid -> spawn time, for the pop-in effect
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function updDiscard() {
-  $('btnDiscard').textContent = `✖ Discard (${discards})`;
-  $('btnDiscard').disabled = !current || busy || discards <= 0;
-  $('btnRecruit').disabled = !current || busy;
+  const free = current && !curCan && !forced; // a card you can't afford can be skipped for free while other cards still fit
+  $('btnDiscard').textContent = free ? '↷ Skip (free)' : `✖ Discard (${discards})`;
+  $('btnDiscard').disabled = !current || busy || forced || (!free && discards <= 0);
+  $('btnRecruit').disabled = !current || busy || !curCan;
+  $('btnStart').classList.toggle('pulse', !!forced && !busy);
 }
 function oppBar() {
   const bot = O.bot, l = O.last;
@@ -498,14 +508,17 @@ function rivalPick() {
   return true;
 }
 function nextCard() {
-  pool = pool.filter(c => UNITS[c.id].cost <= budget); // the budget never grows within a round, so cards that no longer fit are dropped
   current = pool[0] || null;
+  const fitsAny = pool.some(c => UNITS[c.id].cost <= budget);
+  curCan = !!current && UNITS[current.id].cost <= budget;
+  forced = !!current && !fitsAny; // nothing in the pool fits any more: the only move left is to battle
   drawPips(); updDiscard();
   const area = $('cardArea');
   if (!current) { finishDraft(); return; }
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
-  area.innerHTML = `<div class="card enter" id="card" style="--c:${c}">
+  const need = !curCan ? `<div class="need"><b>Not enough Stars</b>needs ★${u.cost} · you have ★${budget}<small>${forced ? 'Nothing else fits — start the battle!' : 'Skip it for free'}</small></div>` : '';
+  area.innerHTML = `<div class="card enter ${curCan ? '' : 'blocked'}" id="card" style="--c:${c}">${need}
     <div class="stamp r" id="stR">RECRUIT</div><div class="stamp l" id="stL">DISCARD</div>
     <div class="top"><span class="role">${u.role}</span><span class="cost">${stars(u.cost)}</span></div>
     <div class="icon"><img alt="${u.name}" src="${shipImg(u.id, 'p', 96, true)}"></div>
@@ -513,7 +526,7 @@ function nextCard() {
     <div class="ds">${u.desc}</div>
     <div class="sg"><div>Health<b>❤ ${u.hp}</b></div><div>Damage<b>⚔ ${u.dmg}</b></div>
       <div>Range<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Blast' : 'Speed'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/s'}</b></div></div>
-    <div class="after">Recruit → <b>★${budget - u.cost}</b> left</div>
+    <div class="after">${curCan ? `Recruit → <b>★${budget - u.cost}</b> left` : `<b>★${budget}</b> left`}</div>
   </div>`;
   bindCard($('card'));
   busy = false; updDiscard();
@@ -536,9 +549,10 @@ async function finishDraft() {
   $('btnFight').onclick = startBattle;
 }
 async function act(dir) { // 1 recruit, -1 discard (limited per round)
-  if (!current || busy || (dir < 0 && discards <= 0)) return;
+  const free = !curCan && !forced; // skipping a card you can't afford costs nothing
+  if (!current || busy || forced || (dir > 0 && !curCan) || (dir < 0 && !free && discards <= 0)) return;
   busy = true; updDiscard();
-  if (dir < 0) discards--;
+  if (dir < 0 && !free) discards--;
   const my = token, card = $('card');
   card.style.transition = 'transform .25s ease-in, opacity .25s';
   card.style.transform = `translateX(${dir * 520}px) rotate(${dir * 25}deg)`; card.style.opacity = 0;
@@ -548,8 +562,8 @@ async function act(dir) { // 1 recruit, -1 discard (limited per round)
   pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
   if (dir > 0) { budget -= u.cost; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
   current = null; drawPips();
-  // the rival answers with a pick of its own
-  if (!O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(450); if (my !== token) return; rivalPick(); await wait(750); if (my !== token) return; }
+  // the rival answers with a pick of its own (a free skip is not a real move)
+  if (!free && !O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(450); if (my !== token) return; rivalPick(); await wait(750); if (my !== token) return; }
   nextCard();
 }
 function bindCard(card) {
@@ -564,7 +578,7 @@ function bindCard(card) {
   const end = e => {
     if (sx == null) return;
     const dx = e.clientX - sx; sx = null;
-    if (dx > 90) act(1); else if (dx < -90 && discards > 0) act(-1);
+    if (dx > 90 && curCan) act(1); else if (dx < -90 && !forced && (discards > 0 || !curCan)) act(-1);
     else { card.style.transition = 'transform .2s'; set(0); }
   };
   card.addEventListener('pointerup', end);
@@ -573,7 +587,7 @@ function bindCard(card) {
 $('btnRecruit').onclick = () => act(1);
 $('btnDiscard').onclick = () => act(-1);
 $('btnStart').onclick = () => { // end my draft early; the rival finishes instantly
-  if (!G.army.length || busy) return;
+  if (!G.army.length || (busy && !forced)) return;
   while (rivalPick()) {}
   startBattle();
 };
