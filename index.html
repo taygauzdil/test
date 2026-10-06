@@ -482,9 +482,10 @@ function loop(now) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
   let t = dt * speed;
   while (t > 0 && !B.winner) { const d = Math.min(1 / 30, t); SIM.step(B, d); t -= d; }
-  for (const e of B.events) fx.push(e); B.events.length = 0;
-  for (const e of fx) e.t += dt * speed;
-  fx = fx.filter(e => e.t < 0.45);
+  for (const e of B.events) { fx.push(e); if (e.k === 'boom' && (e.shot === 'shell' || e.shot === 'ball' || e.shot === 'comet')) B.shake = e.shot === 'shell' ? 7 : 3.5; } B.events.length = 0;
+  B.shake = (B.shake || 0) * 0.88;
+  for (const e of fx) { e.t += dt * speed; }
+  fx = fx.filter(e => e.t < (e.dur || 0.45));
   draw(now / 1000);
   const hp = team => B.units.filter(u => u.team === team && u.alive).reduce((s, u) => s + u.hp, 0);
   $('hpP').style.width = (hp('p') / B.totalP * 100) + '%';
@@ -494,6 +495,7 @@ function loop(now) {
 }
 function draw(t) {
   const g = ctx, w = cv.width, h = cv.height;
+  g.save(); if (B.shake > 0.3) g.translate((Math.random() - .5) * B.shake, (Math.random() - .5) * B.shake);
   const sea = g.createLinearGradient(0, 0, 0, h); sea.addColorStop(0, '#0f3d63'); sea.addColorStop(.5, '#1a6a9a'); sea.addColorStop(1, '#0f3d63');
   g.fillStyle = sea; g.fillRect(0, 0, w, h);
   g.strokeStyle = '#ffffff22'; g.lineWidth = 2;
@@ -530,27 +532,57 @@ function draw(t) {
       g.font = '14px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('💀', x, y);
     }
   }
-  for (const e of fx) {
-    const p = e.t / 0.45;
-    if (e.k === 'boom') {
-      g.fillStyle = `rgba(255,160,40,${0.55 * (1 - p)})`; g.beginPath(); g.arc(e.x * S, e.y * S, e.r * S * (0.4 + 0.6 * p), 0, 7); g.fill();
-      g.strokeStyle = `rgba(255,230,120,${1 - p})`; g.lineWidth = 3; g.stroke();
-    } else if (e.k === 'arrow') {
-      g.strokeStyle = `rgba(255,255,255,${1 - p})`; g.lineWidth = 2; g.beginPath();
-      g.moveTo(e.fx * S, e.fy * S); g.lineTo(e.fx * S + (e.x - e.fx) * S * Math.min(1, p * 2.5), e.fy * S + (e.y - e.fy) * S * Math.min(1, p * 2.5)); g.stroke();
-    } else {
-      g.strokeStyle = `rgba(255,255,255,${1 - p})`; g.lineWidth = 3; g.beginPath(); g.arc(e.x * S, e.y * S, 0.3 * S + p * 0.4 * S, 0.5, 2.6); g.stroke();
+  // ---- projectiles in flight (each unit type has its own) ----
+  const at = (p, f) => [p.sx + (p.tx - p.sx) * f, p.sy + (p.ty - p.sy) * f - Math.sin(Math.PI * f) * p.arc * 0.6];
+  const dot = (x, y, r, c, a) => { g.globalAlpha = a; g.fillStyle = c; g.beginPath(); g.arc(x, y, Math.max(0.5, r), 0, 7); g.fill(); g.globalAlpha = 1; };
+  for (const p of B.proj) {
+    const f = p.f || 0, [mx, my] = at(p, f), x = mx * S, y = my * S;
+    const dx = p.tx - p.sx, dy = p.ty - p.sy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    if (p.arc > 0.5) { g.fillStyle = '#0003'; g.beginPath(); g.ellipse((p.sx + dx * f) * S, (p.sy + dy * f) * S, 4, 2, 0, 0, 7); g.fill(); }
+    const tr = (n, step, col, r0, a0) => { for (let k = 1; k <= n; k++) { const [tx, ty] = at(p, Math.max(0, f - k * step)); dot(tx * S, ty * S, r0 * (1 - k / (n + 1)), col, a0 * (1 - k / (n + 1))); } };
+    const line = (len, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(x, y); g.lineTo(x - ux * len, y - uy * len); g.stroke(); };
+    switch (p.shot) {
+      case 'arrow': line(10, '#f1e3b0', 1.6); dot(x, y, 1.6, '#fff', 1); break;
+      case 'longarrow': line(16, '#ffffff', 2); line(4, '#9be28f', 3); dot(x, y, 2, '#fff', 1); break;
+      case 'bullet': line(30, '#ffe27a', 2.2); dot(x, y, 3.5, '#fff6c8', 0.9); break;
+      case 'bomb': dot(x, y, 4.5, '#1d1d22', 1); dot(x - 1, y - 1.5, 1.5, '#666', 1); dot(x + 2, y - 5, 1.8 + Math.sin(performance.now() / 40), '#ffb347', 1); tr(3, 0.04, '#999', 3, 0.4); break;
+      case 'grenade': dot(x, y, 4, '#586b2c', 1); dot(x, y - 4, 1.6, '#c9ced6', 1); tr(5, 0.035, '#c6e86a', 3, 0.6); break;
+      case 'comet': tr(8, 0.03, '#ff7a2a', 8, 0.7); dot(x, y, 9, '#ff9a3c', 0.35); dot(x, y, 5.5, '#ffd34d', 1); dot(x, y, 2.5, '#fff', 1); break;
+      case 'ball': tr(6, 0.03, '#bbb', 4, 0.5); dot(x, y, 4.8, '#26262b', 1); dot(x - 1.4, y - 1.4, 1.6, '#8a8a94', 1); break;
+      case 'shell': tr(10, 0.025, '#b48cff', 7, 0.5); dot(x, y, 9, '#a56bff', 0.3); dot(x, y, 6, '#2d1f4a', 1); dot(x - 1.5, y - 1.5, 2, '#d9c2ff', 1); break;
     }
   }
-}
-function ship(g, y0, y1, top) {
-  const a = y0 * S, b = y1 * S, w = cv.width;
-  g.fillStyle = '#5a3b22'; g.beginPath();
-  if (top) { g.moveTo(0, a); g.lineTo(w, a); g.lineTo(w - 10, b - 14); g.quadraticCurveTo(w / 2, b + 24, 10, b - 14); }
-  else { g.moveTo(0, b); g.lineTo(w, b); g.lineTo(w - 10, a + 14); g.quadraticCurveTo(w / 2, a - 24, 10, a + 14); }
-  g.closePath(); g.fill();
-  g.strokeStyle = '#3a2514'; g.lineWidth = 2;
-  for (let y = a + 20; y < b - 10; y += 22) { g.beginPath(); g.moveTo(8, y); g.lineTo(w - 8, y); g.stroke(); }
+  // ---- muzzle flashes, melee swings, impacts and explosions ----
+  for (const e of fx) {
+    const p = Math.min(1, e.t / (e.dur || 0.45)), x = e.x * S, y = e.y * S, a = 1 - p;
+    if (e.k === 'muzzle') {
+      const dx = e.tx - e.x, dy = e.ty - e.y, L = Math.hypot(dx, dy) || 1, mx = x + dx / L * S * 0.6, my = y + dy / L * S * 0.6;
+      const big = { cannon: 1, ball: 1, shell: 1.7, comet: 1.1, bullet: 0.9 }[e.shot] || 0;
+      if (e.shot === 'ball' || e.shot === 'shell') { dot(mx, my, (8 + 10 * p) * big, '#ff9a3c', 0.8 * a); dot(mx + dx / L * 6 * p, my + dy / L * 6 * p, 6 + 14 * p, '#aaa', 0.5 * a); }
+      else if (e.shot === 'bullet') { dot(mx, my, 8 * a, '#ffe27a', 0.9); }
+      else if (e.shot === 'comet') { g.strokeStyle = `rgba(255,170,60,${a})`; g.lineWidth = 3; g.beginPath(); g.arc(mx, my, 4 + 10 * p, 0, 7); g.stroke(); }
+      else if (e.shot === 'bomb' || e.shot === 'grenade') dot(mx, my, 3 + 5 * p, '#ddd', 0.5 * a);
+      else if (e.shot === 'arrow' || e.shot === 'longarrow') dot(mx, my, 2 + 2 * p, '#fff', 0.6 * a);
+    } else if (e.k === 'melee') {
+      g.lineCap = 'round';
+      if (e.shot === 'bash') { g.strokeStyle = `rgba(170,210,255,${a})`; g.lineWidth = 5 * a + 1; g.beginPath(); g.arc(x, y, 6 + 18 * p, 0, 7); g.stroke(); }
+      else if (e.shot === 'saber') { g.strokeStyle = `rgba(255,211,77,${a})`; g.lineWidth = 4; g.beginPath(); g.arc(x, y, 14, 0.2 + p * 2.2, 1.6 + p * 2.2); g.stroke(); for (let k = 0; k < 5; k++) dot(x + Math.cos(k * 1.3) * 18 * p, y + Math.sin(k * 1.3) * 18 * p, 1.8, '#ffe9a0', a); }
+      else if (e.shot === 'slash2') { g.strokeStyle = `rgba(255,120,110,${a})`; g.lineWidth = 3; for (const o of [0, 1.1]) { g.beginPath(); g.arc(x, y, 11, o + p * 1.5, o + 1.4 + p * 1.5); g.stroke(); } }
+      else { g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 3; g.beginPath(); g.arc(x, y, 10, 0.4 + p, 2 + p); g.stroke(); }
+    } else if (e.k === 'impact') {
+      const col = { bullet: '#ffe27a', arrow: '#f1e3b0', longarrow: '#fff' }[e.shot] || '#fff';
+      for (let k = 0; k < 5; k++) dot(x + Math.cos(k * 1.26) * 12 * p, y + Math.sin(k * 1.26) * 12 * p, 2, col, a);
+    } else if (e.k === 'boom') {
+      const R = e.r * S, pal = { bomb: ['255,150,40', '255,226,120'], grenade: ['170,210,60', '240,255,160'], comet: ['255,70,40', '255,230,120'], ball: ['255,160,60', '200,200,200'], shell: ['165,107,255', '255,200,120'] }[e.shot] || ['255,160,40', '255,230,120'];
+      g.fillStyle = `rgba(${pal[0]},${0.55 * a})`; g.beginPath(); g.arc(x, y, R * (0.35 + 0.65 * p), 0, 7); g.fill();
+      g.fillStyle = `rgba(${pal[1]},${0.9 * a * a})`; g.beginPath(); g.arc(x, y, R * 0.45 * (1 - p * 0.5), 0, 7); g.fill();
+      g.strokeStyle = `rgba(${pal[1]},${a})`; g.lineWidth = 3; g.beginPath(); g.arc(x, y, R * (0.5 + 0.7 * p), 0, 7); g.stroke();
+      if (e.shot === 'ball' || e.shot === 'shell') { g.strokeStyle = `rgba(255,255,255,${0.7 * a})`; g.lineWidth = 2; g.beginPath(); g.arc(x, y, R * (0.3 + 1.1 * p), 0, 7); g.stroke(); }
+      const n = e.shot === 'shell' ? 12 : e.shot === 'grenade' ? 9 : 6;
+      for (let k = 0; k < n; k++) { const an = k * 6.283 / n + 0.4, r = R * (0.4 + 0.9 * p); dot(x + Math.cos(an) * r, y + Math.sin(an) * r, 2.2 * a + 0.5, `rgb(${pal[1]})`, a); }
+    }
+  }
+  g.restore();
 }
 
 // ---------- round / match end ----------

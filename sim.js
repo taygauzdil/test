@@ -4,19 +4,27 @@
 
   // cost = Star cost. Power grows faster than linearly with cost.
   const UNITS = {
-    deckhand:  { id: 'deckhand',  name: 'Deckhand',      icon: '🗡️', role: 'Melee',     cost: 3, hp: 70,  dmg: 9,  range: 0.9, spd: 2.2, cd: 0.8, aoe: 0,   price: 0,   desc: 'Cheap, reliable frontliner.' },
-    raider:    { id: 'raider',    name: 'Cutlass Raider',icon: '⚔️', role: 'Melee',     cost: 4, hp: 100, dmg: 14, range: 0.9, spd: 2.3, cd: 0.8, aoe: 0,   price: 0,   desc: 'Fast and hard-hitting.' },
-    guard:     { id: 'guard',     name: 'Shield Guard',  icon: '🛡️', role: 'Melee',     cost: 5, hp: 210, dmg: 8,  range: 0.9, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Tanky wall. Soaks damage.' },
-    captain:   { id: 'captain',   name: 'Elite Captain', icon: '🏴‍☠️', role: 'Elite',     cost: 6, hp: 320, dmg: 24, range: 1.0, spd: 2.2, cd: 0.8, aoe: 0,   price: 290, desc: 'Elite duelist. Stronger than two cheap units.' },
+    deckhand:  { id: 'deckhand',  name: 'Deckhand',      icon: '🗡️', role: 'Melee',     cost: 3, hp: 70,  dmg: 9,  range: 1.3, spd: 2.2, cd: 0.8, aoe: 0,   price: 0,   desc: 'Cheap, reliable frontliner.' },
+    raider:    { id: 'raider',    name: 'Cutlass Raider',icon: '⚔️', role: 'Melee',     cost: 4, hp: 100, dmg: 14, range: 1.3, spd: 2.3, cd: 0.8, aoe: 0,   price: 0,   desc: 'Fast and hard-hitting.' },
+    guard:     { id: 'guard',     name: 'Shield Guard',  icon: '🛡️', role: 'Melee',     cost: 5, hp: 210, dmg: 8,  range: 1.3, spd: 1.8, cd: 0.9, aoe: 0,   price: 0,   desc: 'Tanky wall. Soaks damage.' },
+    captain:   { id: 'captain',   name: 'Elite Captain', icon: '🏴‍☠️', role: 'Elite',     cost: 6, hp: 270, dmg: 22, range: 1.4, spd: 2.2, cd: 0.8, aoe: 0,   price: 290, desc: 'Elite duelist. Stronger than two cheap units.' },
     archer:    { id: 'archer',    name: 'Archer',        icon: '🏹', role: 'Archer',    cost: 3, hp: 40,  dmg: 10, range: 5,   spd: 1.8, cd: 1.0, aoe: 0,   price: 0,   desc: 'Ranged single-target damage.' },
     longbow:   { id: 'longbow',   name: 'Longbow',       icon: '🎯', role: 'Archer',    cost: 4, hp: 55,  dmg: 18, range: 6.5, spd: 1.8, cd: 1.1, aoe: 0,   price: 0,   desc: 'Longer range, harder hits.' },
     sharp:     { id: 'sharp',     name: 'Sharpshooter',  icon: '🔫', role: 'Archer',    cost: 5, hp: 60,  dmg: 32, range: 7.5, spd: 1.8, cd: 1.4, aoe: 0,   price: 200, desc: 'Deadly sniper.' },
     bomber:    { id: 'bomber',    name: 'Bomber',        icon: '💣', role: 'Bomber',    cost: 4, hp: 60,  dmg: 15, range: 3,   spd: 1.8, cd: 1.3, aoe: 1.4, price: 0,   desc: 'Area damage vs groups.' },
     grenadier: { id: 'grenadier', name: 'Grenadier',     icon: '🧨', role: 'Bomber',    cost: 5, hp: 75,  dmg: 25, range: 3.5, spd: 1.8, cd: 1.4, aoe: 1.7, price: 200, desc: 'Bigger blast radius.' },
-    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',  icon: '☄️', role: 'Elite',     cost: 6, hp: 110, dmg: 34, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Elite AoE devastation.' },
-    cannon:    { id: 'cannon',    name: 'Cannon',        icon: '💥', role: 'Artillery', cost: 7, hp: 90, dmg: 55, range: 9,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Long-range explosive shells.' },
-    mortar:    { id: 'mortar',    name: 'Siege Mortar',  icon: '🌋', role: 'Artillery', cost: 8, hp: 120, dmg: 85, range: 12,  spd: 1.0, cd: 2.6, aoe: 2.5, price: 510, desc: 'Extreme range, enormous blast.' },
+    elitebomb: { id: 'elitebomb', name: 'Elite Bomber',  icon: '☄️', role: 'Elite',     cost: 6, hp: 100, dmg: 29, range: 4.5, spd: 1.8, cd: 1.4, aoe: 2.1, price: 290, desc: 'Elite AoE devastation.' },
+    cannon:    { id: 'cannon',    name: 'Cannon',        icon: '💥', role: 'Artillery', cost: 7, hp: 90, dmg: 46, range: 9,   spd: 1.2, cd: 2.2, aoe: 2.0, price: 390, desc: 'Long-range explosive shells.' },
+    mortar:    { id: 'mortar',    name: 'Siege Mortar',  icon: '🌋', role: 'Artillery', cost: 8, hp: 115, dmg: 72, range: 12,  spd: 1.0, cd: 2.6, aoe: 2.5, price: 510, desc: 'Extreme range, enormous blast.' },
   };
+  // Every unit has its own attack. spd = projectile speed in tiles/s (none = instant melee), arc = lob height in tiles.
+  const SHOTS = {
+    deckhand: { k: 'slash' }, raider: { k: 'slash2' }, guard: { k: 'bash' }, captain: { k: 'saber' },
+    archer: { k: 'arrow', spd: 11, arc: 0.4 }, longbow: { k: 'longarrow', spd: 15, arc: 0.6 }, sharp: { k: 'bullet', spd: 34, arc: 0 },
+    bomber: { k: 'bomb', spd: 6, arc: 1.3 }, grenadier: { k: 'grenade', spd: 7, arc: 1.1 }, elitebomb: { k: 'comet', spd: 9, arc: 1.8 },
+    cannon: { k: 'ball', spd: 15, arc: 1.2 }, mortar: { k: 'shell', spd: 9, arc: 3.2 },
+  };
+  for (const id in SHOTS) UNITS[id].shot = SHOTS[id];
   const ORDER = Object.keys(UNITS);
   const STARTER = ['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber'];
   const WAVES = 5;
@@ -84,7 +92,7 @@
     const eu = enemies.map(e => { const u = makeUnit('e', e.id, e.hp, e.maxHp); u.srcUid = e.uid; return u; });
     place(pu, 'p'); place(eu, 'e');
     units.push(...pu, ...eu);
-    return { units, events: [], t: 0, winner: null };
+    return { units, events: [], proj: [], t: 0, winner: null };
   }
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -107,15 +115,14 @@
       if (bd <= d.range) {
         if (u.cd <= 0) {
           u.cd = d.cd;
-          const dmg = d.dmg * u.dmgMul;
-          if (d.aoe > 0) {
-            for (const o of alive) {
-              if (o.alive && o.team !== u.team && dist(o, target) <= d.aoe) hit(o, dmg);
-            }
-            s.events.push({ k: 'boom', x: target.x, y: target.y, r: d.aoe, fx: u.x, fy: u.y, t: 0 });
+          const dmg = d.dmg * u.dmgMul, sh = d.shot;
+          s.events.push({ k: 'muzzle', shot: sh.k, x: u.x, y: u.y, tx: target.x, ty: target.y, team: u.team, t: 0, dur: 0.3 });
+          if (sh.spd) {
+            const dd = Math.max(0.5, dist(u, target));
+            s.proj.push({ shot: sh.k, arc: sh.arc, team: u.team, sx: u.x, sy: u.y, x: u.x, y: u.y, tx: target.x, ty: target.y, tgt: target, dmg, aoe: d.aoe, dur: dd / sh.spd, t: 0 });
           } else {
             hit(target, dmg);
-            s.events.push({ k: d.range > 2 ? 'arrow' : 'slash', x: target.x, y: target.y, fx: u.x, fy: u.y, team: u.team, t: 0 });
+            s.events.push({ k: 'melee', shot: sh.k, x: target.x, y: target.y, fx: u.x, fy: u.y, team: u.team, t: 0, dur: 0.3 });
           }
         }
       } else {
@@ -124,13 +131,31 @@
         u.y += (target.y - u.y) / bd * mv;
       }
     }
+    // projectiles in flight
+    for (const p of s.proj) {
+      p.t += dt;
+      if (p.tgt && p.tgt.alive && !p.aoe) { p.tx = p.tgt.x; p.ty = p.tgt.y; } // single-target shots track their ship
+      const f = Math.min(1, p.t / p.dur);
+      p.x = p.sx + (p.tx - p.sx) * f; p.y = p.sy + (p.ty - p.sy) * f; p.f = f;
+      if (f >= 1) {
+        p.done = true;
+        if (p.aoe > 0) {
+          for (const o of s.units) if (o.alive && o.team !== p.team && Math.hypot(o.x - p.tx, o.y - p.ty) <= p.aoe) hit(o, p.dmg);
+          s.events.push({ k: 'boom', shot: p.shot, x: p.tx, y: p.ty, r: p.aoe, t: 0, dur: 0.55 });
+        } else {
+          if (p.tgt.alive) hit(p.tgt, p.dmg);
+          s.events.push({ k: 'impact', shot: p.shot, x: p.tx, y: p.ty, t: 0, dur: 0.3 });
+        }
+      }
+    }
+    s.proj = s.proj.filter(p => !p.done);
     // separation
     for (let i = 0; i < alive.length; i++) {
       const a = alive[i]; if (!a.alive) continue;
       for (let j = i + 1; j < alive.length; j++) {
         const b = alive[j]; if (!b.alive) continue;
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-        const min = 1.0;
+        const min = a.team === b.team ? 1.0 : 0.55;
         if (d < min && d > 0.0001) {
           const push = (min - d) / 2;
           a.x -= dx / d * push; a.y -= dy / d * push;
@@ -153,6 +178,6 @@
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGET, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGET, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);
