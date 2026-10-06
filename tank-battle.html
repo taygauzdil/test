@@ -55,7 +55,7 @@ h1{margin:0 0 2px;font-size:clamp(26px,5vw,48px);letter-spacing:.06em;text-trans
     <button class="opt" data-t="20"><b>20s</b></button><button class="opt sel" data-t="30"><b>30s</b></button><button class="opt" data-t="45"><b>45s</b></button>
   </div>
   <button class="btn" id="goDraft">Choose Tanks</button>
-  <p class="sub" style="margin-top:14px">Move: <b>← → ↑ ↓</b> / <b>WASD</b> (or on-screen pad) · Aim: <b>drag back from your tank</b>, release to fire · Pick tank: click it or keys <b>1–4</b></p>
+  <p class="sub" style="margin-top:14px">Move: <b>← →</b> / <b>A D</b> (or on-screen buttons) — right climbs a wall you drive into, left climbs down · Aim: <b>drag back from your tank</b>, release to fire · Pick tank: click it or keys <b>1–4</b></p>
 </div>
 
 <div id="draft" class="screen">
@@ -563,16 +563,18 @@ function updateCamera(dt){
 /* ------------------------------------------------------------------ update */
 const keys={};let hold=null;
 function inputVec(){
-  let ix=0,iy=0;
+  let ix=0;
   if(keys.ArrowLeft||keys.a||hold==='left')ix-=1;if(keys.ArrowRight||keys.d||hold==='right')ix+=1;
-  if(keys.ArrowUp||keys.w||hold==='up')iy-=1;if(keys.ArrowDown||keys.s||hold==='down')iy+=1;
-  return{ix,iy};
+  return{ix};
 }
-function driveSel(dt,ix,iy){
-  const t=S.sel;if(!t||t.fuel<=0||t.fly||(!ix&&!iy))return;
-  const T={x:-t.n.y,y:t.n.x},d=ix*T.x+iy*T.y;
-  if(Math.abs(d)<.15)return;
-  const sg=d>0?1:-1,dist=Math.min(t.def.speed*dt,t.fuel*t.def.eff);
+/* Left/right only. On floors/ceilings/slopes the key moves the tank that way on screen;
+   on steep walls "right" climbs a wall on the tank's right side (n.x<0) and descends one on its left, "left" the opposite. */
+function driveSel(dt,ix){
+  const t=S.sel;if(!t||t.fuel<=0||t.fly||!ix)return;
+  const T={x:-t.n.y,y:t.n.x};let sg;
+  if(Math.abs(T.x)>=.7)sg=(ix*T.x>0)?1:-1;
+  else{const up=(ix>0)===(t.n.x<0);sg=up?(T.y<0?1:-1):(T.y<0?-1:1)}
+  const dist=Math.min(t.def.speed*dt,t.fuel*t.def.eff);
   const cost=t.def.id==='scout'&&t.n.y>-.6?.5:1;
   const m=moveTank(t,sg,dist);
   if(m>0){lock();t.fuel=Math.max(0,t.fuel-m/(t.def.eff/cost));t.moving=.1}
@@ -601,7 +603,7 @@ function update(dt){
     if(Math.ceil(S.timer)!==Math.ceil(S.timer+dt)&&S.timer<6&&S.timer>0&&!isAI())sfx('tick');
     if(S.timer<=0){autoFire();return}
     if(isAI())updateAI(dt);
-    else{const {ix,iy}=inputVec();driveSel(dt,ix,iy)}
+    else{driveSel(dt,inputVec().ix)}
   }else if(S.phase==='flight'){
     if(S.burst){
       const b=S.burst;b.timer-=dt;
@@ -641,7 +643,7 @@ function updateAI(dt){
   }else if(a.stage===5){ // reposition once
     if(a.t===dt||!a.mv){a.mv=1.2;a.sg=rnd()<.5?-1:1}
     a.mv-=dt;const t=S.sel,T={x:-t.n.y,y:t.n.x};
-    driveSel(dt,a.sg*(Math.abs(T.x)>.2?Math.sign(T.x):0),a.sg*(Math.abs(T.x)>.2?0:Math.sign(T.y)));
+    driveSel(dt,a.sg);
     if(a.mv<=0||t.fuel<=0){a.moved=true;a.plan=autoShot(S.sel,0);a.stage=1;a.t=0}
   }else if(a.stage===1){ // swing aim
     const t=S.sel,k=Math.min(1,a.t/1.0);
@@ -852,8 +854,8 @@ function drawHUD(){
   }
   // move pad
   if(S.phase==='play'&&!isAI()){
-    const bs=38*u,px=12*u,py=vh-bs*3-8*u-8*u;
-    const pad=[['◀','left',0,1],['▶','right',2,1],['▲','up',1,0],['▼','down',1,2]];
+    const bs=52*u,px=12*u,py=vh-bs-14*u;
+    const pad=[['◀','left',0,0],['▶','right',1,0]];
     for(const [g,k,cx2,cy2] of pad){
       const x=px+cx2*(bs+4*u),y=py+cy2*(bs+4*u);
       c.fillStyle=hold===k?'rgba(120,150,255,.8)':'rgba(20,30,60,.75)';rr(c,x,y,bs,bs,10*u);c.fill();
