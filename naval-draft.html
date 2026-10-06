@@ -209,6 +209,9 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 .opips i.on{background:#ff5a5f}
 #draft .info{margin-top:2px}
 #draft .info .wave{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+.pips i{transition:background .18s,transform .18s}
+.pips i:not(.on){transform:scaleY(.8)}
 </style>
 </head>
 <body>
@@ -239,7 +242,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   <!-- DRAFT: the battlefield is the backdrop; both fleets are visible while you draft -->
   <div id="draft" class="screen">
     <canvas id="pv"></canvas>
-    <div class="opp" id="oppBar"></div>
+    <div class="opp" id="oppBar"><div id="oppMain"></div><div class="oppstars"><span class="obudget" id="obudget">★10</span><div class="pips opips" id="opips"></div></div></div>
     <div id="sky" class="fleetgap"></div>
     <div class="cardarea" id="cardArea"></div>
     <div id="myfleet" class="fleetgap"></div>
@@ -709,25 +712,35 @@ function oppBar() {
   const bot = O.bot, l = O.last;
   const act = l ? `<div class="ra ${l.recruit ? 'ok' : 'no'}">${mc(l.id, null, { opp: 1 })}<span>${l.recruit ? 'Recruited' : 'Discarded'}<b>${UNITS[l.id].name}</b></span></div>`
     : '<div class="ra"><span>Your pick first</span></div>';
-  const total = SIM.budgetFor(G.round);
-  $('oppBar').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} discards</div></div>
-    ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div></div>
-    <div class="oppstars"><span class="obudget">★${bot.budget}</span><div class="pips opips">${Array.from({ length: total }, (_, i) => `<i class="${i < bot.budget ? 'on' : ''}"></i>`).join('')}</div></div>`;
+  $('oppMain').innerHTML = `<div class="oprow"><div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ✖${bot.discards} discards</div></div>
+    ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div></div>`;
+  setPips('rival', 'opips', 'obudget', bot.budget, SIM.budgetFor(G.round), pipsFresh);
 }
-function drawPips() {
-  $('pips').innerHTML = Array.from({ length: SIM.budgetFor(G.round) }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
-  $('budgetLbl').textContent = '★' + budget;
+// Star bars count down one pip at a time
+const pipState = {};
+let pipsFresh = false; // true while a new round is being set up: refill instantly instead of animating
+function setPips(key, elId, labelId, target, total, immediate) {
+  const el = $(elId), st = pipState[key] || (pipState[key] = { shown: target, tk: 0 });
+  if (el.children.length !== total) { el.innerHTML = Array.from({ length: total }, () => '<i></i>').join(''); st.shown = Math.min(st.shown, total); }
+  const paint = () => { [...el.children].forEach((p, k) => p.classList.toggle('on', k < st.shown)); $(labelId).textContent = '★' + st.shown; };
+  const tk = ++st.tk;
+  if (immediate) { st.shown = target; paint(); return; }
+  paint();
+  const stepFn = () => { if (tk !== st.tk || st.shown === target) return; st.shown += st.shown > target ? -1 : 1; paint(); setTimeout(stepFn, 120); };
+  setTimeout(stepFn, 80);
 }
+function drawPips() { setPips('me', 'pips', 'budgetLbl', budget, SIM.budgetFor(G.round), pipsFresh); }
 function startRound() {
   token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
   pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
   G.army.forEach(u => u.fresh = false);
   O.army.forEach(u => u.fresh = false);
   O.bot = SIM.createBot(O.deck, budget); O.last = null; O.done = false; // the rival drafts with the same rules and budget
-  show('draft'); oppBar();
+  pipsFresh = true; show('draft'); oppBar();
   $('waveLbl').textContent = `🧑‍✈️ ${save.name} · ` + (G.round === ROUNDS ? 'FINAL ROUND' : `ROUND ${G.round}/${ROUNDS}`);
   cancelAnimationFrame(pvRAF); pvRAF = requestAnimationFrame(pvLoop);
   nextCard();
+  pipsFresh = false;
 }
 // one rival pick; returns false when the rival has nothing left to take
 function rivalPick() {
@@ -817,11 +830,25 @@ function bindCard(card) {
 }
 $('btnRecruit').onclick = () => act(1);
 $('btnDiscard').onclick = () => act(-1);
-$('btnStart').onclick = () => { // end my draft early; the rival finishes instantly
-  if (!G.army.length || (busy && !forced)) return;
-  while (rivalPick()) {}
-  startBattle();
-};
+let finishing = false;
+async function rivalFinishThenBattle() { // the rival keeps drafting in front of me, one card at a time, then the battle begins
+  if (finishing) return; finishing = true;
+  const my = token;
+  busy = true; current = null; updDiscard(); $('btnStart').disabled = true; $('btnStart').classList.remove('pulse');
+  const area = $('cardArea');
+  while (!O.done) {
+    if (my !== token) { finishing = false; return; }
+    area.innerHTML = `<div class="done"><h2>${esc(O.name)} is still drafting…</h2><p>★${O.bot.budget} left</p></div>`;
+    await wait(800);
+    if (my !== token) { finishing = false; return; }
+    if (!rivalPick()) break;
+    await wait(700);
+  }
+  if (my === token) { area.innerHTML = '<div class="done"><h2>Both fleets are ready</h2></div>'; await wait(900); }
+  finishing = false;
+  if (my === token) startBattle();
+}
+$('btnStart').onclick = () => { if (G.army.length && !finishing && (!busy || forced)) rivalFinishThenBattle(); };
 addEventListener('keydown', e => {
   if (!$('draft').classList.contains('on')) return;
   if (e.key === 'ArrowRight') act(1); else if (e.key === 'ArrowLeft') act(-1);
