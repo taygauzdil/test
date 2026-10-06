@@ -266,46 +266,108 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 
-// ---------- 2D ship art (procedural, drawn on canvas) ----------
-const HULL = { Gunboat: '#8a4a2a', Archer: '#5d7a3c', Bomber: '#a4602a', Artillery: '#5b4a82', Elite: '#7a6420' };
+// ---------- 2D ship art (procedural, one design per ship type) ----------
 const TEAM = { p: '#35a7ff', e: '#ff5a5f' };
-function hullPath(g, hl, hw) {
+// len = half length in tiles (relative size), wr = beam / length, plus hull + deck colours
+const SHIPSTYLE = {
+  deckhand:  { len: 0.40, wr: 0.62, hull: '#8a5a34', deck: '#c9a066', belly: 1.2, bowC: 1.05, stern: 0.85 },
+  archer:    { len: 0.46, wr: 0.46, hull: '#5d7a3c', deck: '#cdb87c', belly: 1.15, bowC: 1.3, stern: 0.65 },
+  raider:    { len: 0.62, wr: 0.30, hull: '#7a2f22', deck: '#b98a55', belly: 1.1, bowC: 1.25, stern: 0.35 },
+  longbow:   { len: 0.56, wr: 0.38, hull: '#4f6f36', deck: '#d0bd86', belly: 1.1, bowC: 1.3, stern: 0.6 },
+  guard:     { len: 0.56, wr: 0.64, hull: '#5b6470', deck: '#9aa3ae', belly: 1.12, bowC: 0.95, stern: 0.95 },
+  bomber:    { len: 0.52, wr: 0.52, hull: '#a4602a', deck: '#c99a62', belly: 1.2, bowC: 1.05, stern: 0.8 },
+  sharp:     { len: 0.70, wr: 0.26, hull: '#3d5f4a', deck: '#c7b98a', belly: 1.1, bowC: 1.35, stern: 0.5 },
+  grenadier: { len: 0.64, wr: 0.46, hull: '#7a5a2a', deck: '#c4a06a', belly: 1.15, bowC: 1.2, stern: 0.75 },
+  captain:   { len: 0.86, wr: 0.34, hull: '#2d2a33', deck: '#a8814f', belly: 1.12, bowC: 1.3, stern: 0.8 },
+  elitebomb: { len: 0.80, wr: 0.40, hull: '#7a3314', deck: '#b8794a', belly: 1.15, bowC: 1.3, stern: 0.7 },
+  cannon:    { len: 0.92, wr: 0.42, hull: '#4a3320', deck: '#a9824f', belly: 1.1, bowC: 1.25, stern: 0.8 },
+  mortar:    { len: 1.05, wr: 0.50, hull: '#4b3a6b', deck: '#9b8a7a', belly: 1.12, bowC: 1.15, stern: 0.9 },
+};
+function shipDims(def, s) { const st = SHIPSTYLE[def.id], hl = s * st.len; return { hl, hw: hl * st.wr }; }
+function hullPath(g, hl, hw, st) {
   g.beginPath(); g.moveTo(0, -hl);
-  g.bezierCurveTo(hw * 1.35, -hl * 0.35, hw * 1.15, hl * 0.7, hw * 0.65, hl);
-  g.lineTo(-hw * 0.65, hl);
-  g.bezierCurveTo(-hw * 1.15, hl * 0.7, -hw * 1.35, -hl * 0.35, 0, -hl); g.closePath();
+  g.bezierCurveTo(hw * st.bowC, -hl * 0.35, hw * st.belly, hl * 0.7, hw * st.stern, hl);
+  g.lineTo(-hw * st.stern, hl);
+  g.bezierCurveTo(-hw * st.belly, hl * 0.7, -hw * st.bowC, -hl * 0.35, 0, -hl); g.closePath();
 }
-// x,y = centre, s = tile size in px, ang = 0 means bow points up
+function circ(g, x, y, r, col) { g.fillStyle = col; g.beginPath(); g.arc(x, y, Math.max(0.6, r), 0, 7); g.fill(); }
+function rect(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(x - w / 2, y - h / 2, w, h); }
+function sail(g, y, rx, ry, col, tc, lw) { g.fillStyle = col; g.strokeStyle = tc; g.lineWidth = lw || 1.2; g.beginPath(); g.ellipse(0, y, rx, ry, 0, 0, 7); g.fill(); g.stroke(); circ(g, 0, y, Math.max(1, rx * 0.09), '#4a2f18'); }
+function oars(g, hl, hw, n, col) { g.strokeStyle = col; g.lineWidth = 1.3; for (let i = 0; i < n; i++) { const y = -hl * 0.4 + i * (hl * 0.9 / Math.max(1, n - 1)); for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * hw * 0.85, y); g.lineTo(sd * hw * 1.55, y + hl * 0.16); g.stroke(); } } }
+function skull(g, x, y, r) { circ(g, x, y, r, '#f4f1e8'); circ(g, x - r * 0.4, y - r * 0.1, r * 0.22, '#222'); circ(g, x + r * 0.4, y - r * 0.1, r * 0.22, '#222'); }
+// x,y = centre, s = size in px, ang = 0 means bow points up
 function drawShip(g, def, team, x, y, s, ang) {
-  const hl = s * (0.42 + 0.035 * def.cost), hw = hl * 0.46, role = def.role, tc = TEAM[team];
+  const st = SHIPSTYLE[def.id], { hl, hw } = shipDims(def, s), tc = TEAM[team], id = def.id, lw = Math.max(1.4, s * 0.055);
   g.save(); g.translate(x, y); g.rotate(ang);
-  // hull + deck
-  hullPath(g, hl, hw); g.fillStyle = HULL[role]; g.fill();
-  g.lineWidth = Math.max(1.5, s * 0.06); g.strokeStyle = role === 'Elite' ? '#ffd34d' : tc; g.stroke();
-  g.save(); g.scale(0.7, 0.8); g.translate(0, hl * 0.06); hullPath(g, hl, hw); g.fillStyle = '#c99c62'; g.fill(); g.restore();
-  // role equipment
-  if (def.front) {
-    g.fillStyle = '#c9ced6'; g.beginPath(); g.moveTo(-hw * 0.28, -hl * 0.88); g.lineTo(0, -hl * 1.16); g.lineTo(hw * 0.28, -hl * 0.88); g.fill(); // ram
-    const sh = def.id === 'guard' ? 5 : def.id === 'captain' ? 4 : 2;
-    for (let i = 0; i < sh; i++) for (const sd of [-1, 1]) { g.fillStyle = i % 2 ? '#d8dde6' : tc; g.beginPath(); g.arc(sd * hw * 0.62, -hl * 0.2 + i * hl * (1.0 / sh) * 0.9, hw * 0.17, 0, 7); g.fill(); }
-  } else if (role === 'Archer') {
-    g.fillStyle = '#2f7d32'; for (let i = 0; i < 2 + (def.cost > 3); i++) for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * hw * 0.4, -hl * 0.55 + i * hl * 0.38, hw * 0.16, 0, 7); g.fill(); g.strokeStyle = '#5a3b22'; g.lineWidth = 1; g.beginPath(); g.arc(sd * hw * 0.4, -hl * 0.62 + i * hl * 0.38, hw * 0.24, Math.PI, 0); g.stroke(); }
-  } else if (role === 'Bomber') {
-    for (let i = 0; i < def.cost - 1; i++) { const bx = (i % 2 ? 1 : -1) * hw * 0.32, by = hl * 0.1 + Math.floor(i / 2) * hl * 0.32; g.fillStyle = '#e07a2c'; g.beginPath(); g.arc(bx, by, hw * 0.24, 0, 7); g.fill(); g.strokeStyle = '#3a1f0a'; g.lineWidth = 1.2; g.stroke(); g.fillStyle = '#ffd34d'; g.fillRect(bx - 1, by - hw * 0.4, 2, hw * 0.18); }
-  } else if (role === 'Artillery') {
-    const n = def.cost >= 8 ? 3 : 2;
-    for (let i = 0; i < n; i++) { const cx = (i - (n - 1) / 2) * hw * 0.55; g.fillStyle = '#2a2a33'; g.fillRect(cx - hw * 0.13, -hl * 0.78, hw * 0.26, hl * 1.05); g.fillStyle = '#555'; g.beginPath(); g.arc(cx, hl * 0.3, hw * 0.2, 0, 7); g.fill(); g.fillStyle = '#ff9a3c'; g.fillRect(cx - hw * 0.1, -hl * 0.8, hw * 0.2, hl * 0.06); }
+  if (id === 'deckhand' || id === 'raider') oars(g, hl, hw, id === 'raider' ? 6 : 3, '#6b4528');
+  // hull + deck + team-coloured rim
+  hullPath(g, hl, hw, st); g.fillStyle = st.hull; g.fill();
+  g.lineWidth = lw; g.strokeStyle = (id === 'captain' || id === 'mortar' || id === 'elitebomb') ? '#ffd34d' : tc; g.stroke();
+  g.save(); g.scale(0.68, 0.82); g.translate(0, hl * 0.05); hullPath(g, hl, hw, st); g.fillStyle = st.deck; g.fill(); g.restore();
+  if (id !== 'captain' && id !== 'mortar' && id !== 'elitebomb') { g.strokeStyle = tc; g.lineWidth = lw * 0.6; g.beginPath(); g.moveTo(-hw * 0.5, hl * 0.82); g.lineTo(hw * 0.5, hl * 0.82); g.stroke(); }
+  switch (id) {
+    case 'deckhand': // little rowing skiff with a pistol crew
+      circ(g, -hw * 0.3, -hl * 0.1, hw * 0.2, '#e8c9a0'); circ(g, hw * 0.3, hl * 0.25, hw * 0.2, '#e8c9a0');
+      rect(g, 0, hl * 0.55, hw * 0.5, hl * 0.16, '#6b4528');
+      break;
+    case 'archer': // lateen-sail skiff with bowmen
+      for (const sd of [-1, 1]) { circ(g, sd * hw * 0.4, -hl * 0.35, hw * 0.16, '#2f7d32'); g.strokeStyle = '#5a3b22'; g.lineWidth = 1; g.beginPath(); g.arc(sd * hw * 0.4, -hl * 0.5, hw * 0.24, Math.PI, 0); g.stroke(); }
+      sail(g, hl * 0.12, hw * 0.34, hl * 0.5, '#f1ead2', tc);
+      break;
+    case 'raider': // viking-style longship with shields and a prow figurehead
+      for (let i = 0; i < 6; i++) for (const sd of [-1, 1]) circ(g, sd * hw * 0.62, -hl * 0.45 + i * hl * 0.2, hw * 0.2, i % 2 ? '#e8e2d0' : '#c8483f');
+      circ(g, 0, -hl * 1.02, hw * 0.22, '#c8483f'); g.strokeStyle = '#c8483f'; g.lineWidth = lw; g.beginPath(); g.moveTo(0, -hl * 0.9); g.lineTo(0, -hl * 1.1); g.stroke();
+      sail(g, hl * 0.05, hw * 1.3, hl * 0.13, '#c8483f', '#f1ead2', 1.6);
+      break;
+    case 'longbow': // sloop with main sail, jib and a huge mounted bow
+      g.strokeStyle = '#6b4528'; g.lineWidth = lw; g.beginPath(); g.arc(0, -hl * 0.55, hw * 0.9, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+      g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(-hw * 0.88, -hl * 0.42); g.lineTo(hw * 0.88, -hl * 0.42); g.stroke();
+      sail(g, hl * 0.22, hw * 0.55, hl * 0.4, '#f1ead2', tc); sail(g, -hl * 0.18, hw * 0.3, hl * 0.18, '#dfe9c8', tc);
+      break;
+    case 'guard': // armoured barge: riveted plates, tower shields, swivel gun
+      for (const sd of [-1, 1]) for (let i = 0; i < 4; i++) rect(g, sd * hw * 0.78, -hl * 0.45 + i * hl * 0.3, hw * 0.28, hl * 0.22, '#c9d1da');
+      rect(g, 0, -hl * 0.78, hw * 1.2, hl * 0.2, '#c9d1da');
+      for (let i = 0; i < 5; i++) circ(g, -hw * 0.5 + i * hw * 0.25, -hl * 0.78, 1, '#5b6470');
+      circ(g, 0, hl * 0.05, hw * 0.3, '#2b2b30'); rect(g, 0, -hl * 0.22, hw * 0.14, hl * 0.4, '#2b2b30');
+      sail(g, hl * 0.55, hw * 0.45, hl * 0.1, '#aab3bd', tc);
+      break;
+    case 'bomber': // cargo boat stacked with bombs
+      for (let i = 0; i < 6; i++) { const bx = (i % 3 - 1) * hw * 0.38, by = -hl * 0.2 + Math.floor(i / 3) * hl * 0.38; circ(g, bx, by, hw * 0.2, '#1d1d22'); circ(g, bx - hw * 0.05, by - hw * 0.06, hw * 0.06, '#666'); circ(g, bx + hw * 0.1, by - hw * 0.22, hw * 0.07, '#ffb347'); }
+      sail(g, -hl * 0.62, hw * 0.55, hl * 0.12, '#f0903a', tc);
+      break;
+    case 'sharp': // sleek cutter with a long rifle on the bowsprit
+      rect(g, 0, -hl * 1.12, hw * 0.12, hl * 0.55, '#2b2b30'); circ(g, 0, -hl * 0.55, hw * 0.2, '#6b8f5a'); circ(g, hw * 0.2, -hl * 0.55, hw * 0.12, '#9fd3ff');
+      sail(g, hl * 0.18, hw * 0.45, hl * 0.62, '#eef2e0', tc); sail(g, -hl * 0.35, hw * 0.28, hl * 0.2, '#dfe9c8', tc);
+      break;
+    case 'grenadier': // gunboat with grenade crates
+      for (const sd of [-1, 1]) { rect(g, sd * hw * 0.45, -hl * 0.2, hw * 0.35, hl * 0.28, '#6b4528'); circ(g, sd * hw * 0.45, -hl * 0.2, hw * 0.12, '#586b2c'); rect(g, sd * hw * 0.45, hl * 0.3, hw * 0.35, hl * 0.28, '#6b4528'); circ(g, sd * hw * 0.45, hl * 0.3, hw * 0.12, '#586b2c'); }
+      sail(g, -hl * 0.55, hw * 0.9, hl * 0.1, '#c6e86a', tc); sail(g, hl * 0.62, hw * 0.7, hl * 0.09, '#c6e86a', tc);
+      break;
+    case 'captain': // black-sailed frigate: gold trim, stern cabin, gun ports
+      for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) circ(g, sd * hw * 0.82, -hl * 0.35 + i * hl * 0.2, hw * 0.07, '#ffd34d');
+      rect(g, 0, hl * 0.72, hw * 1.1, hl * 0.22, '#ffd34d');
+      sail(g, -hl * 0.5, hw * 1.15, hl * 0.12, '#25232b', '#ffd34d', 1.5); sail(g, -hl * 0.05, hw * 1.3, hl * 0.13, '#25232b', '#ffd34d', 1.5); sail(g, hl * 0.4, hw * 1.1, hl * 0.11, '#25232b', '#ffd34d', 1.5);
+      skull(g, 0, -hl * 0.05, hw * 0.2);
+      break;
+    case 'elitebomb': { // fire ship with a glowing comet orb and flames
+      const gr = g.createRadialGradient(0, -hl * 0.55, 0, 0, -hl * 0.55, hw * 0.7); gr.addColorStop(0, '#fff6c8'); gr.addColorStop(0.5, '#ff9a3c'); gr.addColorStop(1, 'rgba(255,90,40,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, -hl * 0.55, hw * 0.7, 0, 7); g.fill();
+      for (let i = 0; i < 5; i++) { const fx = (i - 2) * hw * 0.32, fy = hl * 0.1 + (i % 2) * hl * 0.25; g.fillStyle = i % 2 ? '#ff7a2a' : '#ffd34d'; g.beginPath(); g.moveTo(fx - hw * 0.1, fy); g.lineTo(fx, fy - hw * 0.4); g.lineTo(fx + hw * 0.1, fy); g.fill(); }
+      sail(g, -hl * 0.15, hw * 1.2, hl * 0.12, '#ff8a3a', '#ffd34d', 1.4); sail(g, hl * 0.4, hw * 1.0, hl * 0.1, '#ffb347', '#ffd34d', 1.4);
+      break; }
+    case 'cannon': // gun brig: a row of cannons poking out each side
+      for (const sd of [-1, 1]) for (let i = 0; i < 4; i++) { const cy = -hl * 0.4 + i * hl * 0.28; rect(g, sd * hw * 1.0, cy, hw * 0.6, hl * 0.09, '#1f1f26'); circ(g, sd * hw * 1.28, cy, hl * 0.055, '#444'); }
+      rect(g, 0, -hl * 0.9, hw * 0.25, hl * 0.3, '#1f1f26');
+      sail(g, -hl * 0.35, hw * 1.0, hl * 0.12, '#e8dfc6', '#a33', 1.4); sail(g, hl * 0.25, hw * 1.1, hl * 0.12, '#e8dfc6', '#a33', 1.4);
+      break;
+    case 'mortar': { // siege galleon with a huge mortar on a stone base
+      circ(g, 0, -hl * 0.18, hw * 0.62, '#6d6358'); circ(g, 0, -hl * 0.18, hw * 0.46, '#2b2b30');
+      rect(g, 0, -hl * 0.5, hw * 0.5, hl * 0.5, '#2b2b30'); circ(g, 0, -hl * 0.76, hw * 0.22, '#ff9a3c'); circ(g, 0, -hl * 0.76, hw * 0.12, '#fff1b8');
+      for (let i = 0; i < 6; i++) for (const sd of [-1, 1]) circ(g, sd * hw * 0.86, -hl * 0.55 + i * hl * 0.2, hw * 0.07, '#ffd34d');
+      sail(g, hl * 0.3, hw * 1.15, hl * 0.1, '#3a2a5e', '#ffd34d', 1.4); sail(g, hl * 0.58, hw * 1.0, hl * 0.09, '#3a2a5e', '#ffd34d', 1.4);
+      break; }
   }
-  // masts + sails
-  const masts = def.cost >= 7 ? 3 : def.cost >= 5 ? 2 : 1;
-  const sailCol = def.id === 'captain' ? '#2b2b33' : def.id === 'raider' ? '#c8483f' : def.id === 'elitebomb' ? '#ffb347' : '#f3ecd8';
-  for (let i = 0; i < masts; i++) {
-    const my = masts === 1 ? -hl * 0.05 : -hl * 0.35 + i * (hl * 0.9 / (masts - 1)) * 0.75;
-    g.fillStyle = sailCol; g.strokeStyle = tc; g.lineWidth = 1.2;
-    g.beginPath(); g.ellipse(0, my, hw * 1.15, hl * 0.09, 0, 0, 7); g.fill(); g.stroke();
-    g.fillStyle = '#4a2f18'; g.beginPath(); g.arc(0, my, hw * 0.1, 0, 7); g.fill();
-  }
-  // flag at stern
+  // flag at the stern
   g.fillStyle = tc; g.beginPath(); g.moveTo(0, hl * 0.62); g.lineTo(hw * 0.5, hl * 0.78); g.lineTo(0, hl * 0.9); g.fill();
   g.restore();
 }
@@ -320,7 +382,7 @@ function shipImg(id, team, px, sea) {
     rr(g, 0, 0, n, n, n * 0.14); g.fillStyle = gr; g.fill();
     g.strokeStyle = '#ffffff30'; g.lineWidth = 2; for (let i = 1; i < 6; i++) { g.beginPath(); for (let x = 0; x <= n; x += 8) g.lineTo(x, i * n / 6 + Math.sin(x / 14 + i) * 4); g.stroke(); }
   }
-  drawShip(g, UNITS[id], team, n / 2, n / 2, n * 0.62, team === 'e' ? Math.PI : 0);
+  drawShip(g, UNITS[id], team, n / 2, n / 2, n * (0.85 - 0.43 * SHIPSTYLE[id].len), team === 'e' ? Math.PI : 0); // compressed scale: size differences stay visible, small ships stay readable
   return imgCache[key] = c.toDataURL();
 }
 function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
@@ -540,7 +602,7 @@ function drawPreview(t) {
 }
 function fleet(list, team, top, bottom, w, t) {
   const rows = SIM.formationRows(list.map(u => Object.assign({ def: UNITS[u.id] }, u)));
-  const pitch = Math.min(24, (bottom - top - 22) / Math.max(1, rows.length)), size = w / 10 * 0.74, now = performance.now();
+  const pitch = Math.min(24, (bottom - top - 22) / Math.max(1, rows.length)), size = w / 10 * 0.52, now = performance.now();
   rows.forEach((row, ri) => row.forEach((u, i) => {
     const x = w * (1 + (i + 0.5) / row.length * 8) / 10;
     const y = (team === 'p' ? top + 16 + ri * pitch : bottom - 16 - ri * pitch) + Math.sin(t * 1.7 + (parseInt(String(u.uid).replace(/\D/g, '')) || 0) * 1.3 + i) * 1.5;
@@ -741,7 +803,7 @@ function draw(t) {
   g.fillText(O.avatar + ' ' + O.name, w / 2, 12);
   g.fillText('🧑‍✈️ ' + save.name, w / 2, h - 12);
   const live = B.units.filter(u => u.alive);
-  const sizeF = Math.max(0.85, 1.15 - Math.max(0, Math.max(B.nP, B.nE) - 6) * 0.025); // smaller ships in big fleets
+  const sizeF = Math.max(0.7, 0.98 - Math.max(0, Math.max(B.nP, B.nE) - 6) * 0.02); // smaller ships in big fleets
   const list = B.units.slice().sort((a, b) => a.y - b.y);
   for (const u of list) {
     const x = (u.x + (u.kx || 0)) * S, y = (u.y + (u.ky || 0)) * S;
@@ -758,15 +820,15 @@ function draw(t) {
         g.strokeStyle = '#ffffff40'; g.lineWidth = 2;
         for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(x - Math.sin(u.ang) * 0 + sd * 6 * Math.cos(u.ang), y + sd * 6 * Math.sin(u.ang)); g.lineTo(x - Math.sin(u.ang) * 22 + sd * 9 * Math.cos(u.ang), y + Math.cos(u.ang) * 22 + sd * 9 * Math.sin(u.ang)); g.stroke(); }
       }
-      const fl = Math.max(0, u.flash / 0.16);
+      const dm0 = shipDims(u.def, S * sizeF), fl = Math.max(0, u.flash / 0.16);
       if (fl > 0) { g.shadowColor = '#fff'; g.shadowBlur = 16 * fl; }
       drawShip(g, u.def, u.team, x, y, S * sizeF, u.ang);
       g.shadowColor = 'transparent'; g.shadowBlur = 0;
-      if (fl > 0) { g.fillStyle = `rgba(255,255,255,${0.55 * fl})`; g.beginPath(); g.ellipse(x, y, S * 0.2 * sizeF * 2, S * 0.52 * sizeF, u.ang, 0, 7); g.fill(); } // white hit flash
-      const bw = 30, f = u.hp / u.maxHp;
-      g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - S * 0.9, bw, 4);
-      g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - S * 0.9, bw * f, 4);
-      g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - S * 0.9 - 5);
+      if (fl > 0) { g.fillStyle = `rgba(255,255,255,${0.55 * fl})`; const dm = shipDims(u.def, S * sizeF); g.beginPath(); g.ellipse(x, y, dm.hw * 1.1, dm.hl * 0.95, u.ang, 0, 7); g.fill(); } // white hit flash
+      const bw = 30, f = u.hp / u.maxHp, hb = Math.max(S * 0.55, dm0.hl * 0.75 + 10);
+      g.fillStyle = '#000a'; g.fillRect(x - bw / 2, y - hb, bw, 4);
+      g.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; g.fillRect(x - bw / 2, y - hb, bw * f, 4);
+      g.textAlign = 'center'; g.font = '800 8px system-ui,sans-serif'; g.fillStyle = '#ffc83d'; g.fillText(u.def.cost + '★', x, y - hb - 5);
     } else {
       // sinking: the wreck tilts, shrinks and fades while bubbles rise
       const age = B.t - (u.diedAt || 0);

@@ -26,6 +26,9 @@
     cannon: { k: 'ball', spd: 15, arc: 1.2 }, mortar: { k: 'shell', spd: 9, arc: 3.2 },
   };
   for (const id in SHOTS) UNITS[id].shot = SHOTS[id];
+  // hull radius in tiles (bigger ships take more room)
+  const RAD = { deckhand: 0.4, archer: 0.4, raider: 0.45, longbow: 0.45, sharp: 0.45, guard: 0.6, bomber: 0.5, grenadier: 0.55, captain: 0.6, elitebomb: 0.6, cannon: 0.68, mortar: 0.8 };
+  for (const id in RAD) UNITS[id].rad = RAD[id];
   const ORDER = Object.keys(UNITS);
   const STARTER = ['deckhand', 'raider', 'guard', 'archer', 'longbow', 'bomber'];
   const WAVES = 5;
@@ -87,11 +90,15 @@
     // Gunboats lead (closest to the middle), then archers/bombers, artillery at the back.
     const place = (list, team) => {
       const rows = formationRows(list);
-      rows.forEach((row, ri) => row.forEach((u, i) => {
-        u.x = 1 + (i + 0.5) / row.length * 8;
-        const d = 0.9 + (rows.length - 1 - ri) * 1.1; // distance from our own edge
-        u.y = team === 'p' ? H - d : d;
-      }));
+      rows.forEach((row, ri) => {
+        const ws = row.map(u => 2 * u.def.rad + 0.1), gap = Math.max(0, (8.6 - ws.reduce((x, y) => x + y, 0)) / (row.length + 1));
+        let cur = 0.7 + gap;
+        row.forEach((u, i) => {
+          u.x = cur + ws[i] / 2; cur += ws[i] + gap;
+          const d = 0.9 + (rows.length - 1 - ri) * 1.35; // distance from our own edge
+          u.y = team === 'p' ? H - d : d;
+        });
+      });
     };
     const pu = players.map(p => { const u = makeUnit('p', p.id, p.hp, p.maxHp); u.srcUid = p.uid; return u; });
     const eu = enemies.map(e => { const u = makeUnit('e', e.id, e.hp, e.maxHp); u.srcUid = e.uid; return u; });
@@ -105,8 +112,13 @@
     const rank = d => d.front ? 0 : d.role === 'Artillery' ? 2 : 1;
     const rows = [];
     for (let g = 0; g < 3; g++) {
-      const grp = list.filter(u => rank(u.def) === g);
-      for (let i = 0; i < grp.length; i += 8) rows.push(grp.slice(i, i + 8));
+      let row = [], w = 0;
+      for (const u of list.filter(u => rank(u.def) === g)) {
+        const uw = 2 * u.def.rad + 0.1;
+        if (row.length && w + uw > 8.6) { rows.push(row); row = []; w = 0; }
+        row.push(u); w += uw;
+      }
+      if (row.length) rows.push(row);
     }
     return rows;
   }
@@ -171,7 +183,7 @@
       for (let j = i + 1; j < alive.length; j++) {
         const b = alive[j]; if (!b.alive) continue;
         const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-        const min = a.team === b.team ? 0.85 : 0.55;
+        const min = a.team === b.team ? a.def.rad + b.def.rad : 0.55;
         if (d < min && d > 0.0001) {
           const push = (min - d) / 2;
           a.x -= dx / d * push; a.y -= dy / d * push;
