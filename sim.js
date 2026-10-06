@@ -51,16 +51,24 @@
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
+  // A rival that drafts one card at a time, like the player. step() -> {id, recruit} or null when it has nothing left that fits.
+  function createBot(deck, budget, rng) {
+    return {
+      budget, discards: MAX_DISCARDS, pool: drawPool(deck, budget, rng), done: false,
+      step() {
+        this.pool = this.pool.filter(id => UNITS[id].cost <= this.budget);
+        if (!this.pool.length) { this.done = true; return null; }
+        const id = this.pool.shift(), c = UNITS[id].cost;
+        // takes strong cards, gambles on cheap ones when there is room for a better pair
+        const want = c >= 5 || this.budget - c <= 2 || rnd(rng) < 0.55;
+        if (want || this.discards <= 0) { this.budget -= c; return { id, recruit: true }; }
+        this.discards--; return { id, recruit: false };
+      },
+    };
+  }
   function draftBot(deck, budget, rng) {
-    let pool = drawPool(deck, budget, rng), got = [], discards = MAX_DISCARDS;
-    while (budget > 0) {
-      pool = pool.filter(id => UNITS[id].cost <= budget);
-      if (!pool.length) break;
-      const id = pool.shift(), c = UNITS[id].cost;
-      // takes strong cards, gambles on cheap ones when there is room for a better pair
-      const want = c >= 5 || budget - c <= 2 || rnd(rng) < 0.55;
-      if (want || discards <= 0) { budget -= c; got.push(id); } else discards--;
-    }
+    const bot = createBot(deck, budget, rng), got = [];
+    for (let r = bot.step(); r; r = bot.step()) if (r.recruit) got.push(r.id);
     return got;
   }
 
@@ -74,19 +82,14 @@
   // players / enemies: [{uid,id,hp,maxHp}] (both sides persist between rounds)
   function createBattle(players, enemies) {
     const units = [];
-    // Fleets sail in from the screen edges: yours from the bottom, the rival's from the top.
-    // Melee leads, then archers/bombers, artillery last; up to 8 ships per row, rows stacked off-screen.
+    // Fleets start at the screen edges: yours at the bottom, the rival's at the top.
+    // Melee leads (closest to the middle), then archers/bombers, artillery at the back.
     const place = (list, team) => {
-      const rank = u => { const r = u.def.role; return (r === 'Melee' || r === 'Elite' && u.def.range < 2) ? 0 : r === 'Artillery' ? 2 : 1; };
-      const rows = [];
-      for (let g = 0; g < 3; g++) {
-        const grp = list.filter(u => rank(u) === g);
-        for (let i = 0; i < grp.length; i += 8) rows.push(grp.slice(i, i + 8));
-      }
+      const rows = formationRows(list);
       rows.forEach((row, ri) => row.forEach((u, i) => {
         u.x = 1 + (i + 0.5) / row.length * 8;
-        const off = 0.3 + ri * 1.3; // distance beyond the edge
-        u.y = team === 'p' ? H + off : -off;
+        const d = 0.9 + (rows.length - 1 - ri) * 1.1; // distance from our own edge
+        u.y = team === 'p' ? H - d : d;
       }));
     };
     const pu = players.map(p => { const u = makeUnit('p', p.id, p.hp, p.maxHp); u.srcUid = p.uid; return u; });
@@ -94,6 +97,17 @@
     place(pu, 'p'); place(eu, 'e');
     units.push(...pu, ...eu);
     return { units, events: [], proj: [], t: 0, winner: null };
+  }
+
+  // Splits ships (anything with .def) into formation rows: melee first, artillery last, up to 8 per row.
+  function formationRows(list) {
+    const rank = d => (d.role === 'Melee' || d.role === 'Elite' && d.range < 2) ? 0 : d.role === 'Artillery' ? 2 : 1;
+    const rows = [];
+    for (let g = 0; g < 3; g++) {
+      const grp = list.filter(u => rank(u.def) === g);
+      for (let i = 0; i < grp.length; i += 8) rows.push(grp.slice(i, i + 8));
+    }
+    return rows;
   }
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -179,6 +193,6 @@
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);

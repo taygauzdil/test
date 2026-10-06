@@ -155,6 +155,39 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
 /* dim everything behind the card so the card stays in front; round, stars and deck stay bright */
 .cardarea{background:radial-gradient(ellipse at center,#02070dcc 0%,#02070de6 100%);border-radius:18px;margin:6px 0;box-shadow:inset 0 0 40px #000c}
 .card{box-shadow:0 0 0 2px #fff2,0 0 36px var(--c),0 16px 36px #000c}
+
+/* draft = battlefield backdrop */
+#draft{padding-left:10px;padding-right:10px}
+#pv{position:absolute;left:0;top:0;z-index:0;pointer-events:none}
+#draft > :not(canvas){position:relative;z-index:1}
+.fleetgap{flex:0 0 clamp(86px,15.5vh,124px)}
+#draft .opp{margin:0;padding:5px 8px;gap:8px;background:#2a1220e6}
+#draft .opp .who{min-width:0}
+#draft .opp .tr{white-space:nowrap}
+#draft .opp .ra{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mute);min-width:0}
+#draft .opp .ra b{display:block;color:var(--ink);font-size:12px;white-space:nowrap}
+#draft .opp .ra.ok b{color:#7dff9f}#draft .opp .ra.no b{color:#ff8a8e}
+#draft .opp .ra .mc{width:30px;height:40px;font-size:15px;animation:pop .3s ease-out}
+#draft .opp .ra .mc img{width:24px;height:24px;margin-top:5px}
+#draft .opp .ra .mc .s{font-size:7px}
+#draft .opp .sc{margin-left:6px;font-size:17px}
+.info{background:#06101be6;border-radius:12px;padding:6px 10px 4px}
+.info .pips{margin:3px 0 2px}
+.info .budget{font-size:24px}
+#draft .pool{background:#06101bd0;border-radius:12px;padding:4px 8px}
+#draft .pool .chips{min-height:46px}
+#draft .cardarea{margin:4px 0;min-height:0}
+#draft .card{width:min(290px,76vw);padding:10px 14px 12px}
+#draft .card .icon img{width:96px;height:96px}
+#draft .card .nm{font-size:18px}
+#draft .card .ds{margin:0 0 6px;font-size:11px}
+#draft .card .sg{grid-template-columns:repeat(4,1fr);gap:4px}
+#draft .card .sg div{padding:4px 5px;font-size:10px}
+#draft .card .sg b{font-size:12px}
+#draft .card .after{margin-top:6px;font-size:12px}
+#draft .btns{padding-top:6px}
+#draft .done h2{font-size:20px}
+@media (max-height:700px){#draft .card .ds{display:none}}
 </style>
 </head>
 <body>
@@ -182,19 +215,21 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     <div id="mmBody"></div>
   </div>
 
-  <!-- DRAFT -->
+  <!-- DRAFT: the battlefield is the backdrop; both fleets are visible while you draft -->
   <div id="draft" class="screen">
+    <canvas id="pv"></canvas>
     <div class="opp" id="oppBar"></div>
-    <div class="oppcards" id="oppCards"></div>
-    <div class="topbar">
-      <div class="wave" id="waveLbl">ROUND 1 / 5</div>
-      <div class="budget" id="budgetLbl">★10</div>
+    <div id="sky" class="fleetgap"></div>
+    <div class="info">
+      <div class="topbar">
+        <div class="wave" id="waveLbl">ROUND 1 / 5</div>
+        <div class="budget" id="budgetLbl">★10</div>
+      </div>
+      <div class="pips" id="pips"></div>
     </div>
-    <div class="pips" id="pips"></div>
-    <div class="stats" style="margin:0 0 4px">YOUR FLEET (carried over + new recruits)</div>
-    <div class="armyrow" id="armyRow"></div>
     <div class="cardarea" id="cardArea"></div>
-    <div class="pool"><div class="lbl">STILL IN THIS ROUND'S POOL (order unknown) · DISCARDS ARE LIMITED</div><div class="chips" id="poolRow"></div></div>
+    <div id="myfleet" class="fleetgap"></div>
+    <div class="pool"><div class="lbl">LEFT IN THIS ROUND'S POOL (order unknown)</div><div class="chips" id="poolRow"></div></div>
     <div class="btns">
       <button class="bad" id="btnDiscard">✖ Discard</button>
       <button id="btnStart">⚔ Battle</button>
@@ -270,16 +305,24 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     return deck;
   }
   // Returns the unit ids the bot recruits this round (cards it saw and discarded are gone, same as for the player).
+  // A rival that drafts one card at a time, like the player. step() -> {id, recruit} or null when it has nothing left that fits.
+  function createBot(deck, budget, rng) {
+    return {
+      budget, discards: MAX_DISCARDS, pool: drawPool(deck, budget, rng), done: false,
+      step() {
+        this.pool = this.pool.filter(id => UNITS[id].cost <= this.budget);
+        if (!this.pool.length) { this.done = true; return null; }
+        const id = this.pool.shift(), c = UNITS[id].cost;
+        // takes strong cards, gambles on cheap ones when there is room for a better pair
+        const want = c >= 5 || this.budget - c <= 2 || rnd(rng) < 0.55;
+        if (want || this.discards <= 0) { this.budget -= c; return { id, recruit: true }; }
+        this.discards--; return { id, recruit: false };
+      },
+    };
+  }
   function draftBot(deck, budget, rng) {
-    let pool = drawPool(deck, budget, rng), got = [], discards = MAX_DISCARDS;
-    while (budget > 0) {
-      pool = pool.filter(id => UNITS[id].cost <= budget);
-      if (!pool.length) break;
-      const id = pool.shift(), c = UNITS[id].cost;
-      // takes strong cards, gambles on cheap ones when there is room for a better pair
-      const want = c >= 5 || budget - c <= 2 || rnd(rng) < 0.55;
-      if (want || discards <= 0) { budget -= c; got.push(id); } else discards--;
-    }
+    const bot = createBot(deck, budget, rng), got = [];
+    for (let r = bot.step(); r; r = bot.step()) if (r.recruit) got.push(r.id);
     return got;
   }
 
@@ -293,19 +336,14 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
   // players / enemies: [{uid,id,hp,maxHp}] (both sides persist between rounds)
   function createBattle(players, enemies) {
     const units = [];
-    // Fleets sail in from the screen edges: yours from the bottom, the rival's from the top.
-    // Melee leads, then archers/bombers, artillery last; up to 8 ships per row, rows stacked off-screen.
+    // Fleets start at the screen edges: yours at the bottom, the rival's at the top.
+    // Melee leads (closest to the middle), then archers/bombers, artillery at the back.
     const place = (list, team) => {
-      const rank = u => { const r = u.def.role; return (r === 'Melee' || r === 'Elite' && u.def.range < 2) ? 0 : r === 'Artillery' ? 2 : 1; };
-      const rows = [];
-      for (let g = 0; g < 3; g++) {
-        const grp = list.filter(u => rank(u) === g);
-        for (let i = 0; i < grp.length; i += 8) rows.push(grp.slice(i, i + 8));
-      }
+      const rows = formationRows(list);
       rows.forEach((row, ri) => row.forEach((u, i) => {
         u.x = 1 + (i + 0.5) / row.length * 8;
-        const off = 0.3 + ri * 1.3; // distance beyond the edge
-        u.y = team === 'p' ? H + off : -off;
+        const d = 0.9 + (rows.length - 1 - ri) * 1.1; // distance from our own edge
+        u.y = team === 'p' ? H - d : d;
       }));
     };
     const pu = players.map(p => { const u = makeUnit('p', p.id, p.hp, p.maxHp); u.srcUid = p.uid; return u; });
@@ -313,6 +351,17 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     place(pu, 'p'); place(eu, 'e');
     units.push(...pu, ...eu);
     return { units, events: [], proj: [], t: 0, winner: null };
+  }
+
+  // Splits ships (anything with .def) into formation rows: melee first, artillery last, up to 8 per row.
+  function formationRows(list) {
+    const rank = d => (d.role === 'Melee' || d.role === 'Elite' && d.range < 2) ? 0 : d.role === 'Artillery' ? 2 : 1;
+    const rows = [];
+    for (let g = 0; g < 3; g++) {
+      const grp = list.filter(u => rank(u.def) === g);
+      for (let i = 0; i < grp.length; i += 8) rows.push(grp.slice(i, i + 8));
+    }
+    return rows;
   }
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -398,7 +447,7 @@ canvas{height:100%;max-width:100%;aspect-ratio:10/16;border-radius:14px;touch-ac
     if (u.hp <= 0) { u.hp = 0; u.alive = false; }
   }
 
-  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
+  const api = { W, H, UNITS, ORDER, STARTER, WAVES, BUDGETS, budgetFor, poolCopies, drawPool, MAX_DISCARDS, createBot, formationRows, SHOTS, ROUNDS, WIN_ROUNDS, genOpponentDeck, draftBot, createBattle, step };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SIM = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -545,86 +594,104 @@ $('btnSail').onclick = async () => {
   startRound();
 };
 
-// ---------- draft ----------
-let pool = [], budget = 0, current = null, busy = false, discards = 0;
+// ---------- draft (alternating picks: you, then the rival) ----------
+let pool = [], budget = 0, current = null, busy = false, discards = 0, token = 0;
+const born = {}; // ship uid -> spawn time, for the pop-in effect
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function updDiscard() {
   $('btnDiscard').textContent = `✖ Discard (${discards})`;
-  $('btnDiscard').disabled = !current || discards <= 0;
+  $('btnDiscard').disabled = !current || busy || discards <= 0;
+  $('btnRecruit').disabled = !current || busy;
 }
 function oppBar() {
-  $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies}</div></div>
-    <div class="sc">${G.wins} – ${G.losses}<small>score (you – rival)</small></div>`;
-}
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function startRound() {
-  budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
-  pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
-  G.army.forEach(u => u.fresh = false);
-  O.army.forEach(u => u.fresh = false);
-  // the rival drafts with the same rules and budget (picks are revealed before the battle)
-  let picks = SIM.draftBot(O.deck, SIM.budgetFor(G.round));
-  if (!picks.length && !O.army.length) picks = [O.deck.slice().sort((a, b) => UNITS[a].cost - UNITS[b].cost)[0]];
-  picks.forEach(id => O.army.push({ uid: 'o' + G.uid++, id, hp: UNITS[id].hp, maxHp: UNITS[id].hp, fresh: true }));
-  O.newCount = picks.length;
-  show('draft'); oppBar();
-  $('waveLbl').textContent = G.round === ROUNDS ? 'FINAL ROUND' : `ROUND ${G.round} / ${ROUNDS}`;
-  const keep = O.army.filter(u => !u.fresh);
-  $('oppCards').innerHTML = (keep.map(u => mc(u.id, u.hp / u.maxHp, { opp: 1 })).join('') || '<span class="stats">Rival has no ships yet.</span>')
-    + Array.from({ length: O.newCount }, () => '<div class="mc opp" style="--c:#6a2538">❓</div>').join('');
-  nextCard();
+  const bot = O.bot, l = O.last;
+  const act = l ? `<div class="ra ${l.recruit ? 'ok' : 'no'}">${mc(l.id, null, { opp: 1 })}<span>${l.recruit ? 'Recruited' : 'Discarded'}<b>${UNITS[l.id].name}</b></span></div>`
+    : '<div class="ra"><span>Waiting for your first pick…</span></div>';
+  $('oppBar').innerHTML = `<div class="av">${O.avatar}</div><div class="who"><div class="nm">${esc(O.name)}</div><div class="tr">🏆 ${O.trophies} · ★${bot.budget} left · ✖${bot.discards}</div></div>
+    ${act}<div class="sc">${G.wins} – ${G.losses}<small>you – rival</small></div>`;
 }
 function drawPips() {
   $('pips').innerHTML = Array.from({ length: SIM.budgetFor(G.round) }, (_, i) => `<i class="${i < budget ? 'on' : ''}"></i>`).join('');
   $('budgetLbl').textContent = '★' + budget;
 }
-function renderArmy() {
-  $('armyRow').innerHTML = G.army.length ? G.army.map(u => mc(u.id, u.hp / u.maxHp, { isNew: u.fresh })).join('')
-    : '<span class="empty">No ships yet — swipe right to recruit.</span>';
-}
 function renderPool() {
   const rest = pool.filter(c => c !== current).sort((a, b) => UNITS[a.id].cost - UNITS[b.id].cost);
   $('poolRow').innerHTML = rest.map(c => mc(c.id, null, { dead: UNITS[c.id].cost > budget })).join('') || '<span class="stats">—</span>';
 }
+function startRound() {
+  token++; budget = SIM.budgetFor(G.round); busy = false; discards = SIM.MAX_DISCARDS;
+  pool = SIM.drawPool(save.deck, budget).map(id => ({ id, k: G.uid++ })); // random draws: the same card can come up more than once
+  G.army.forEach(u => u.fresh = false);
+  O.army.forEach(u => u.fresh = false);
+  O.bot = SIM.createBot(O.deck, budget); O.last = null; O.done = false; // the rival drafts with the same rules and budget
+  show('draft'); oppBar();
+  $('waveLbl').textContent = G.round === ROUNDS ? 'FINAL ROUND' : `ROUND ${G.round} / ${ROUNDS}`;
+  cancelAnimationFrame(pvRAF); pvRAF = requestAnimationFrame(pvLoop);
+  nextCard();
+}
+// one rival pick; returns false when the rival has nothing left to take
+function rivalPick() {
+  const r = O.bot.step();
+  if (!r) { O.done = true; oppBar(); return false; }
+  O.last = r;
+  if (r.recruit) { const u = UNITS[r.id], ship = { uid: 'o' + G.uid++, id: r.id, hp: u.hp, maxHp: u.hp, fresh: true }; O.army.push(ship); born[ship.uid] = performance.now(); }
+  oppBar();
+  return true;
+}
 function nextCard() {
   pool = pool.filter(c => UNITS[c.id].cost <= budget); // the budget never grows within a round, so cards that no longer fit are dropped
   current = pool[0] || null;
-  drawPips(); renderArmy(); renderPool();
+  drawPips(); renderPool(); updDiscard();
   const area = $('cardArea');
-  if (!current) {
-    area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Budget spent!' : 'Draft complete'}</h2><p>${budget > 0 ? `★${budget} unused — no card left that fits.` : 'Ready to fight.'}</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ BATTLE!</button></div>`;
-    $('btnFight').onclick = startBattle;
-    $('btnRecruit').disabled = $('btnStart').disabled = true; updDiscard();
-    return;
-  }
-  $('btnRecruit').disabled = false; updDiscard();
+  if (!current) { finishDraft(); return; }
   $('btnStart').disabled = G.army.length === 0;
   const u = UNITS[current.id], c = ROLE_COLOR[u.role];
   area.innerHTML = `<div class="card enter" id="card" style="--c:${c}">
     <div class="stamp r" id="stR">RECRUIT</div><div class="stamp l" id="stL">DISCARD</div>
     <div class="top"><span class="role">${u.role}</span><span class="cost">${stars(u.cost)}</span></div>
-    <div class="icon"><img alt="${u.name}" src="${shipImg(u.id, 'p', 132, true)}"></div>
+    <div class="icon"><img alt="${u.name}" src="${shipImg(u.id, 'p', 96, true)}"></div>
     <div class="nm">${u.name}</div>
     <div class="ds">${u.desc}</div>
     <div class="sg"><div>Health<b>❤ ${u.hp}</b></div><div>Damage<b>⚔ ${u.dmg}</b></div>
-      <div>Range<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Blast' : 'Attack speed'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/s'}</b></div></div>
+      <div>Range<b>➶ ${u.range}</b></div><div>${u.aoe ? 'Blast' : 'Speed'}<b>${u.aoe ? '💥 ' + u.aoe : (1 / u.cd).toFixed(1) + '/s'}</b></div></div>
     <div class="after">Recruit → <b>★${budget - u.cost}</b> left</div>
   </div>`;
   bindCard($('card'));
-  busy = false;
+  busy = false; updDiscard();
 }
-function act(dir) { // 1 recruit, -1 discard (limited per round)
+// I have nothing left to pick: let the rival finish its draft, then offer the battle
+async function finishDraft() {
+  const my = token;
+  busy = true; updDiscard(); $('btnStart').disabled = true;
+  const area = $('cardArea');
+  area.innerHTML = `<div class="done"><h2>${budget === 0 ? 'Budget spent!' : 'Your draft is done'}</h2><p>${budget > 0 ? `★${budget} unused — no card left that fits.` : ''}<span id="waitRival"></span></p></div>`;
+  while (!O.done) {
+    if (my !== token) return;
+    $('waitRival').textContent = `${O.name} is still drafting…`;
+    await wait(850);
+    if (my !== token) return;
+    rivalPick();
+  }
+  if (my !== token) return;
+  area.innerHTML = `<div class="done"><h2>Both fleets are ready</h2><p>${G.army.length} ships vs ${O.army.length} ships</p><button class="primary" id="btnFight" style="font-size:20px;padding:16px 28px">⚔ BATTLE!</button></div>`;
+  $('btnFight').onclick = startBattle;
+}
+async function act(dir) { // 1 recruit, -1 discard (limited per round)
   if (!current || busy || (dir < 0 && discards <= 0)) return;
-  busy = true;
+  busy = true; updDiscard();
   if (dir < 0) discards--;
-  const card = $('card');
+  const my = token, card = $('card');
   card.style.transition = 'transform .25s ease-in, opacity .25s';
   card.style.transform = `translateX(${dir * 520}px) rotate(${dir * 25}deg)`; card.style.opacity = 0;
-  setTimeout(() => {
-    const u = UNITS[current.id];
-    pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
-    if (dir > 0) { budget -= u.cost; G.army.push({ uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }); }
-    current = null; nextCard();
-  }, 230);
+  await wait(230);
+  if (my !== token) return;
+  const u = UNITS[current.id];
+  pool = pool.filter(c => c !== current); // recruited or discarded: gone for the rest of the round
+  if (dir > 0) { budget -= u.cost; const ship = { uid: G.uid++, id: u.id, hp: u.hp, maxHp: u.hp, fresh: true }; G.army.push(ship); born[ship.uid] = performance.now(); }
+  current = null; drawPips(); renderPool();
+  // the rival answers with a pick of its own
+  if (!O.done) { $('cardArea').innerHTML = `<div class="done"><p>${esc(O.name)} is picking…</p></div>`; await wait(450); if (my !== token) return; rivalPick(); await wait(750); if (my !== token) return; }
+  nextCard();
 }
 function bindCard(card) {
   let sx = null;
@@ -646,23 +713,55 @@ function bindCard(card) {
 }
 $('btnRecruit').onclick = () => act(1);
 $('btnDiscard').onclick = () => act(-1);
-$('btnStart').onclick = () => { if (G.army.length) startBattle(); };
+$('btnStart').onclick = () => { // end my draft early; the rival finishes instantly
+  if (!G.army.length || busy) return;
+  while (rivalPick()) {}
+  startBattle();
+};
 addEventListener('keydown', e => {
   if (!$('draft').classList.contains('on')) return;
   if (e.key === 'ArrowRight') act(1); else if (e.key === 'ArrowLeft') act(-1);
 });
 
-// ---------- VS screen ----------
+// ---------- draft backdrop: both fleets on the sea ----------
+const pv = $('pv'), pg = pv.getContext('2d');
+let pvRAF = 0;
+function pvLoop(now) {
+  if (!$('draft').classList.contains('on')) return;
+  drawPreview(now / 1000);
+  pvRAF = requestAnimationFrame(pvLoop);
+}
+function drawPreview(t) {
+  const root = $('draft').getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1), w = root.width, h = root.height;
+  if (pv.width !== Math.round(w * dpr) || pv.height !== Math.round(h * dpr)) { pv.width = Math.round(w * dpr); pv.height = Math.round(h * dpr); pv.style.width = w + 'px'; pv.style.height = h + 'px'; }
+  const g = pg; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sea = g.createLinearGradient(0, 0, 0, h); sea.addColorStop(0, '#0f3d63'); sea.addColorStop(.5, '#1a6a9a'); sea.addColorStop(1, '#0f3d63');
+  g.fillStyle = sea; g.fillRect(0, 0, w, h);
+  g.strokeStyle = '#ffffff22'; g.lineWidth = 2;
+  for (let y = 0; y < h; y += 28) { g.beginPath(); for (let x = 0; x <= w; x += 12) g.lineTo(x, y + Math.sin(x / 22 + t * 1.5 + y) * 3); g.stroke(); }
+  const sky = $('sky').getBoundingClientRect(), mine = $('myfleet').getBoundingClientRect();
+  fleet(G.army, 'p', mine.top - root.top, mine.bottom - root.top, w, t);
+  fleet(O.army, 'e', sky.top - root.top, sky.bottom - root.top, w, t);
+}
+function fleet(list, team, top, bottom, w, t) {
+  const rows = SIM.formationRows(list.map(u => Object.assign({ def: UNITS[u.id] }, u)));
+  const pitch = Math.min(24, (bottom - top - 22) / Math.max(1, rows.length)), size = w / 10 * 0.74, now = performance.now();
+  rows.forEach((row, ri) => row.forEach((u, i) => {
+    const x = w * (1 + (i + 0.5) / row.length * 8) / 10;
+    const y = (team === 'p' ? top + 16 + ri * pitch : bottom - 16 - ri * pitch) + Math.sin(t * 1.7 + (parseInt(String(u.uid).replace(/\D/g, '')) || 0) * 1.3 + i) * 1.5;
+    const age = (now - (born[u.uid] ?? -1e9)) / 1000, pop = Math.min(1, age / 0.4), k = 0.25 + 0.75 * (1 - Math.pow(1 - pop, 3));
+    if (age < 0.7) { pg.strokeStyle = `rgba(255,255,255,${0.8 * (1 - age / 0.7)})`; pg.lineWidth = 2; pg.beginPath(); pg.arc(x, y, 6 + age * 40, 0, 7); pg.stroke(); }
+    if (u.fresh && age < 4) { pg.fillStyle = `rgba(${team === 'p' ? '53,167,255' : '255,90,95'},${0.25 * (1 - age / 4)})`; pg.beginPath(); pg.arc(x, y, size * 0.8, 0, 7); pg.fill(); }
+    drawShip(pg, u.def, team, x, y, size * k, team === 'p' ? 0 : Math.PI);
+    if (u.hp < u.maxHp) { const f = u.hp / u.maxHp; pg.fillStyle = '#000a'; pg.fillRect(x - 10, y + 10, 20, 3); pg.fillStyle = f > .5 ? '#3ddc84' : f > .25 ? '#ffc83d' : '#ff5a5f'; pg.fillRect(x - 10, y + 10, 20 * f, 3); }
+  }));
+}
+
+// ---------- start battle (no extra screen: the fleets are already on the water) ----------
 function startBattle() {
-  O.army.forEach(u => u.fresh = true);
-  const row = (list, opp) => list.map(u => mc(u.id, u.hp / u.maxHp, { opp })).join('') || '<span class="empty">—</span>';
-  const sum = l => l.reduce((s, u) => s + UNITS[u.id].cost, 0);
-  modal(`<div class="vs"><h2>ROUND ${G.round}</h2>
-    <div class="side"><div class="who"><span>${O.avatar} ${esc(O.name)}</span><span>${O.army.length} ships · ★${sum(O.army)}</span></div><div class="cards">${row(O.army, 1)}</div></div>
-    <div class="mid">VS</div>
-    <div class="side"><div class="who"><span>🧑‍✈️ ${esc(save.name)}</span><span>${G.army.length} ships · ★${sum(G.army)}</span></div><div class="cards">${row(G.army, 0)}</div></div>
-    <button class="primary" id="mGo">⚔ START BATTLE</button></div>`);
-  $('mGo').onclick = () => { closeModal(); runBattle(); };
+  token++; // stop any pending draft timers
+  O.army.forEach(u => u.fresh = false); G.army.forEach(u => u.fresh = false);
+  runBattle();
 }
 
 // ---------- battle ----------
