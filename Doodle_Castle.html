@@ -127,7 +127,7 @@ button{font-family:inherit;color:inherit}
 
   <div id="deck" class="screen">
     <h1>Doodle Castle</h1>
-    <p class="sub">Every block is a hero. Each round you drop 3 new blocks above the rising build line, slide them into place while they fall, then hit Battle: every hero slings shots on its own cooldown until one castle has no blocks left. Your castle carries over between rounds. First to win 3 of 5 rounds takes the match.</p>
+    <p class="sub">Every block is a hero. Each round you drop 3 new blocks above the rising build line, slide them into place while they fall, then hit Battle: every hero slings shots on its own cooldown until one castle has no blocks left. Each round starts from your castle as it stood when the last battle began, even if it was wrecked, and you build on top. First to win 3 of 5 rounds takes the match.</p>
     <div id="roster"></div>
     <div><button class="btn primary" id="goBtn">Play</button></div>
   </div>
@@ -405,7 +405,7 @@ function spawnPiece(sd,pc,col,fromY){
     {density:T.dens,friction:.9,frictionStatic:1.6,restitution:.02,slop:.05,collisionFilter:cf}));
   const body=Body.create({parts,friction:.9,frictionStatic:1.6,restitution:.02,slop:.05,collisionFilter:cf});
   const max=T.hp*cells.length*.5;
-  const ob={kind:'block',type:pc.mat,hero:SHAPE_HERO[pc.mat]||null,fired:false,cd:0,cdMax:0,hp:max,max,body,sd,seed:ri(1,99999),hurtT:0,n:cells.length};
+  const ob={kind:'block',type:pc.mat,hero:SHAPE_HERO[pc.mat]||null,pc:{shape:pc.shape,rot:pc.rot||0,mat:pc.mat},fired:false,cd:0,cdMax:0,hp:max,max,body,sd,seed:ri(1,99999),hurtT:0,n:cells.length};
   body.gameObj=ob;Composite.add(world,body);sd.blocks.push(ob);sd.hp0+=max;
   return ob;
 }
@@ -577,10 +577,22 @@ function banner(txt,sub){
 }
 const lineY=r=>PIL_TOP-LINE_BASE-(r-1)*LINE_STEP;       // blocks must be dropped above this line
 const buildPhase=()=>!!G&&(G.phase==='prep'||G.phase==='buildEnemy'||G.phase==='buildSettle');
+function snapshotCastle(sd){
+  sd.snap=sd.blocks.filter(b=>b.hp>0&&b.body).map(b=>({pc:b.pc,seed:b.seed,x:b.body.position.x,y:b.body.position.y,angle:b.body.angle}));
+}
+function restoreCastle(sd){
+  for(const b of sd.blocks)if(b.body)Composite.remove(world,b.body);
+  sd.blocks=[];sd.hp0=0;
+  for(const q of sd.snap){
+    const ob=spawnPiece(sd,q.pc,0,-1e4);
+    ob.seed=q.seed;
+    Body.setPosition(ob.body,{x:q.x,y:q.y});Body.setAngle(ob.body,q.angle);
+  }
+}
 function startRound(){
   G.round++;G.pieces=newPieces(PIECES);G.place=null;G.fall=null;G.phase='prep';G.camSide='player';
   for(const sd of [G.sides.player,G.sides.enemy]){
-    sd.blocks=sd.blocks.filter(b=>b.hp>0&&b.body);   // the castle carries over, wrecks do not
+    if(sd.snap)restoreCastle(sd);                    // back to the layout it had when the last battle began
     sd.hearts=HEARTS;
   }
   banner('ROUND '+G.round+'/'+ROUNDS,'Drop '+PIECES+' blocks above the line, then Battle');
@@ -651,6 +663,7 @@ function enemyPlacePiece(){
 function beginBattle(){
   G.phase='intro';G.t0=0;G.bt=0;G.camSide=null;
   for(const sd of [G.sides.player,G.sides.enemy]){
+    snapshotCastle(sd);
     sd.hp0=sd.blocks.reduce((a,b)=>a+(b.hp>0&&b.body?b.hp:0),0);
     for(const b of sd.blocks){b.fired=false;b.cd=ri(50,140);b.cdMax=0;}
   }
