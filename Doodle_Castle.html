@@ -568,10 +568,7 @@ function startRound(){
 const SLOT_DX=105, SLOT_DY=110;
 const slotX=i=>SIDES.player.cx+(i-1)*SLOT_DX, slotY=()=>PIL_TOP+SLOT_DY;
 const DRAG_LIFT=64;                                   // dragged block floats above the finger
-function colRange(sd,d){                              // free placement anywhere over the platform
-  const gl=gridLeft(sd);
-  return [(sd.cx-PIL_W/2+4-gl)/BLK,(sd.cx+PIL_W/2-4-gl)/BLK-d.w];
-}
+function colRange(sd,d){return [0,GRID_COLS-d.w];}      // blocks may be placed anywhere inside the 4-slot build zone
 function colFromX(pc,x){
   const sd=G.sides.player,d=cellDims(rotCells(SHAPES[pc.shape],pc.rot)),r=colRange(sd,d);
   return clamp((x-gridLeft(sd))/BLK-d.w/2,r[0],r[1]);
@@ -581,8 +578,8 @@ function pickSlot(pt){
   return -1;
 }
 function overGrid(x,y){
-  const sd=G.sides.player;
-  return Math.abs(x-sd.cx)<=PIL_W/2+20&&y<lineY(G.round);
+  const gl=gridLeft(G.sides.player);
+  return x>=gl-34&&x<=gl+GRID_COLS*BLK+34&&y<lineY(G.round);
 }
 
 /* ---------- tetris-style drop: the piece falls slowly and can be slid sideways until it lands ---------- */
@@ -944,7 +941,11 @@ function drawBuildGrid(){
   if(G.phase!=='prep')return;
   const c=ctx,sd=G.sides.player,ly=lineY(G.round);
   c.save();
-  c.fillStyle='rgba(255,255,255,.22)';c.fillRect(sd.cx-PIL_W/2,ly,PIL_W,PIL_TOP-ly);
+  const gl=gridLeft(sd);
+  c.fillStyle='rgba(255,255,255,.30)';c.fillRect(gl,ly,GRID_COLS*BLK,PIL_TOP-ly);
+  c.strokeStyle='rgba(43,42,36,.28)';c.lineWidth=1.4;c.beginPath();
+  for(let i=0;i<=GRID_COLS;i++){c.moveTo(gl+i*BLK,ly);c.lineTo(gl+i*BLK,PIL_TOP);}
+  c.stroke();
   // block slots carved into the pillar
   for(let i=0;i<3;i++){
     const x=slotX(i)-50,y=slotY()-52;
