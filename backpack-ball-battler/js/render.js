@@ -359,20 +359,33 @@
     ctx.fillStyle = '#f4efe2'; rr(ctx, -w / 2, -h / 2, w, h, 10); ctx.fill();
     ctx.fillStyle = col; rr(ctx, -w / 2, -h / 2, w, h * 0.22, 10); ctx.fill(); ctx.fillRect(-w / 2, -h / 2 + h * 0.12, w, h * 0.1);
     ctx.strokeStyle = '#25304f'; ctx.lineWidth = 2; rr(ctx, -w / 2, -h / 2, w, h, 10); ctx.stroke();
-    if (isU && B.Game.isMulti(c.key)) {
-      const cs = B.Game.shapeCells(c.key, c.rot || 0), ms = Math.max(5, w * 0.075);
-      const mx = Math.max(...cs.map(p => p[1])) + 1;
-      ctx.fillStyle = '#3b8bff';
-      for (const [r2, c2] of cs) { rr(ctx, w / 2 - 6 - (mx - c2) * (ms + 1) , -h / 2 + h * 0.25 + r2 * (ms + 1), ms, ms, 1.5); ctx.fill(); }
-    }
     const nm = isU ? U[c.key].name : UP[c.key].name;
     text(ctx, nm.toUpperCase().replace('PIERCING BALL', 'PIERCING').replace('PRECISION SHOT', 'PRECISION'), 0, -h / 2 + h * 0.11, Math.max(7, w * 0.125), '#fff', 'center', 'bold');
     if (isU) {
-      ctx.fillStyle = 'rgba(59,139,255,.15)'; ctx.beginPath(); ctx.arc(0, -h * 0.02, w * 0.33, 0, 7); ctx.fill();
-      sprite(ctx, c.key, 0, -h * 0.05, w * 0.22, 0);
+      // the card shows the unit's real footprint (rotated by the card's current rotation)
+      const cs = B.Game.shapeCells(c.key, c.rot || 0), n = cs.length;
+      const rows = Math.max(...cs.map(p => p[0])) + 1 - Math.min(...cs.map(p => p[0]));
+      const cols = Math.max(...cs.map(p => p[1])) + 1 - Math.min(...cs.map(p => p[1]));
+      const k = Math.min(w * 0.62 / cols, h * 0.42 / rows, w * 0.34);
+      const r0 = Math.min(...cs.map(p => p[0])), c0 = Math.min(...cs.map(p => p[1]));
+      const ox = -cols * k / 2, oy = -h * 0.04 - rows * k / 2;
+      const cell = pad => ([r, cc]) => rr(ctx, ox + (cc - c0) * k + pad, oy + (r - r0) * k + pad, k - 2 * pad, k - 2 * pad, k * 0.22);
+      const paint = pad => {
+        for (const q of cs) { cell(pad)(q); ctx.fill(); }
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+          if (Math.abs(cs[i][0] - cs[j][0]) + Math.abs(cs[i][1] - cs[j][1]) !== 1) continue;
+          const x = ox + (Math.min(cs[i][1], cs[j][1]) - c0) * k + pad, y = oy + (Math.min(cs[i][0], cs[j][0]) - r0) * k + pad;
+          rr(ctx, x, y, (Math.abs(cs[i][1] - cs[j][1]) + 1) * k - 2 * pad, (Math.abs(cs[i][0] - cs[j][0]) + 1) * k - 2 * pad, k * 0.22); ctx.fill();
+        }
+      };
+      ctx.fillStyle = '#173a7a'; paint(0);
+      const gr = ctx.createLinearGradient(0, oy, 0, oy + rows * k); gr.addColorStop(0, TEAM[0].light); gr.addColorStop(1, TEAM[0].main);
+      ctx.fillStyle = gr; paint(1.5);
+      let mx = 0, my = 0; for (const [r, cc] of cs) { mx += ox + (cc - c0 + 0.5) * k; my += oy + (r - r0 + 0.5) * k; }
+      sprite(ctx, c.key, mx / n, my / n - k * 0.05, k * 0.4 * (1 + 0.12 * (n - 1)), 0);
       const st = B.Game.stats(c.key, 1);
-      text(ctx, '♥' + st.hp + ' ⚔' + st.dmg, 0, h * 0.27, Math.max(7, w * 0.12), '#2b2f45', 'center', 'bold');
-      text(ctx, st.need + ' hits', 0, h * 0.4, Math.max(7, w * 0.13), '#b36a00', 'center', 'bold');
+      text(ctx, '♥' + st.hp + ' ⚔' + st.dmg, 0, h * 0.29, Math.max(7, w * 0.12), '#2b2f45', 'center', 'bold');
+      text(ctx, st.need + ' hits', 0, h * 0.41, Math.max(7, w * 0.13), '#b36a00', 'center', 'bold');
     } else {
       upgradeIcon(ctx, c.key, 0, -h * 0.05, w * 0.27);
       text(ctx, UP[c.key].desc, 0, h * 0.34, Math.max(6.5, w * 0.105), '#2b2f45', 'center', 'bold');
