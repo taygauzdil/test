@@ -165,7 +165,7 @@ const WORLD_W=830, PIL_TOP=720, PIL_W=330, BLK=36;
 const GRID_COLS=4, GRID_C=0;        // block grid: 4 columns, centred on the pillar
 const VMAX=17, HEARTS=4, ROUNDS=5, WINS=3, PIECES=3;
 const LINE_BASE=210, LINE_STEP=70;     // build line: height above the pillar, rises every round
-const PREP_SECONDS=15, FALL_V=2.2, BATTLE_MAX=3000;
+const PREP_SECONDS=15, FALL_V=5.5, BATTLE_MAX=3000;
 const LASER_DMG=1.5, BEAM_LIFE=45, BEAM_RANGE=900, BURST_N=3, BURST_GAP=7;      // soft-drop speed cap; battle time limit (frames)
 const SIDES={player:{cx:190,s:1},enemy:{cx:640,s:-1}};
 const CAT={pBlock:2,eBlock:4,pHero:16,eHero:32,proj:64};
@@ -553,7 +553,7 @@ function restoreCastle(sd){
   for(const q of sd.snap){
     const ob=spawnPiece(sd,q.pc,0,-1e4);
     ob.seed=q.seed;
-    Body.setPosition(ob.body,{x:q.x,y:q.y});Body.setAngle(ob.body,q.angle);
+    Body.setPosition(ob.body,{x:q.x,y:q.y});Body.setAngle(ob.body,q.angle);Body.setStatic(ob.body,true);
   }
 }
 function startRound(){
@@ -601,10 +601,10 @@ function stepOneFall(k){
   f.age++;
   if(f.hold)shiftFall(f.hold*.07);              // held button / key: glide
   const v=b.velocity,tx=gridLeft(f.sd)+f.col*BLK+f.off;
-  // steer sideways by nudging the velocity; rotation and collisions stay fully physical
-  Body.setVelocity(b,{x:v.x+clamp((tx-b.position.x)*.3,-7,7)*.35-v.x*.35,y:Math.min(v.y,FALL_V)});
-  f.still=(f.age>15&&b.speed<.6&&Math.abs(b.angularSpeed)<.02)?f.still+1:0;
-  if(f.still>10||f.age>900)G[k]=null;          // came to rest: control is released
+  Body.setVelocity(b,{x:clamp((tx-b.position.x)*.3,-7,7),y:Math.min(v.y,FALL_V)});
+  Body.setAngle(b,0);Body.setAngularVelocity(b,0);
+  f.still=(f.age>8&&Math.abs(v.y)<.4)?f.still+1:0;
+  if(f.still>4||f.age>900){Body.setStatic(b,true);G[k]=null;}      // touched down: the block sticks where it is
 }
 function placePlayer(i,col,cy){
   const pc=G.pieces[i];if(!pc||G.fall)return;
@@ -613,7 +613,7 @@ function placePlayer(i,col,cy){
   G.pieces[i]=null;G.place=null;cardKey='';
 }
 function endPrep(){                                   // timer ran out or Battle pressed: unplaced blocks are lost
-  G.fall=null;G.place=null;G.swipe=null;G.pieces=[];G.phase='buildSettle';G.settleT=0;cardKey='';
+  if(G.fall)G.fall.hold=0;G.place=null;G.swipe=null;G.pieces=[];G.phase='buildSettle';G.settleT=0;cardKey='';
 }
 function stepEnemyBuild(){
   const e=G.eb;
@@ -637,6 +637,7 @@ function beginBattle(){
   G.phase='intro';G.t0=0;G.bt=0;G.camSide=null;G.beams=[];
   for(const sd of [G.sides.player,G.sides.enemy]){
     snapshotCastle(sd);
+    for(const b of sd.blocks)if(b.body)Body.setStatic(b.body,false);   // physics only kicks in with the fight
     sd.hp0=sd.blocks.reduce((a,b)=>a+(b.hp>0&&b.body?b.hp:0),0);
     for(const b of sd.blocks){b.cd=ri(50,140);b.cdMax=0;b.burst=0;}
   }
@@ -763,7 +764,7 @@ function stepGame(){
     case 'buildSettle':
       G.settleT++;
       stepEnemyBuild();
-      if((G.eb.n===0&&!G.efall&&((G.settleT>40&&calm())||G.settleT>300))||G.settleT>1200)beginBattle();
+      if((G.eb.n===0&&!G.efall&&!G.fall&&G.settleT>20)||G.settleT>1200)beginBattle();
       break;
     case 'intro':
       if(++G.t0>60)G.phase='battle';
