@@ -218,18 +218,24 @@
     };
     ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.scale(sc, sc); ctx.translate(-cx, -cy);
     ctx.save(); ctx.translate(0, 3); ctx.fillStyle = 'rgba(0,0,0,.35)'; paint(3); ctx.restore();
-    ctx.fillStyle = u.level === 3 ? '#ffd84d' : u.level === 2 ? '#e8eefc' : t.dark; paint(2);
-    const g = ctx.createLinearGradient(0, minY, 0, maxY); g.addColorStop(0, t.light); g.addColorStop(1, t.main);
-    ctx.fillStyle = g; paint(4);
-    const rad = 9.5 * (1 + 0.3 * (n - 1));
-    sprite(ctx, u.type, cx, cy - 2, rad, sideIdx, { flash: u.flash });
+    ctx.fillStyle = u.level === 3 ? '#ffd84d' : u.level === 2 ? '#aab8dc' : '#25304f'; paint(1.5);
+    ctx.fillStyle = '#f4efe2'; paint(3);
+    // card header strip (team colour) on every cell of the unit's top edge, like the cards in the tray
+    const has = (r, c) => u.cells.some(p => p[0] === r && p[1] === c);
+    u.cells.forEach(([r, c], i) => {
+      if (has(r - 1, c)) return;
+      const q = qs[i], x0 = has(r, c - 1) ? q.x : q.x + 4, x1 = has(r, c + 1) ? q.x + q.w : q.x + q.w - 4;
+      ctx.fillStyle = t.main; rr(ctx, x0, q.y + 4, x1 - x0, 10, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.28)'; rr(ctx, x0, q.y + 4, x1 - x0, 4, 3); ctx.fill();
+    });
+    const rad = 8.6 * (1 + 0.3 * (n - 1));
+    sprite(ctx, u.type, cx, cy + 3, rad, sideIdx, { flash: u.flash });
     const a0 = qs[0];
-    ctx.fillStyle = u.level === 3 ? '#ffb703' : u.level === 2 ? '#d7e0f5' : '#10172b'; rr(ctx, a0.x + 3, a0.y + 3, 17, 11, 4); ctx.fill();
-    text(ctx, 'L' + u.level, a0.x + 11.5, a0.y + 8.7, 9, u.level === 1 ? '#fff' : '#222', 'center', 'bold');
-    const need = st.need, bw = Math.min(30 + 8 * (n - 1), 44), pw = bw / need, by = Math.max(...qs.map(q => q.y + q.h)) - 11;
-    const bx = n > 1 ? cx - bw / 2 : cx - bw / 2;
+    text(ctx, 'L' + u.level, a0.x + 11, a0.y + 9.5, 9, u.level === 3 ? '#ffe680' : '#fff', 'center', 'bold');
+    const need = st.need, bw = Math.min(28 + 8 * (n - 1), 44), pw = bw / need, by = Math.max(...qs.map(q => q.y + q.h)) - 10;
+    const bx = cx - bw / 2;
     for (let i = 0; i < need; i++) {
-      ctx.fillStyle = i < u.hits ? '#ffe36b' : 'rgba(0,0,0,.55)';
+      ctx.fillStyle = i < u.hits ? '#f2a900' : 'rgba(0,0,0,.28)';
       rr(ctx, bx + i * pw + 0.5, by, Math.max(2, pw - 1.5), 5, 2); ctx.fill();
     }
     if (u.flash > 0.4 || u.pop > 0.5) { ctx.globalAlpha = Math.max(u.flash, u.pop * 0.5) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(0,0,0,0)'; for (const q of qs) { rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 8); ctx.stroke(); } }
@@ -240,7 +246,7 @@
     const G = B.G, side = G.sides[sideIdx], l = side.launcher, t = TEAM[sideIdx];
     const pos = L.launcher(sideIdx), u = side.upg;
     // free flight zone: the 3x3 block around the launcher stays empty
-    const q0 = L.cellRect(sideIdx, CFG.CENTER - 1, CFG.CENTER - 1), zs = CFG.CELL * 3;
+    const q0 = L.cellRect(sideIdx, CFG.CENTER_R - 1, CFG.CENTER_C - 1), zs = CFG.CELL * 3;
     ctx.fillStyle = 'rgba(0,0,0,.28)'; rr(ctx, q0.x + 2, q0.y + 2, zs - 4, zs - 4, 14); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,.1)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); rr(ctx, q0.x + 3, q0.y + 3, zs - 6, zs - 6, 13); ctx.stroke(); ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(pos.x, pos.y, 42, 0, 7); ctx.stroke();
@@ -287,31 +293,31 @@
     const G = B.G, side = G.sides[sideIdx], t = TEAM[sideIdx], p = B.Game.launcherParams(side), z = L.zone(sideIdx);
     const ly = sideIdx === 0 ? z.y0 + 14 : z.y1 - 14;
     // name tag
-    ctx.fillStyle = t.dark; rr(ctx, 8, ly - 10, 62, 20, 10); ctx.fill();
-    text(ctx, t.name, 39, ly, 11, '#fff', 'center', 'bold');
+    ctx.fillStyle = t.dark; rr(ctx, 4, ly - 10, 50, 20, 10); ctx.fill();
+    text(ctx, t.name, 29, ly, 10, '#fff', 'center', 'bold');
     // coins
     const ccy = sideIdx === 0 ? ly + 28 : ly - 28, cs = 1 + side.coinPop * 0.25;
-    ctx.fillStyle = 'rgba(0,0,0,.4)'; rr(ctx, 8, ccy - 12, 74, 24, 12); ctx.fill();
-    ctx.save(); ctx.translate(24, ccy); ctx.scale(cs, cs); coin(ctx, 0, 0, 9); ctx.restore();
-    text(ctx, String(side.coins), 56, ccy + 1, 17, '#ffe36b', 'center', 'bold', 'rgba(0,0,0,.5)');
+    ctx.fillStyle = 'rgba(0,0,0,.4)'; rr(ctx, 4, ccy - 12, 50, 24, 12); ctx.fill();
+    ctx.save(); ctx.translate(17, ccy); ctx.scale(cs, cs); coin(ctx, 0, 0, 8); ctx.restore();
+    text(ctx, String(side.coins), 38, ccy + 1, 15, '#ffe36b', 'center', 'bold', 'rgba(0,0,0,.5)');
     // ball counter
     const cy = (z.y0 + z.y1) / 2 + (sideIdx === 0 ? 4 : -4);
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(ctx, 8, cy - 32, 74, 64, 12); ctx.fill();
-    const g = ctx.createRadialGradient(24, cy - 14, 0, 26, cy - 12, 9); g.addColorStop(0, '#fff'); g.addColorStop(0.5, t.ball); g.addColorStop(1, t.main);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(26, cy - 14, 7, 0, 7); ctx.fill();
-    text(ctx, 'BALLS', 54, cy - 14, 10, '#cfd8ee', 'center', 'bold');
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(ctx, 4, cy - 32, 50, 64, 12); ctx.fill();
+    const g = ctx.createRadialGradient(18, cy - 20, 0, 20, cy - 18, 8); g.addColorStop(0, '#fff'); g.addColorStop(0.5, t.ball); g.addColorStop(1, t.main);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(18, cy - 20, 6, 0, 7); ctx.fill();
+    text(ctx, 'BALLS', 40, cy - 20, 8, '#cfd8ee', 'center', 'bold');
     const left = G.phase === 'combat' || G.phase === 'roundEnd' ? side.launcher.left : p.balls;
-    text(ctx, String(left), 34, cy + 10, 26, '#fff', 'center', 'bold', 'rgba(0,0,0,.5)');
-    text(ctx, '/' + p.balls, 66, cy + 14, 11, '#9fb0d6', 'center', 'bold');
+    text(ctx, String(left), 29, cy + 3, 24, '#fff', 'center', 'bold', 'rgba(0,0,0,.5)');
+    text(ctx, '/' + p.balls, 29, cy + 22, 10, '#9fb0d6', 'center', 'bold');
     // upgrades
     const keys = Object.keys(side.upg).filter(k => side.upg[k] > 0);
-    if (!keys.length) { text(ctx, 'no upgrades', 345, cy, 9, 'rgba(255,255,255,.3)', 'center', 'normal'); return; }
+    if (!keys.length) { text(ctx, 'no upgrades', 359, cy, 9, 'rgba(255,255,255,.3)', 'center', 'normal'); return; }
     keys.forEach((k, i) => {
       const col = i % 2, row = (i / 2) | 0;
-      const x = 322 + col * 40, y = cy - 22 + row * 38 - (keys.length > 4 ? 8 : 0);
-      upgradeIcon(ctx, k, x, y, 15);
-      ctx.fillStyle = '#10172b'; rr(ctx, x + 6, y + 5, 16, 12, 5); ctx.fill();
-      text(ctx, k === 'extraBalls' ? '+' + side.upg[k] * CFG.EXTRA_BALLS : 'x' + side.upg[k], x + 14, y + 11, 9, '#fff', 'center', 'bold');
+      const x = 341 + col * 31, y = cy - 22 + row * 36 - (keys.length > 4 ? 8 : 0);
+      upgradeIcon(ctx, k, x, y, 13);
+      ctx.fillStyle = '#10172b'; rr(ctx, x + 3, y + 5, 16, 12, 5); ctx.fill();
+      text(ctx, k === 'extraBalls' ? '+' + side.upg[k] * CFG.EXTRA_BALLS : 'x' + side.upg[k], x + 11, y + 11, 9, '#fff', 'center', 'bold');
     });
   }
 

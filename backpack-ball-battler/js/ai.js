@@ -5,7 +5,7 @@
 
   AI.plan = function () { timer = 0.9; };
 
-  const dist2 = (r, c) => (r - CFG.CENTER) ** 2 + (c - CFG.CENTER) ** 2;
+  const dist2 = (r, c) => (r - CFG.CENTER_R) ** 2 + (c - CFG.CENTER_C) ** 2;
 
   // Best free spot for a card: cells close to the launcher get hit most.
   function bestPlacement(side, key) {

@@ -69,7 +69,7 @@
 
   // ---- backpack operations (units can cover several cells; grid[r][c] holds the unit object) ----
   Game.canMerge = (a, b) => !!(a && b && a !== b && a.type === b.type && a.level === b.level && a.level < CFG.MAX_LEVEL);
-  const isBlocked = (r, c) => Math.abs(r - CFG.CENTER) <= 1 && Math.abs(c - CFG.CENTER) <= 1;
+  const isBlocked = (r, c) => Math.abs(r - CFG.CENTER_R) <= 1 && Math.abs(c - CFG.CENTER_C) <= 1;
   Game.isBlocked = isBlocked;
 
   // Shape cells relative to the anchor (first cell), rotated clockwise `rot` quarter turns.

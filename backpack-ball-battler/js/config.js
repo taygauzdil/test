@@ -7,10 +7,10 @@ window.BBB = window.BBB || {};
     ARENA: { y0: 211, y1: 633 },
     PLAYER_ZONE: { y0: 633, y1: 844 },
 
-    // Backpack board: 5x5 cells, centre cell is the launcher mount. Balls are sealed inside the board.
-    COLS: 5, ROWS: 5, CELL: 38, GRID_X: 100,
+    // Backpack board: 7x5 cells, centre cell is the launcher mount. Balls are sealed inside the board.
+    COLS: 7, ROWS: 5, CELL: 38, GRID_X: 62,
     GRID_TOP: [644, 11],           // board top y for [player, enemy]
-    CENTER: 2,                     // launcher cell (row & col); the 3x3 block around it stays empty so balls have room to fly
+    CENTER_R: 2, CENTER_C: 3,      // launcher cell; the 3x3 block around it stays empty so balls have room to fly
     UNIT_BODY: 34,                 // physics body size of one backpack cell (px)
     ROT_SPEED: 1.9,                // launcher rotation (rad/s)
     MUZZLE: 14,                    // distance from launcher centre to ball spawn
@@ -88,7 +88,7 @@ window.BBB = window.BBB || {};
     launcher(side) { const b = L.board(side); return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; },
     muzzle(side, ang) { const p = L.launcher(side); return { x: p.x + Math.cos(ang) * CFG.MUZZLE, y: p.y + Math.sin(ang) * CFG.MUZZLE }; },
     zone(side) { return side === 0 ? CFG.PLAYER_ZONE : CFG.ENEMY_ZONE; },
-    laneX(col) { return 55 + col * 70; },
+    laneX(col) { return 45 + col * 50; },
     startBtn: { x: 85, y: 368, w: 220, h: 64 },
     speedBtn: { x: 296, y: 226, w: 80, h: 28 },
     roundPill: { x: 14, y: 226, w: 90, h: 28 },
