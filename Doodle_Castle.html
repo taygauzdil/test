@@ -160,7 +160,7 @@ const WORLD_W=830, PIL_TOP=720, PIL_W=330, BLK=36;
 const GRID_COLS=4, GRID_C=0;        // block grid: 4 columns, centred on the pillar
 const VMAX=17, HEARTS=4, ROUNDS=5, WINS=3, PIECES=3;
 const LINE_BASE=140, LINE_STEP=85;     // build line: height above the pillar, rises every round
-const FALL_V=4.2, BATTLE_MAX=3000;      // soft-drop speed cap; battle time limit (frames)
+const FALL_V=2.2, BATTLE_MAX=3000;      // soft-drop speed cap; battle time limit (frames)
 const SIDES={player:{cx:190,s:1},enemy:{cx:640,s:-1}};
 const CAT={pBlock:2,eBlock:4,pHero:16,eHero:32,proj:64};
 const SHAPES={I:[[0,0],[1,0],[2,0],[3,0]],O:[[0,0],[1,0],[0,1],[1,1]],T:[[0,0],[1,0],[2,0],[1,1]],L:[[0,0],[0,1],[0,2],[1,2]],J:[[1,0],[1,1],[1,2],[0,2]],S:[[1,0],[2,0],[0,1],[1,1]],Z:[[0,0],[1,0],[1,1],[2,1]]};
@@ -588,33 +588,38 @@ function startRound(){
 const SLOT_DX=105, SLOT_DY=110;
 const slotX=i=>SIDES.player.cx+(i-1)*SLOT_DX, slotY=()=>PIL_TOP+SLOT_DY;
 const DRAG_LIFT=64;                                   // dragged block floats above the finger
+function colRange(sd,d){                              // free placement anywhere over the platform
+  const gl=gridLeft(sd);
+  return [(sd.cx-PIL_W/2+4-gl)/BLK,(sd.cx+PIL_W/2-4-gl)/BLK-d.w];
+}
 function colFromX(pc,x){
-  const d=cellDims(rotCells(SHAPES[pc.shape],pc.rot));
-  return clamp(Math.round((x-gridLeft(G.sides.player))/BLK-d.w/2),0,GRID_COLS-d.w);
+  const sd=G.sides.player,d=cellDims(rotCells(SHAPES[pc.shape],pc.rot)),r=colRange(sd,d);
+  return clamp((x-gridLeft(sd))/BLK-d.w/2,r[0],r[1]);
 }
 function pickSlot(pt){
   for(let i=0;i<3;i++)if(G.pieces[i]&&Math.abs(pt.x-slotX(i))<58&&Math.abs(pt.y-slotY())<62)return i;
   return -1;
 }
 function overGrid(x,y){
-  const gl=gridLeft(G.sides.player);
-  return x>=gl-34&&x<=gl+GRID_COLS*BLK+34&&y<lineY(G.round);
+  const sd=G.sides.player;
+  return Math.abs(x-sd.cx)<=PIL_W/2+20&&y<lineY(G.round);
 }
 
 /* ---------- tetris-style drop: the piece falls slowly and can be slid sideways until it lands ---------- */
 function startFall(sd,pc,col,fromY){
   const ob=spawnPiece(sd,pc,col,fromY),d=cellDims(rotCells(SHAPES[pc.shape],pc.rot||0));
-  G.fall={sd,ob,col,maxCol:GRID_COLS-d.w,off:ob.body.position.x-(gridLeft(sd)+col*BLK),age:0,still:0};
+  G.fall={sd,ob,col,range:colRange(sd,d),hold:0,off:ob.body.position.x-(gridLeft(sd)+col*BLK),age:0,still:0};
 }
-function shiftFall(dir){
+function shiftFall(amt){                              // amt in blocks
   const f=G.fall;if(!f||f.sd.name!=='player')return;
-  f.col=clamp(f.col+dir,0,f.maxCol);
+  f.col=clamp(f.col+amt,f.range[0],f.range[1]);
 }
 function stepFall(){
   const f=G.fall;if(!f)return;
   const b=f.ob.body;
   if(!b){G.fall=null;return;}
   f.age++;
+  if(f.hold)shiftFall(f.hold*.07);              // held button / key: glide
   const v=b.velocity,tx=gridLeft(f.sd)+f.col*BLK+f.off;
   Body.setVelocity(b,{x:clamp((tx-b.position.x)*.3,-7,7),y:Math.min(v.y,FALL_V)});
   Body.setAngle(b,0);Body.setAngularVelocity(b,0);
@@ -634,8 +639,9 @@ function enemyPlacePiece(){
   const E=G.sides.enemy,sh=pick(SHAPE_KEYS),pc={shape:sh,rot:ri(0,3),mat:sh};
   const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells);
   let bestCol=0,bestV=-1e9;
-  for(let col=0;col<=GRID_COLS-d.w;col++){
-    const v=pieceOrigin(E,cells,col).top+rf(0,28);
+  const r=colRange(E,d);
+  for(let k=0;k<12;k++){
+    const col=rf(r[0],r[1]),v=pieceOrigin(E,cells,col).top+rf(0,28);
     if(v>bestV){bestV=v;bestCol=col;}
   }
   startFall(E,pc,bestCol,lineY(G.round)-d.h*BLK-2);
@@ -906,13 +912,9 @@ function drawLine(){
 }
 function drawBuildGrid(){
   if(G.phase!=='prep')return;
-  const c=ctx,gl=gridLeft(G.sides.player),rows=Math.ceil((PIL_TOP-lineY(G.round))/BLK);
+  const c=ctx,sd=G.sides.player,ly=lineY(G.round);
   c.save();
-  c.fillStyle='rgba(255,255,255,.30)';c.strokeStyle='rgba(43,42,36,.28)';c.lineWidth=1.4;
-  for(let col=0;col<GRID_COLS;col++)for(let r=0;r<rows;r++){
-    const x=gl+col*BLK,y=PIL_TOP-(r+1)*BLK;
-    c.fillRect(x+1,y+1,BLK-2,BLK-2);c.strokeRect(x+1,y+1,BLK-2,BLK-2);
-  }
+  c.fillStyle='rgba(255,255,255,.22)';c.fillRect(sd.cx-PIL_W/2,ly,PIL_W,PIL_TOP-ly);
   // block slots carved into the pillar
   for(let i=0;i<3;i++){
     const x=slotX(i)-50,y=slotY()-52;
@@ -1081,11 +1083,9 @@ cv.addEventListener('pointerdown',e=>{
 cv.addEventListener('pointermove',e=>{
   if(!G)return;
   const sw=G.swipe;
-  if(sw&&sw.id===e.pointerId){                       // swipe = slide the falling piece one column per BLK of travel
+  if(sw&&sw.id===e.pointerId){                       // swipe = slide the falling piece with the finger
     sw.acc+=e.clientX-sw.x;sw.x=e.clientX;
-    const step=BLK*sc;
-    while(sw.acc>=step){shiftFall(1);sw.acc-=step;}
-    while(sw.acc<=-step){shiftFall(-1);sw.acc+=step;}
+    shiftFall(sw.acc/(BLK*sc));sw.acc=0;
     return;
   }
   if(G.place&&G.place.id===e.pointerId){
@@ -1108,13 +1108,20 @@ function endDrag(e){
 }
 cv.addEventListener('pointerup',endDrag);
 cv.addEventListener('pointercancel',endDrag);
-for(const [id,dir] of [['ctrlL',-1],['ctrlR',1]])
-  $(id).addEventListener('pointerdown',e=>{e.preventDefault();if(G&&G.phase==='prep')shiftFall(dir);});
+const hold=d=>{if(G&&G.fall)G.fall.hold=d;};
+for(const [id,dir] of [['ctrlL',-1],['ctrlR',1]]){
+  const b=$(id);
+  b.addEventListener('pointerdown',e=>{e.preventDefault();hold(dir);try{b.setPointerCapture(e.pointerId);}catch(err){}});
+  for(const ev of ['pointerup','pointercancel'])b.addEventListener(ev,()=>hold(0));
+}
 window.addEventListener('keydown',e=>{
   if(!G||G.phase!=='prep')return;
   const k=e.key;
-  if(k==='ArrowLeft'||k==='a'||k==='A'){e.preventDefault();shiftFall(-1);}
-  else if(k==='ArrowRight'||k==='d'||k==='D'){e.preventDefault();shiftFall(1);}
+  if(k==='ArrowLeft'||k==='a'||k==='A'){e.preventDefault();hold(-1);}
+  else if(k==='ArrowRight'||k==='d'||k==='D'){e.preventDefault();hold(1);}
+});
+window.addEventListener('keyup',e=>{
+  if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key))hold(0);
 });
 $('cards').addEventListener('click',e=>{
   if(!e.target.closest('[data-act="battle"]'))return;
