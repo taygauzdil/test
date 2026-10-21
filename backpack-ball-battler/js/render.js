@@ -156,92 +156,101 @@
   }
 
   // ---------- backpack ----------
-  function dropHighlight(side, r, c) {
-    const d = B.G.drag; if (!d || d.kind === 'upgrade' || side.idx !== 0) return null;
-    const a = B.Game.dropAction(side, d.kind === 'card' ? { kind: 'card', key: d.key } : d, r, c);
-    return a;
+  function previewFor() {
+    const G = B.G, d = G.drag;
+    if (!d || !d.moved || (d.kind === 'card' && !U[d.key])) return null;
+    const cell = L.cellAt(0, d.x, d.y); if (!cell) return null;
+    const drag = d.kind === 'card' ? { kind: 'card', key: d.key, rot: d.rot } : { kind: 'unit', unit: d.unit, gr: d.gr, gc: d.gc };
+    return B.Game.dropPreview(G.sides[0], drag, cell.r, cell.c);
   }
 
   function backpack(ctx, sideIdx) {
-    const G = B.G, side = G.sides[sideIdx], t = TEAM[sideIdx], z = L.zone(sideIdx);
-    // walls
-    ctx.strokeStyle = t.main; ctx.lineWidth = 4;
-    ctx.strokeRect(2, z.y0 + 2, 386, z.y1 - z.y0 - 4);
+    const G = B.G, side = G.sides[sideIdx], t = TEAM[sideIdx], z = L.zone(sideIdx), b = L.board(sideIdx);
     ctx.fillStyle = t.main; ctx.fillRect(0, sideIdx === 0 ? z.y0 : z.y1 - 6, 390, 6);
-    // board
-    const gx = CFG.GRID_X, gw = CFG.COLS * CFG.CELL;
-    const gy = sideIdx === 0 ? CFG.PLAYER_GRID_BOTTOM - CFG.ROWS * CFG.CELL : CFG.ENEMY_GRID_TOP, gh = CFG.ROWS * CFG.CELL;
-    ctx.fillStyle = sideIdx === 0 ? '#1f4a8e' : '#8e2b26'; rr(ctx, gx - 8, gy - 8, gw + 16, gh + 16, 14); ctx.fill();
-    ctx.fillStyle = sideIdx === 0 ? '#0f2c5c' : '#5a1a18'; rr(ctx, gx - 4, gy - 4, gw + 8, gh + 8, 11); ctx.fill();
-    const aiming = G.drag;
+    // board frame: the inner edge is the physical wall the balls bounce on
+    ctx.fillStyle = sideIdx === 0 ? '#2a62b8' : '#b8382f'; rr(ctx, b.x - 7, b.y - 7, b.w + 14, b.h + 14, 14); ctx.fill();
+    ctx.fillStyle = sideIdx === 0 ? '#0d2859' : '#521715'; rr(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
     for (let r = 0; r < CFG.ROWS; r++) for (let c = 0; c < CFG.COLS; c++) {
+      if (B.Game.isBlocked(r, c)) continue;
       const q = L.cellRect(sideIdx, r, c);
       ctx.fillStyle = (r + c) % 2 ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.12)';
-      rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 8); ctx.fill();
-      const hl = aiming && sideIdx === 0 ? dropHighlight(side, r, c) : null;
-      if (hl) {
-        const col = hl === 'merge' ? '#ffd84d' : hl === 'swap' ? '#6bd0ff' : '#58f08a';
-        ctx.globalAlpha = 0.35 + Math.sin(G.time * 8) * 0.12; ctx.fillStyle = col; rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 8); ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 2.5; rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 8); ctx.stroke();
+      rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 7); ctx.fill();
+    }
+    // drop preview (footprint of the shape being dragged)
+    const pre = sideIdx === 0 ? previewFor() : null;
+    if (pre) {
+      const col = pre.action === 'merge' ? '#ffd84d' : pre.action === 'swap' ? '#6bd0ff' : pre.action ? '#58f08a' : '#ff5a5a';
+      for (const [r, c] of pre.cells) {
+        if (r < 0 || c < 0 || r >= CFG.ROWS || c >= CFG.COLS) continue;
+        const q = L.cellRect(0, r, c);
+        ctx.globalAlpha = 0.38 + Math.sin(G.time * 8) * 0.1; ctx.fillStyle = col; rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 7); ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 2.5; rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 7); ctx.stroke();
       }
     }
-    for (let r = 0; r < CFG.ROWS; r++) for (let c = 0; c < CFG.COLS; c++) {
-      const u = side.grid[r][c]; if (!u) continue;
-      if (G.drag && G.drag.kind === 'unit' && sideIdx === 0 && G.drag.r === r && G.drag.c === c) continue;
-      tile(ctx, sideIdx, L.cellRect(sideIdx, r, c), u);
+    for (const u of B.Game.unitsOf(side)) {
+      if (G.drag && G.drag.moved && G.drag.kind === 'unit' && sideIdx === 0 && G.drag.unit === u) continue;
+      drawUnit(ctx, sideIdx, u, 0, 0, 1);
     }
   }
 
-  function tile(ctx, sideIdx, q, u, scale) {
-    const t = TEAM[sideIdx], d = U[u.type], st = B.Game.stats(u.type, u.level);
-    const sc = (scale || 1) * (1 + u.pop * 0.22 * Math.sin(Math.min(1, u.pop) * Math.PI)) * (1 + u.flash * 0.08);
-    ctx.save(); ctx.translate(q.cx, q.cy); ctx.scale(sc, sc);
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(ctx, -17, -14, 34, 34, 9); ctx.fill();
-    const g = ctx.createLinearGradient(0, -17, 0, 17); g.addColorStop(0, t.light); g.addColorStop(1, t.main);
-    ctx.fillStyle = g; rr(ctx, -17, -17, 34, 34, 9); ctx.fill();
-    ctx.strokeStyle = u.level === 3 ? '#ffd84d' : u.level === 2 ? '#e8eefc' : t.dark; ctx.lineWidth = u.level > 1 ? 2.5 : 2; rr(ctx, -17, -17, 34, 34, 9); ctx.stroke();
-    sprite(ctx, u.type, 0, -2, 9.5, sideIdx, { flash: u.flash });
-    // level badge
-    ctx.fillStyle = u.level === 3 ? '#ffb703' : u.level === 2 ? '#d7e0f5' : '#10172b'; rr(ctx, -17, -17, 17, 11, 4); ctx.fill();
-    text(ctx, 'L' + u.level, -8.5, -11.3, 9, u.level === 1 ? '#fff' : '#222', 'center', 'bold');
-    // hit progress pips
-    const need = st.need, pw = 30 / need;
+  // A backpack unit covering one or more cells, drawn as one merged tile.
+  function drawUnit(ctx, sideIdx, u, dx, dy, scale) {
+    const t = TEAM[sideIdx], st = B.Game.stats(u.type, u.level), n = u.cells.length;
+    const qs = u.cells.map(([r, c]) => L.cellRect(sideIdx, r, c));
+    let cx = 0, cy = 0, minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (const q of qs) { cx += q.cx; cy += q.cy; minX = Math.min(minX, q.x); minY = Math.min(minY, q.y); maxX = Math.max(maxX, q.x + q.w); maxY = Math.max(maxY, q.y + q.h); }
+    cx /= n; cy /= n;
+    const sc = (scale || 1) * (1 + u.pop * 0.18 * Math.sin(Math.min(1, u.pop) * Math.PI)) * (1 + u.flash * 0.05);
+    const paint = pad => {
+      for (const q of qs) { rr(ctx, q.x + pad, q.y + pad, q.w - 2 * pad, q.h - 2 * pad, 9 - pad); ctx.fill(); }
+      for (let i = 0; i < qs.length; i++) for (let j = i + 1; j < qs.length; j++) {
+        const a = qs[i], b2 = qs[j];
+        if (Math.abs(a.x - b2.x) + Math.abs(a.y - b2.y) !== CFG.CELL) continue;
+        rr(ctx, Math.min(a.x, b2.x) + pad, Math.min(a.y, b2.y) + pad, Math.abs(a.x - b2.x) + a.w - 2 * pad, Math.abs(a.y - b2.y) + a.h - 2 * pad, 9 - pad); ctx.fill();
+      }
+    };
+    ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.scale(sc, sc); ctx.translate(-cx, -cy);
+    ctx.save(); ctx.translate(0, 3); ctx.fillStyle = 'rgba(0,0,0,.35)'; paint(3); ctx.restore();
+    ctx.fillStyle = u.level === 3 ? '#ffd84d' : u.level === 2 ? '#e8eefc' : t.dark; paint(2);
+    const g = ctx.createLinearGradient(0, minY, 0, maxY); g.addColorStop(0, t.light); g.addColorStop(1, t.main);
+    ctx.fillStyle = g; paint(4);
+    const rad = 9.5 * (1 + 0.3 * (n - 1));
+    sprite(ctx, u.type, cx, cy - 2, rad, sideIdx, { flash: u.flash });
+    const a0 = qs[0];
+    ctx.fillStyle = u.level === 3 ? '#ffb703' : u.level === 2 ? '#d7e0f5' : '#10172b'; rr(ctx, a0.x + 3, a0.y + 3, 17, 11, 4); ctx.fill();
+    text(ctx, 'L' + u.level, a0.x + 11.5, a0.y + 8.7, 9, u.level === 1 ? '#fff' : '#222', 'center', 'bold');
+    const need = st.need, bw = Math.min(30 + 8 * (n - 1), 44), pw = bw / need, by = Math.max(...qs.map(q => q.y + q.h)) - 11;
+    const bx = n > 1 ? cx - bw / 2 : cx - bw / 2;
     for (let i = 0; i < need; i++) {
       ctx.fillStyle = i < u.hits ? '#ffe36b' : 'rgba(0,0,0,.55)';
-      rr(ctx, -15 + i * pw + 0.5, 11, Math.max(2, pw - 1.5), 5, 2); ctx.fill();
+      rr(ctx, bx + i * pw + 0.5, by, Math.max(2, pw - 1.5), 5, 2); ctx.fill();
     }
-    if (u.flash > 0.4 || u.pop > 0.5) { ctx.globalAlpha = Math.max(u.flash, u.pop * 0.5) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; rr(ctx, -17, -17, 34, 34, 9); ctx.stroke(); }
+    if (u.flash > 0.4 || u.pop > 0.5) { ctx.globalAlpha = Math.max(u.flash, u.pop * 0.5) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(0,0,0,0)'; for (const q of qs) { rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 8); ctx.stroke(); } }
     ctx.restore();
   }
 
   function launcher(ctx, sideIdx) {
-    const G = B.G, side = G.sides[sideIdx], l = side.launcher, p = B.Game.launcherParams(side), t = TEAM[sideIdx];
+    const G = B.G, side = G.sides[sideIdx], l = side.launcher, t = TEAM[sideIdx];
     const pos = L.launcher(sideIdx), u = side.upg;
-    // aim line
-    if (sideIdx === 0 || u.precision) {
-      const spreadA = p.spread, len = 130, m = L.muzzle(sideIdx);
-      ctx.save(); ctx.strokeStyle = t.ball; ctx.globalAlpha = sideIdx === 0 ? 0.55 : 0.22; ctx.lineWidth = 2; ctx.setLineDash([5, 7]);
-      ctx.lineDashOffset = -G.time * 30;
-      ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(l.aim) * len, m.y + Math.sin(l.aim) * len); ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = 0.16; ctx.fillStyle = t.ball;
-      ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.arc(m.x, m.y, len, l.aim - spreadA, l.aim + spreadA); ctx.closePath(); ctx.fill();
-      ctx.restore();
-    }
+    const q = L.cellRect(sideIdx, CFG.CENTER, CFG.CENTER);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; rr(ctx, q.x + 2, q.y + 2, q.w - 4, q.h - 4, 9); ctx.fill();
+    // short aiming telegraph
+    const m = L.muzzle(sideIdx, l.angle);
+    ctx.save(); ctx.strokeStyle = t.ball; ctx.globalAlpha = 0.45; ctx.lineWidth = 2; ctx.setLineDash([3, 5]); ctx.lineDashOffset = -G.time * 30;
+    ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(l.angle) * 34, m.y + Math.sin(l.angle) * 34); ctx.stroke(); ctx.restore();
     ctx.save(); ctx.translate(pos.x, pos.y);
-    // rapid fire flames
-    if (u.rapidFire) { ctx.fillStyle = '#ff7b3a'; for (let i = 0; i < 4 + u.rapidFire * 2; i++) { const a = G.time * 6 + i * 1.9; ctx.beginPath(); ctx.arc(Math.cos(a) * 21, Math.sin(a) * 15, 2, 0, 7); ctx.fill(); } }
-    ctx.rotate(l.aim + Math.PI / 2);
-    const rec = l.recoil * 4;
-    const barrels = 1 + u.doubleShot;
+    if (u.rapidFire) { ctx.fillStyle = '#ff7b3a'; for (let i = 0; i < 3 + u.rapidFire * 2; i++) { const a = G.time * 6 + i * 2.1; ctx.beginPath(); ctx.arc(Math.cos(a) * 17, Math.sin(a) * 17, 1.8, 0, 7); ctx.fill(); } }
+    ctx.rotate(l.angle + Math.PI / 2);
+    const rec = l.recoil * 3, barrels = 1 + u.doubleShot;
     for (let i = 0; i < barrels; i++) {
-      const off = (i - (barrels - 1) / 2) * 9;
-      ctx.fillStyle = '#d6dbe6'; rr(ctx, off - 4, -24 + rec, 8, 22, 3); ctx.fill();
-      ctx.fillStyle = u.precision ? '#7dffb0' : t.ball; ctx.fillRect(off - 4, -24 + rec, 8, 4);
+      const off = (i - (barrels - 1) / 2) * 8;
+      ctx.fillStyle = '#d6dbe6'; rr(ctx, off - 3.5, -19 + rec, 7, 17, 3); ctx.fill();
+      ctx.fillStyle = u.precision ? '#7dffb0' : t.ball; ctx.fillRect(off - 3.5, -19 + rec, 7, 4);
     }
     ctx.restore();
-    ctx.fillStyle = '#2b3350'; ctx.beginPath(); ctx.arc(pos.x, pos.y, 14, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2b3350'; ctx.beginPath(); ctx.arc(pos.x, pos.y, 12, 0, 7); ctx.fill();
     ctx.strokeStyle = t.main; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = t.light; ctx.beginPath(); ctx.arc(pos.x, pos.y, 5, 0, 7); ctx.fill();
+    ctx.fillStyle = t.light; ctx.beginPath(); ctx.arc(pos.x, pos.y, 4.5, 0, 7); ctx.fill();
   }
 
   function balls(ctx, sideIdx) {
@@ -350,6 +359,12 @@
     ctx.fillStyle = '#f4efe2'; rr(ctx, -w / 2, -h / 2, w, h, 10); ctx.fill();
     ctx.fillStyle = col; rr(ctx, -w / 2, -h / 2, w, h * 0.22, 10); ctx.fill(); ctx.fillRect(-w / 2, -h / 2 + h * 0.12, w, h * 0.1);
     ctx.strokeStyle = '#25304f'; ctx.lineWidth = 2; rr(ctx, -w / 2, -h / 2, w, h, 10); ctx.stroke();
+    if (isU && B.Game.isMulti(c.key)) {
+      const cs = B.Game.shapeCells(c.key, c.rot || 0), ms = Math.max(5, w * 0.075);
+      const mx = Math.max(...cs.map(p => p[1])) + 1;
+      ctx.fillStyle = '#3b8bff';
+      for (const [r2, c2] of cs) { rr(ctx, w / 2 - 6 - (mx - c2) * (ms + 1) , -h / 2 + h * 0.25 + r2 * (ms + 1), ms, ms, 1.5); ctx.fill(); }
+    }
     const nm = isU ? U[c.key].name : UP[c.key].name;
     text(ctx, nm.toUpperCase().replace('PIERCING BALL', 'PIERCING').replace('PRECISION SHOT', 'PRECISION'), 0, -h / 2 + h * 0.11, Math.max(7, w * 0.125), '#fff', 'center', 'bold');
     if (isU) {
@@ -370,7 +385,7 @@
     if (G.phase !== 'prep') return;
     if (!n) { text(ctx, 'All cards played', 195, 505, 13, 'rgba(255,255,255,.7)', 'center', 'bold', 'rgba(0,0,0,.4)'); return; }
     ctx.fillStyle = 'rgba(15,25,50,.45)'; rr(ctx, 6, 452, 378, 108, 16); ctx.fill();
-    text(ctx, 'YOUR CARDS — drag onto the backpack', 195, 441, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.5)');
+    text(ctx, 'DRAG CARDS ONTO YOUR BACKPACK  •  TAP A CARD TO ROTATE', 195, 441, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.5)');
     hand.forEach((c, i) => {
       if (G.drag && G.drag.kind !== 'unit' && G.drag.id === c.id) return;
       card(ctx, c, L.cardRect(i, n), {});
@@ -390,9 +405,9 @@
       const secs = Math.max(0, Math.ceil(G.prepTimer));
       if (!G.banner) {
         text(ctx, 'PREPARATION', 195, 322, 15, '#fff', 'center', 'bold', 'rgba(0,0,0,.55)');
-        text(ctx, 'Auto-start in 0:' + String(secs).padStart(2, '0') + '  •  Drag in your backpack to aim', 195, 345, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.6)');
+        text(ctx, G.sides[0].hand.length ? 'Battle starts when all cards are placed  •  0:' + String(secs).padStart(2, '0') : 'All placed — battle starting…', 195, 345, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.6)');
       }
-      btn(ctx, L.startBtn, 'START BATTLE', '#ffb703', '#ff7a1a', 24, true);
+      btn(ctx, L.startBtn, 'START NOW', '#ffb703', '#ff7a1a', 24, true);
     }
     if (G.toast) { ctx.globalAlpha = Math.min(1, G.toast.t * 2); text(ctx, G.toast.text, 195, 440, 15, G.toast.color, 'center', 'bold', 'rgba(0,0,0,.7)'); ctx.globalAlpha = 1; }
     if (G.banner) {
@@ -407,18 +422,22 @@
   }
 
   function dragLayer(ctx) {
-    const G = B.G, d = G.drag; if (!d) return;
+    const G = B.G, d = G.drag; if (!d || !d.moved) return;
     if (d.kind === 'card') {
       const c = G.sides[0].hand.find(h => h.id === d.id); if (!c) return;
-      const n = 3, w = 64, h = 74;
-      card(ctx, c, { x: d.x - w / 2, y: d.y - h / 2 - 20, w, h }, { scale: 1.1 });
+      const pre = U[d.key] ? previewFor() : null;
+      if (pre && pre.cells.length) {
+        const cs = pre.cells.map(([r, c2]) => L.cellRect(0, r, c2));
+        const x = cs.reduce((a, q) => a + q.cx, 0) / cs.length, y = cs.reduce((a, q) => a + q.cy, 0) / cs.length;
+        ctx.globalAlpha = 0.9; sprite(ctx, d.key, x, y - 3, 9.5 * (1 + 0.3 * (cs.length - 1)), 0, {}); ctx.globalAlpha = 1;
+      } else card(ctx, c, { x: d.x - 32, y: d.y - 37, w: 64, h: 74 }, { scale: 1.1 });
+      if (!U[d.key]) {
+        ctx.globalAlpha = 0.35 + Math.sin(G.time * 8) * 0.12; ctx.fillStyle = UP[d.key].color; ctx.fillRect(0, 633, 390, 211); ctx.globalAlpha = 1;
+        text(ctx, 'DROP ON YOUR BACKPACK TO UPGRADE', 195, 640, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.7)');
+      }
     } else if (d.kind === 'unit') {
-      const u = G.sides[0].grid[d.r][d.c]; if (!u) return;
-      tile(ctx, 0, { cx: d.x, cy: d.y - 18 }, u, 1.25);
-    }
-    if (d.kind === 'card' && !U[d.key]) {
-      ctx.globalAlpha = 0.35 + Math.sin(G.time * 8) * 0.12; ctx.fillStyle = UP[d.key].color; ctx.fillRect(0, 633, 390, 211); ctx.globalAlpha = 1;
-      text(ctx, 'DROP HERE TO UPGRADE LAUNCHER', 195, 705, 12, '#fff', 'center', 'bold', 'rgba(0,0,0,.7)');
+      const q = L.cellRect(0, d.unit.ar + d.gr, d.unit.ac + d.gc);
+      ctx.globalAlpha = 0.92; drawUnit(ctx, 0, d.unit, d.x - q.cx, d.y - q.cy - 6, 1.1); ctx.globalAlpha = 1;
     }
   }
 

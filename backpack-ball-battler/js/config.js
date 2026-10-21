@@ -7,9 +7,13 @@ window.BBB = window.BBB || {};
     ARENA: { y0: 211, y1: 633 },
     PLAYER_ZONE: { y0: 633, y1: 844 },
 
-    COLS: 5, ROWS: 4, CELL: 42, GRID_X: 90,
-    PLAYER_GRID_BOTTOM: 807, ENEMY_GRID_TOP: 37,
-    UNIT_BODY: 34,                 // physics body size of a backpack unit (px)
+    // Backpack board: 5x5 cells, centre cell is the launcher mount. Balls are sealed inside the board.
+    COLS: 5, ROWS: 5, CELL: 38, GRID_X: 100,
+    GRID_TOP: [644, 11],           // board top y for [player, enemy]
+    CENTER: 2,                     // launcher cell (row & col)
+    UNIT_BODY: 34,                 // physics body size of one backpack cell (px)
+    ROT_SPEED: 1.9,                // launcher rotation (rad/s)
+    MUZZLE: 14,                    // distance from launcher centre to ball spawn
 
     ROUNDS: 3,
     CASTLE_HP: 1000,
@@ -23,7 +27,7 @@ window.BBB = window.BBB || {};
     // Launcher base values
     BASE_BALLS: 20,
     BASE_INTERVAL: 0.45,           // seconds between shots
-    BASE_SPREAD: 0.5,              // radians of random launch-angle spread (+/-)
+    BASE_SPREAD: 0.25,             // radians of random launch-angle spread (+/-)
     BALL_R: 5,
     BALL_SPEED: 6.5,               // px per physics step (60/s)
     BALL_LIFE: 9,                  // seconds before a stray ball fizzles
@@ -40,13 +44,13 @@ window.BBB = window.BBB || {};
     { hp: 3.2, dmg: 2.6, hits: 2 },
   ];
 
-  // Unit table. speed px/s, range px (center-to-center), cd seconds.
+  // Unit table. shape = occupied cells [row, col] (2-cell Tank, L-shaped Mage; rotatable). speed px/s, range px (center-to-center), cd seconds.
   const UNITS = {
-    warrior: { name: 'Warrior', hits: 3, hp: 100, dmg: 15, speed: 48, range: 28, cd: 0.9,  ranged: false, splash: 0,  radius: 12, color: '#d9dde6' },
-    archer:  { name: 'Archer',  hits: 2, hp: 55,  dmg: 10, speed: 42, range: 95, cd: 0.8,  ranged: true,  splash: 0,  radius: 11, color: '#58c46a' },
-    tank:    { name: 'Tank',    hits: 5, hp: 250, dmg: 12, speed: 26, range: 30, cd: 1.1,  ranged: false, splash: 0,  radius: 15, color: '#8a94a8' },
-    dwarf:   { name: 'Dwarf',   hits: 2, hp: 70,  dmg: 12, speed: 78, range: 26, cd: 0.55, ranged: false, splash: 0,  radius: 10, color: '#e08a3c' },
-    mage:    { name: 'Mage',    hits: 4, hp: 65,  dmg: 30, speed: 38, range: 105, cd: 1.6, ranged: true,  splash: 38, radius: 11, color: '#a974ff' },
+    warrior: { shape: [[0, 0]], name: 'Warrior', hits: 3, hp: 100, dmg: 15, speed: 48, range: 28, cd: 0.9,  ranged: false, splash: 0,  radius: 12, color: '#d9dde6' },
+    archer:  { shape: [[0, 0]], name: 'Archer',  hits: 2, hp: 55,  dmg: 10, speed: 42, range: 95, cd: 0.8,  ranged: true,  splash: 0,  radius: 11, color: '#58c46a' },
+    tank:    { shape: [[0, 0], [0, 1]], name: 'Tank',    hits: 6, hp: 250, dmg: 12, speed: 26, range: 30, cd: 1.1,  ranged: false, splash: 0,  radius: 15, color: '#8a94a8' },
+    dwarf:   { shape: [[0, 0]], name: 'Dwarf',   hits: 2, hp: 70,  dmg: 12, speed: 78, range: 26, cd: 0.55, ranged: false, splash: 0,  radius: 10, color: '#e08a3c' },
+    mage:    { shape: [[0, 0], [1, 0], [1, 1]], name: 'Mage',    hits: 8, hp: 65,  dmg: 30, speed: 38, range: 105, cd: 1.6, ranged: true,  splash: 38, radius: 11, color: '#a974ff' },
   };
 
   const UPGRADES = {
@@ -70,22 +74,18 @@ window.BBB = window.BBB || {};
   ];
 
   // ---- layout helpers (screen coordinates; side 0 = player/bottom, 1 = enemy/top) ----
-  // Row 0 is always the FRONT row (nearest the launcher) for both sides.
   const L = {
     cellRect(side, r, c) {
-      const x = CFG.GRID_X + c * CFG.CELL;
-      const y = side === 0 ? CFG.PLAYER_GRID_BOTTOM - (r + 1) * CFG.CELL : CFG.ENEMY_GRID_TOP + r * CFG.CELL;
+      const x = CFG.GRID_X + c * CFG.CELL, y = CFG.GRID_TOP[side] + r * CFG.CELL;
       return { x, y, w: CFG.CELL, h: CFG.CELL, cx: x + CFG.CELL / 2, cy: y + CFG.CELL / 2 };
     },
+    board(side) { return { x: CFG.GRID_X, y: CFG.GRID_TOP[side], w: CFG.COLS * CFG.CELL, h: CFG.ROWS * CFG.CELL }; },
     cellAt(side, px, py) {
-      for (let r = 0; r < CFG.ROWS; r++) for (let c = 0; c < CFG.COLS; c++) {
-        const q = L.cellRect(side, r, c);
-        if (px >= q.x && px < q.x + q.w && py >= q.y && py < q.y + q.h) return { r, c };
-      }
-      return null;
+      const c = Math.floor((px - CFG.GRID_X) / CFG.CELL), r = Math.floor((py - CFG.GRID_TOP[side]) / CFG.CELL);
+      return r >= 0 && r < CFG.ROWS && c >= 0 && c < CFG.COLS ? { r, c } : null;
     },
-    launcher(side) { return { x: CFG.W / 2, y: side === 0 ? 827 : 17 }; },
-    muzzle(side) { return { x: CFG.W / 2, y: side === 0 ? 815 : 29 }; },
+    launcher(side) { const b = L.board(side); return { x: b.x + b.w / 2, y: b.y + b.h / 2 }; },
+    muzzle(side, ang) { const p = L.launcher(side); return { x: p.x + Math.cos(ang) * CFG.MUZZLE, y: p.y + Math.sin(ang) * CFG.MUZZLE }; },
     zone(side) { return side === 0 ? CFG.PLAYER_ZONE : CFG.ENEMY_ZONE; },
     laneX(col) { return 55 + col * 70; },
     startBtn: { x: 85, y: 368, w: 220, h: 64 },

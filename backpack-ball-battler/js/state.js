@@ -25,7 +25,7 @@
       idx, grid: Array.from({ length: CFG.ROWS }, () => Array(CFG.COLS).fill(null)),
       deck: makeDeck(), hand: [],
       upg: { extraBalls: 0, doubleShot: 0, rapidFire: 0, piercing: 0, precision: 0 },
-      launcher: { left: 0, timer: 0, aim: idx === 0 ? -Math.PI / 2 : Math.PI / 2, recoil: 0, aiTimer: 0 },
+      launcher: { left: 0, timer: 0, angle: Math.random() * Math.PI * 2, dir: idx === 0 ? 1 : -1, recoil: 0 },
     };
   }
 
@@ -46,7 +46,7 @@
     G.castles = [0, 1].map(() => ({ hp: CFG.CASTLE_HP, max: CFG.CASTLE_HP, shake: 0, flash: 0 }));
     G.units = []; G.projs = [];
     G.winner = null; G.banner = null; G.toast = null; G.endTimer = 0; G.afterT = 0; G.combatT = 0;
-    G.prepTimer = CFG.PREP_TIME; G.drag = null; G.aiQueue = [];
+    G.prepTimer = CFG.PREP_TIME; G.drag = null; G.autoT = 0; G.pruneT = 0;
     FX.reset(); B.Physics.reset();
     Game.startRound();
   };
@@ -54,12 +54,12 @@
   function draw(side) {
     for (let i = 0; i < CFG.HAND_SIZE; i++) {
       if (!side.deck.length) side.deck = makeDeck();
-      side.hand.push({ key: side.deck.shift(), id: uid++, born: G.time });
+      side.hand.push({ key: side.deck.shift(), id: uid++, born: G.time, rot: 0 });
     }
   }
 
   Game.startRound = function () {
-    G.phase = 'prep'; G.prepTimer = CFG.PREP_TIME;
+    G.phase = 'prep'; G.prepTimer = CFG.PREP_TIME; G.autoT = 0; G.pruneT = 0;
     for (const s of G.sides) draw(s);
     G.banner = { text: 'ROUND ' + G.round, sub: 'Prepare your backpack', t: 1.8, max: 1.8 };
     B.AI.plan(G.sides[1]);
@@ -67,55 +67,135 @@
 
   Game.toast = function (text, color) { G.toast = { text, color: color || '#fff', t: 1.4 }; };
 
-  // ---- backpack operations ----
-  Game.canMerge = (a, b) => a && b && a.type === b.type && a.level === b.level && a.level < CFG.MAX_LEVEL;
+  // ---- backpack operations (units can cover several cells; grid[r][c] holds the unit object) ----
+  Game.canMerge = (a, b) => !!(a && b && a !== b && a.type === b.type && a.level === b.level && a.level < CFG.MAX_LEVEL);
+  const isBlocked = (r, c) => r === CFG.CENTER && c === CFG.CENTER;
+  Game.isBlocked = isBlocked;
 
-  function newUnit(type, level) { return { id: uid++, type, level: level || 1, hits: 0, pop: 1, flash: 0 }; }
+  // Shape cells relative to the anchor (first cell), rotated clockwise `rot` quarter turns.
+  function shapeCells(type, rot) {
+    let cells = U[type].shape.map(p => p.slice());
+    for (let i = 0; i < (rot || 0) % 4; i++) cells = cells.map(([r, c]) => [c, -r]);
+    const mr = Math.min(...cells.map(p => p[0])), mc = Math.min(...cells.map(p => p[1]));
+    cells = cells.map(([r, c]) => [r - mr, c - mc]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const [ar, ac] = cells[0];
+    return cells.map(([r, c]) => [r - ar, c - ac]);
+  }
+  const footprint = (type, rot, r, c) => shapeCells(type, rot).map(([dr, dc]) => [r + dr, c + dc]);
+  Game.shapeCells = shapeCells; Game.footprint = footprint;
+  Game.isMulti = type => U[type].shape.length > 1;
 
-  function mergeFx(side, r, c, unit) {
-    const q = L.cellRect(side.idx, r, c);
-    FX.ring(q.cx, q.cy, '#ffd84d', 40, 0.6);
-    FX.burst(q.cx, q.cy, '#ffe680', 14, 130, 0.6, 3);
-    FX.float(q.cx, q.cy - 14, 'MERGE! Lv' + unit.level, '#ffe680', 13);
-    unit.pop = 1.4;
+  function fits(side, cells, ignore) {
+    for (const [r, c] of cells) {
+      if (r < 0 || c < 0 || r >= CFG.ROWS || c >= CFG.COLS || isBlocked(r, c)) return false;
+      const o = side.grid[r][c];
+      if (o && !(ignore && ignore.includes(o))) return false;
+    }
+    return true;
+  }
+  const disjoint = (a, b) => !a.some(([r, c]) => b.some(([r2, c2]) => r === r2 && c === c2));
+
+  function newUnit(type, level, rot) { return { id: uid++, type, level: level || 1, hits: 0, pop: 1, flash: 0, rot: rot || 0, cells: [], ar: 0, ac: 0 }; }
+  function putUnit(side, u, r, c) {
+    u.ar = r; u.ac = c; u.cells = footprint(u.type, u.rot, r, c);
+    for (const [cr, cc] of u.cells) side.grid[cr][cc] = u;
+  }
+  function takeUnit(side, u) { for (const [r, c] of u.cells) if (side.grid[r][c] === u) side.grid[r][c] = null; }
+
+  Game.unitsOf = side => { const out = []; for (const row of side.grid) for (const u of row) if (u && !out.includes(u)) out.push(u); return out; };
+  Game.unitCenter = (sideIdx, u) => {
+    let x = 0, y = 0;
+    for (const [r, c] of u.cells) { const q = L.cellRect(sideIdx, r, c); x += q.cx; y += q.cy; }
+    return { x: x / u.cells.length, y: y / u.cells.length };
+  };
+
+  function mergeFx(side, u) {
+    const q = Game.unitCenter(side.idx, u);
+    FX.ring(q.x, q.y, '#ffd84d', 40, 0.6);
+    FX.burst(q.x, q.y, '#ffe680', 14, 130, 0.6, 3);
+    FX.float(q.x, q.y - 16, 'MERGE! Lv' + u.level, '#ffe680', 13);
+    u.pop = 1.4;
+  }
+  function doMerge(side, src, dst) { if (src) takeUnit(side, src); dst.level++; dst.hits = 0; mergeFx(side, dst); }
+  Game.mergeUnits = (side, src, dst) => { if (!Game.canMerge(src, dst)) return false; doMerge(side, src, dst); return true; };
+
+  function canSwap(side, u, t) {
+    const fu = footprint(u.type, u.rot, t.ar, t.ac), ft = footprint(t.type, t.rot, u.ar, u.ac);
+    return fits(side, fu, [u, t]) && fits(side, ft, [u, t]) && disjoint(fu, ft);
   }
 
-  // What would dropping something on cell (r,c) do? kind: 'card' (unit card key) or 'unit' (from r0,c0)
-  Game.dropAction = function (side, drag, r, c) {
-    const target = side.grid[r][c];
+  // What would dropping at cell (r,c) do? -> { action, cells } (action null = invalid/no-op footprint)
+  // drag: {kind:'card', key, rot} | {kind:'unit', unit, gr, gc} (gr/gc = grabbed cell offset from the anchor)
+  Game.dropPreview = function (side, drag, r, c) {
+    const t = side.grid[r][c];
     if (drag.kind === 'card') {
-      if (!target) return 'place';
-      return Game.canMerge({ type: drag.key, level: 1 }, target) ? 'merge' : null;
+      const fp = footprint(drag.key, drag.rot || 0, r, c);
+      if (fits(side, fp)) return { action: 'place', cells: fp };
+      if (t && Game.canMerge({ type: drag.key, level: 1 }, t)) return { action: 'merge', cells: t.cells };
+      return { action: null, cells: fp };
     }
-    const src = side.grid[drag.r][drag.c];
-    if (drag.r === r && drag.c === c) return null;
-    if (!target) return 'move';
-    return Game.canMerge(src, target) ? 'merge' : 'swap';
+    const u = drag.unit;
+    if (t && t !== u) {
+      if (Game.canMerge(u, t)) return { action: 'merge', cells: t.cells };
+      return { action: canSwap(side, u, t) ? 'swap' : null, cells: t.cells };
+    }
+    const ar = r - drag.gr, ac = c - drag.gc, fp = footprint(u.type, u.rot, ar, ac);
+    if (!fits(side, fp, [u])) return { action: null, cells: fp };
+    if (ar === u.ar && ac === u.ac) return null;
+    return { action: 'move', cells: fp, ar, ac };
   };
 
   Game.playUnitCard = function (side, handIdx, r, c) {
     const card = side.hand[handIdx]; if (!card || !isUnitCard(card.key)) return false;
-    const act = Game.dropAction(side, { kind: 'card', key: card.key }, r, c);
-    if (!act) return false;
-    if (act === 'place') {
-      side.grid[r][c] = newUnit(card.key, 1);
-      const q = L.cellRect(side.idx, r, c);
-      FX.ring(q.cx, q.cy, B.TEAM[side.idx].light, 28, 0.4);
-    } else {
-      const t = side.grid[r][c]; t.level++; t.hits = 0; mergeFx(side, r, c, t);
-    }
+    const pre = Game.dropPreview(side, { kind: 'card', key: card.key, rot: card.rot }, r, c);
+    if (!pre || !pre.action) return false;
+    if (pre.action === 'place') {
+      const u = newUnit(card.key, 1, card.rot); putUnit(side, u, r, c);
+      const q = Game.unitCenter(side.idx, u);
+      FX.ring(q.x, q.y, B.TEAM[side.idx].light, 28, 0.4);
+    } else doMerge(side, null, side.grid[r][c]);
     side.hand.splice(handIdx, 1);
     return true;
   };
 
-  Game.moveUnit = function (side, r0, c0, r1, c1) {
-    const act = Game.dropAction(side, { kind: 'unit', r: r0, c: c0 }, r1, c1);
-    if (!act) return null;
-    const src = side.grid[r0][c0], dst = side.grid[r1][c1];
-    if (act === 'move') { side.grid[r1][c1] = src; side.grid[r0][c0] = null; src.pop = 0.6; }
-    else if (act === 'swap') { side.grid[r1][c1] = src; side.grid[r0][c0] = dst; src.pop = 0.6; dst.pop = 0.6; }
-    else { dst.level++; dst.hits = 0; side.grid[r0][c0] = null; mergeFx(side, r1, c1, dst); }
-    return act;
+  Game.dropUnit = function (side, u, r, c, grab) {
+    const pre = Game.dropPreview(side, { kind: 'unit', unit: u, gr: grab.gr, gc: grab.gc }, r, c);
+    if (!pre || !pre.action) return null;
+    if (pre.action === 'move') { takeUnit(side, u); putUnit(side, u, pre.ar, pre.ac); u.pop = 0.6; }
+    else if (pre.action === 'merge') doMerge(side, u, side.grid[r][c]);
+    else {
+      const t = side.grid[r][c], ua = [u.ar, u.ac], ta = [t.ar, t.ac];
+      takeUnit(side, u); takeUnit(side, t); putUnit(side, u, ta[0], ta[1]); putUnit(side, t, ua[0], ua[1]); u.pop = t.pop = 0.6;
+    }
+    return pre.action;
+  };
+
+  Game.rotateUnit = function (side, u) {
+    if (!Game.isMulti(u.type)) return false;
+    const rot = (u.rot + 1) % 4, old = u.cells.slice();
+    for (const [r, c] of old) {
+      const fp = footprint(u.type, rot, r, c);
+      if (fits(side, fp, [u])) { takeUnit(side, u); u.rot = rot; putUnit(side, u, r, c); u.pop = 0.5; return true; }
+    }
+    if (side.idx === 0) Game.toast('No room to rotate', '#ffb0a0');
+    return false;
+  };
+
+  Game.canPlaceCard = function (side, key) {
+    for (let r = 0; r < CFG.ROWS; r++) for (let c = 0; c < CFG.COLS; c++) {
+      const t = side.grid[r][c];
+      if (t && t.type === key && t.level === 1) return true;
+      for (let rot = 0; rot < 4; rot++) if (fits(side, footprint(key, rot, r, c))) return true;
+    }
+    return false;
+  };
+
+  // Drop cards that can never be played (no room / upgrade already maxed) so the round can auto-start.
+  Game.pruneHand = function (side) {
+    for (let i = side.hand.length - 1; i >= 0; i--) {
+      const k = side.hand[i].key, bad = isUnitCard(k) ? !Game.canPlaceCard(side, k) : side.upg[k] >= CFG.UPGRADE_CAPS[k];
+      if (bad) { side.hand.splice(i, 1); if (side.idx === 0) Game.toast((isUnitCard(k) ? 'No room for ' + U[k].name : UP[k].name + ' maxed') + ' — discarded', '#ffb0a0'); }
+    }
   };
 
   Game.playUpgradeCard = function (side, handIdx) {
@@ -139,7 +219,7 @@
     G.drag = null;
     for (const s of G.sides) {
       const p = Game.launcherParams(s);
-      s.launcher.left = p.balls; s.launcher.timer = 0.4; s.launcher.aiTimer = 0;
+      s.launcher.left = p.balls; s.launcher.timer = 0.4;
       B.Physics.buildUnits(s.idx);
     }
     G.phase = 'combat'; G.combatT = 0; G.afterT = 0;
@@ -148,42 +228,43 @@
 
   // called by physics when a ball touches a backpack unit
   Game.onBallHitUnit = function (sideIdx, ball, ref) {
-    const unit = ref.unit, side = G.sides[sideIdx];
-    const pos = ball.body.position;
+    const unit = ref.unit, pos = ball.body.position;
     unit.flash = 1;
     FX.burst(pos.x, pos.y, B.TEAM[sideIdx].ball, 7, 120, 0.35, 2.2);
     if (ball.hitSet.has(unit)) return;      // piercing ball bouncing off the same unit: no extra count
     ball.hitSet.add(unit);
     if (--ball.hitsLeft <= 0) ball.dead = true;
     unit.hits++;
-    const need = Game.stats(unit.type, unit.level).need;
-    if (unit.hits >= need) {
+    if (unit.hits >= Game.stats(unit.type, unit.level).need) {
       unit.hits = 0; unit.pop = 1.3;
-      const q = L.cellRect(sideIdx, ref.r, ref.c);
-      FX.ring(q.cx, q.cy, B.TEAM[sideIdx].light, 36, 0.5);
-      B.Battle.spawn(sideIdx, unit.type, unit.level, ref.c);
+      const q = Game.unitCenter(sideIdx, unit);
+      FX.ring(q.x, q.y, B.TEAM[sideIdx].light, 36, 0.5);
+      const col = unit.cells.reduce((a, p) => a + p[1], 0) / unit.cells.length;
+      B.Battle.spawn(sideIdx, unit.type, unit.level, col);
     }
   };
 
+  function spinLauncher(side, dt) {
+    const l = side.launcher;
+    l.angle += l.dir * CFG.ROT_SPEED * dt;
+    l.recoil = Math.max(0, l.recoil - dt * 6);
+  }
   function fireLauncher(side, dt) {
     const l = side.launcher, p = Game.launcherParams(side);
-    l.recoil = Math.max(0, l.recoil - dt * 6);
     if (l.left <= 0) return;
     l.timer -= dt;
     if (l.timer > 0) return;
     l.timer = p.interval;
-    if (side.idx === 1) B.AI.aim(side);
-    const m = L.muzzle(side.idx);
     const n = Math.min(p.shots, l.left);
     for (let i = 0; i < n; i++) {
       const off = n === 1 ? 0 : (i - (n - 1) / 2);
-      const ang = l.aim + (Math.random() * 2 - 1) * p.spread + off * 0.07;
-      const sx = m.x + off * 9 * Math.cos(l.aim + Math.PI / 2);
-      const sy = m.y + off * 9 * Math.sin(l.aim + Math.PI / 2);
-      B.Physics.fire(side.idx, sx, sy, ang, p.pierce);
+      const ang = l.angle + (Math.random() * 2 - 1) * p.spread + off * 0.16;
+      const m = L.muzzle(side.idx, ang);
+      B.Physics.fire(side.idx, m.x, m.y, ang, p.pierce);
     }
     l.left -= n; l.recoil = 1;
-    FX.burst(m.x + Math.cos(l.aim) * 8, m.y + Math.sin(l.aim) * 8, B.TEAM[side.idx].ball, 3, 60, 0.2, 2);
+    const m = L.muzzle(side.idx, l.angle);
+    FX.burst(m.x, m.y, B.TEAM[side.idx].ball, 3, 60, 0.2, 2);
   }
 
   Game.endRound = function () {
@@ -213,14 +294,18 @@
     if (G.banner && (G.banner.t -= dt) <= 0) G.banner = null;
     if (G.toast && (G.toast.t -= dt) <= 0) G.toast = null;
     for (const c of G.castles) { c.shake = Math.max(0, c.shake - dt * 4); c.flash = Math.max(0, c.flash - dt * 4); }
-    for (const s of G.sides) for (const row of s.grid) for (const u of row) if (u) {
-      u.pop = Math.max(0, u.pop - dt * 3); u.flash = Math.max(0, u.flash - dt * 5);
+    for (const s of G.sides) {
+      spinLauncher(s, dt);
+      for (const u of Game.unitsOf(s)) { u.pop = Math.max(0, u.pop - dt * 3); u.flash = Math.max(0, u.flash - dt * 5); }
     }
 
     if (G.phase === 'prep') {
       G.prepTimer -= dt;
       B.AI.update(dt);
-      if (G.prepTimer <= 0) Game.startBattle();
+      if ((G.pruneT -= dt) <= 0) { G.pruneT = 0.25; Game.pruneHand(G.sides[0]); }
+      // battle starts by itself once every card has been placed
+      if (!G.sides[0].hand.length) G.autoT += dt; else G.autoT = 0;
+      if (G.autoT > 1.0 || G.prepTimer <= 0) Game.startBattle();
     } else if (G.phase === 'combat') {
       G.combatT += dt;
       for (const s of G.sides) fireLauncher(s, dt);

@@ -7,13 +7,14 @@
 
   function makeWorld(side) {
     const engine = Engine.create({ gravity: { x: 0, y: 0, scale: 0 }, positionIterations: 8, velocityIterations: 6 });
-    const z = L.zone(side), t = 60, W = CFG.W;
+    const bd = L.board(side), t = 60;
     const wallOpts = { isStatic: true, restitution: 1, friction: 0, frictionStatic: 0, label: 'wall' };
+    // walls sit exactly on the backpack board edge: balls can never leave the placement area
     Composite.add(engine.world, [
-      Bodies.rectangle(-t / 2, (z.y0 + z.y1) / 2, t, 600, wallOpts),
-      Bodies.rectangle(W + t / 2, (z.y0 + z.y1) / 2, t, 600, wallOpts),
-      Bodies.rectangle(W / 2, z.y0 - t / 2, W + 200, t, wallOpts),
-      Bodies.rectangle(W / 2, z.y1 + t / 2, W + 200, t, wallOpts),
+      Bodies.rectangle(bd.x - t / 2, bd.y + bd.h / 2, t, bd.h + 2 * t, wallOpts),
+      Bodies.rectangle(bd.x + bd.w + t / 2, bd.y + bd.h / 2, t, bd.h + 2 * t, wallOpts),
+      Bodies.rectangle(bd.x + bd.w / 2, bd.y - t / 2, bd.w + 2 * t, t, wallOpts),
+      Bodies.rectangle(bd.x + bd.w / 2, bd.y + bd.h + t / 2, bd.w + 2 * t, t, wallOpts),
     ]);
     Events.on(engine, 'collisionStart', ev => {
       for (const p of ev.pairs) {
@@ -41,7 +42,7 @@
       const u = grid[r][c]; if (!u) continue;
       const q = L.cellRect(side, r, c);
       const body = Bodies.rectangle(q.cx, q.cy, CFG.UNIT_BODY, CFG.UNIT_BODY, {
-        isStatic: true, restitution: 1, friction: 0, frictionStatic: 0, label: 'unit', chamfer: { radius: 9 },
+        isStatic: true, restitution: 1, friction: 0, frictionStatic: 0, label: 'unit', chamfer: { radius: 8 },
       });
       body.bbRef = { unit: u, r, c };
       w.unitBodies.push(body);
