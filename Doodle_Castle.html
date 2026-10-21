@@ -179,7 +179,7 @@ const HERO={
   dikenli:{name:'Spike',col:'#f2cf47',dk:'#c29d1c',desc:'2x damage to blocks',        w:32,h:32,r:18,dens:.0022,dmg:12,rest:.2,cd:250}
 };
 const HERO_KEYS=Object.keys(HERO);
-const BLOCK_T={base:{hp:130,dens:.0024}};   // hp per cell (all wood)
+const BLOCK_T={};   // hp per cell
 for(const sh of SHAPE_KEYS)BLOCK_T[sh]={hp:80,dens:.0018};
 const TEAM={player:{col:'#6aa6e8',dk:'#3b73b8'},enemy:{col:'#ea6a62',dk:'#b53f39'}};   // blue castle vs red castle
 
@@ -405,7 +405,7 @@ function spawnPiece(sd,pc,col,fromY){
     {density:T.dens,friction:.9,frictionStatic:1.6,restitution:.02,slop:.05,collisionFilter:cf}));
   const body=Body.create({parts,friction:.9,frictionStatic:1.6,restitution:.02,slop:.05,collisionFilter:cf});
   const max=T.hp*cells.length*.5;
-  const ob={kind:'block',type:pc.mat,hero:SHAPE_HERO[pc.mat]||null,pc:{shape:pc.shape,rot:pc.rot||0,mat:pc.mat},fired:false,cd:0,cdMax:0,hp:max,max,body,sd,seed:ri(1,99999),hurtT:0,n:cells.length};
+  const ob={kind:'block',type:pc.mat,hero:SHAPE_HERO[pc.mat]||null,pc:{shape:pc.shape,rot:pc.rot||0,mat:pc.mat},cd:0,cdMax:0,hp:max,max,body,sd,seed:ri(1,99999),hurtT:0,n:cells.length};
   body.gameObj=ob;Composite.add(world,body);sd.blocks.push(ob);sd.hp0+=max;
   return ob;
 }
@@ -417,7 +417,8 @@ function faceCell(b){
   return best||c;
 }
 const liveHeroes=sd=>sd.blocks.filter(b=>b.hero&&b.hp>0&&b.body);
-const standing=sd=>sd.blocks.some(b=>b.type!=='base'&&b.hp>0&&b.body);   // placed blocks still on the pillar
+const standing=sd=>sd.blocks.some(b=>b.hp>0&&b.body);   // blocks still on the pillar
+const heroCol=type=>HERO[SHAPE_HERO[type]]||TEAM.player;   // every block wears its hero's colours
 function launchProj(sd,type,seed,x,y,vx,vy,opt){
   const Hd=HERO[type],r=opt.r||Hd.r,group=opt.group||-(++G.groupN);
   const body=Bodies.circle(x,y,r,{density:Hd.dens,friction:.5,frictionAir:0,restitution:Hd.rest,sleepThreshold:1e9,
@@ -434,11 +435,11 @@ function launchProj(sd,type,seed,x,y,vx,vy,opt){
 function damageBlock(b,d){
   if(b.hp<=0||!b.body)return;
   b.hp-=d;b.hurtT=12;
-  if(d>8)chips(b.body.position.x,b.body.position.y,2,TEAM[b.sd.name].dk,3);
+  if(d>8)chips(b.body.position.x,b.body.position.y,2,heroCol(b.type).dk,3);
   if(b.hp<=0)breakBlock(b);
 }
 function breakBlock(b,silent){
-  const parts=b.body.parts,c0=b.body.position,cx=c0.x,cy=c0.y,col=TEAM[b.sd.name].col;
+  const parts=b.body.parts,c0=b.body.position,cx=c0.x,cy=c0.y,col=heroCol(b.type).col;
   if(!silent)for(let i=1;i<parts.length;i++){const q=parts[i].position;chips(q.x,q.y,4,col,5);puff(q.x,q.y,1,2,12);}
   Composite.remove(world,b.body);b.body=null;b.hp=0;wakeAll();
   if(b.hero){
@@ -665,14 +666,14 @@ function beginBattle(){
   for(const sd of [G.sides.player,G.sides.enemy]){
     snapshotCastle(sd);
     sd.hp0=sd.blocks.reduce((a,b)=>a+(b.hp>0&&b.body?b.hp:0),0);
-    for(const b of sd.blocks){b.fired=false;b.cd=ri(50,140);b.cdMax=0;}
+    for(const b of sd.blocks){b.cd=ri(50,140);b.cdMax=0;}
   }
   banner('FIGHT!','Heroes fire on their own');
 }
 function autoFire(sd,b){
   const o=faceCell(b),pl=aiPlan(sd,b);
   launchProj(sd,b.hero,b.seed,o.x,o.y,pl.vx,pl.vy,{}).ai={tx:pl.tx,ty:pl.ty};
-  b.fired=true;b.cdMax=b.cd=Math.round(HERO[b.hero].cd*rf(.9,1.15));
+  b.cdMax=b.cd=Math.round(HERO[b.hero].cd*rf(.9,1.15));
 }
 function timeUpWinner(){
   const P=G.sides.player,E=G.sides.enemy;
@@ -693,7 +694,6 @@ function stepBattle(){
     for(const b of sd.blocks){
       if(!b.hero||b.hp<=0||!b.body)continue;
       if(b.cd>0)b.cd--;
-      if(b.fired&&b.cd<=45)b.fired=false;
       if(b.cd===0&&b.body.speed<2.5)autoFire(sd,b);   // a tumbling block waits until it is steady
     }
   }
@@ -867,7 +867,7 @@ function drawFace(c,look,mood,t,seed){
   c.stroke();
 }
 function drawBlock(b,alpha){
-  const c=ctx,T=TEAM[b.sd.name],w=(BLK-.8)/2,parts=b.body.parts,ang=b.body.angle;
+  const c=ctx,T=heroCol(b.type),w=(BLK-.8)/2,parts=b.body.parts,ang=b.body.angle;
   const flash=b.hurtT>0?(b.hurtT/12)*.45:0,ratio=b.hp/b.max;
   c.save();c.globalAlpha=alpha;
   for(let i=1;i<parts.length;i++){
@@ -888,7 +888,7 @@ function drawBlock(b,alpha){
   }
   c.restore();
   if(!b.hero)return;
-  if(!b.fired){
+  {
     c.save();
     const fp=faceCell(b),Hd=HERO[b.hero],hs=Math.min(.95,32/Math.max(Hd.w,Hd.h)),aim=G.phase==='battle'&&b.cd<=14;
     c.translate(fp.x,fp.y);c.rotate(ang);c.scale(b.sd.s*hs,hs);
@@ -903,7 +903,7 @@ function drawBlock(b,alpha){
   }
 }
 function drawCells(cells,x0,y0,cs,mat,alpha,flat){
-  const c=ctx,T=TEAM.player;
+  const c=ctx,T=heroCol(mat);
   c.save();c.globalAlpha=alpha;c.lineJoin='round';
   for(const q of cells){
     const x=x0+q[0]*cs,y=y0+q[1]*cs;
@@ -1034,7 +1034,7 @@ let hudKey='',cardKey='',hudTick=0;
 const PIC={};
 function pieceIcon(pc){
   const k=pc.shape+pc.rot+pc.mat;if(PIC[k])return PIC[k];
-  const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells),T=TEAM.player;
+  const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells),T=heroCol(pc.mat);
   const cv2=document.createElement('canvas');cv2.width=cv2.height=96;const c=cv2.getContext('2d');
   const cs=Math.min(24,80/Math.max(d.w,d.h)),x0=(96-d.w*cs)/2,y0=(96-d.h*cs)/2;
   c.lineJoin='round';
@@ -1156,12 +1156,7 @@ function startGame(){
   G={t:0,phase:'prep',t0:0,bt:0,settleT:0,shake:0,groupN:0,overT:0,result:null,
      round:0,score:{player:0,enemy:0},pieces:[],place:null,fall:null,swipe:null,ghostA:1,camSide:'player',aiBuild:null,
      sides:{player:makeSide('player'),enemy:makeSide('enemy')}};
-  for(const n of ['player','enemy']){
-    const sd=G.sides[n];
-    addPillar(sd);
-    spawnPiece(sd,{shape:'I',rot:0,mat:'base'},0);   // base stone
-  }
-  for(let i=0;i<110;i++)Engine.update(engine,STEP);   // let everything settle
+  for(const n of ['player','enemy'])addPillar(G.sides[n]);   // bare pillars: the first block is the one you place
   queue=[];
   hudKey='';cardKey='';
   computeView();cam.x=-1e5;cam.x=camTarget();
