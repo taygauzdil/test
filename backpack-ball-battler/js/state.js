@@ -60,8 +60,13 @@
 
   Game.startRound = function () {
     G.phase = 'prep'; G.prepTimer = CFG.PREP_TIME; G.autoT = 0; G.pruneT = 0;
-    for (const s of G.sides) draw(s);
-    G.banner = { text: 'ROUND ' + G.round, sub: 'Prepare your backpack', t: 1.8, max: 1.8 };
+    for (const s of G.sides) {
+      draw(s);
+      s.coins += CFG.ROUND_COINS; s.coinPop = 1;
+      const z = L.zone(s.idx), y = s.idx === 0 ? z.y0 + 42 : z.y1 - 42;
+      FX.float(34, y - 18, '+' + CFG.ROUND_COINS, '#ffe36b', 16);
+    }
+    G.banner = { text: 'ROUND ' + G.round, sub: '+' + CFG.ROUND_COINS + ' coins  •  place your cards', t: 1.8, max: 1.8 };
     B.AI.plan(G.sides[1]);
   };
 

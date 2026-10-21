@@ -71,7 +71,7 @@
         const d = Math.hypot(e.x - u.x, e.y - u.y);
         if (d < bd) { bd = d; best = e; }
       }
-      const detect = Math.max(u.range + 45, 120);
+      const detect = Infinity;   // always head for the nearest enemy unit first; the castle only when no enemy is left
       const dir = u.owner === 0 ? -1 : 1;
       if (best && bd <= detect) {
         if (bd > u.range * 0.95) {
