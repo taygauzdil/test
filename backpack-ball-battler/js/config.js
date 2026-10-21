@@ -10,12 +10,13 @@ window.BBB = window.BBB || {};
     // Backpack board: 5x5 cells, centre cell is the launcher mount. Balls are sealed inside the board.
     COLS: 5, ROWS: 5, CELL: 38, GRID_X: 100,
     GRID_TOP: [644, 11],           // board top y for [player, enemy]
-    CENTER: 2,                     // launcher cell (row & col)
+    CENTER: 2,                     // launcher cell (row & col); the 3x3 block around it stays empty so balls have room to fly
     UNIT_BODY: 34,                 // physics body size of one backpack cell (px)
     ROT_SPEED: 1.9,                // launcher rotation (rad/s)
     MUZZLE: 14,                    // distance from launcher centre to ball spawn
 
     ROUNDS: 3,
+    START_COINS: 8,                // starting coins; +1 per enemy unit killed
     CASTLE_HP: 1000,
     CASTLE_DMG_MULT: 3,            // unit damage multiplier when it slams into a castle
     FRONT_Y: [552, 292],           // castle front lines: [player castle, enemy castle]
@@ -29,7 +30,7 @@ window.BBB = window.BBB || {};
     BASE_INTERVAL: 0.45,           // seconds between shots
     BASE_SPREAD: 0.25,             // radians of random launch-angle spread (+/-)
     BALL_R: 5,
-    BALL_SPEED: 6.5,               // px per physics step (60/s)
+    BALL_SPEED: 5,                 // px per physics step (60/s)
     BALL_LIFE: 9,                  // seconds before a stray ball fizzles
     UPGRADE_CAPS: { extraBalls: 9, doubleShot: 2, rapidFire: 3, piercing: 2, precision: 3 },
     EXTRA_BALLS: 5,
@@ -46,16 +47,16 @@ window.BBB = window.BBB || {};
 
   // Unit table. shape = occupied cells [row, col] (2-cell Tank, L-shaped Mage; rotatable). speed px/s, range px (center-to-center), cd seconds.
   const UNITS = {
-    warrior: { shape: [[0, 0]], name: 'Warrior', hits: 3, hp: 100, dmg: 15, speed: 48, range: 28, cd: 0.9,  ranged: false, splash: 0,  radius: 12, color: '#d9dde6' },
-    archer:  { shape: [[0, 0]], name: 'Archer',  hits: 2, hp: 55,  dmg: 10, speed: 42, range: 95, cd: 0.8,  ranged: true,  splash: 0,  radius: 11, color: '#58c46a' },
-    tank:    { shape: [[0, 0], [0, 1]], name: 'Tank',    hits: 6, hp: 250, dmg: 12, speed: 26, range: 30, cd: 1.1,  ranged: false, splash: 0,  radius: 15, color: '#8a94a8' },
-    dwarf:   { shape: [[0, 0]], name: 'Dwarf',   hits: 2, hp: 70,  dmg: 12, speed: 78, range: 26, cd: 0.55, ranged: false, splash: 0,  radius: 10, color: '#e08a3c' },
-    mage:    { shape: [[0, 0], [1, 0], [1, 1]], name: 'Mage',    hits: 8, hp: 65,  dmg: 30, speed: 38, range: 105, cd: 1.6, ranged: true,  splash: 38, radius: 11, color: '#a974ff' },
+    warrior: { shape: [[0, 0]], name: 'Warrior', cost: 2, hits: 3, hp: 100, dmg: 15, speed: 48, range: 28, cd: 0.9,  ranged: false, splash: 0,  radius: 12, color: '#d9dde6' },
+    archer:  { shape: [[0, 0]], name: 'Archer',  cost: 2, hits: 2, hp: 55,  dmg: 10, speed: 42, range: 95, cd: 0.8,  ranged: true,  splash: 0,  radius: 11, color: '#58c46a' },
+    tank:    { shape: [[0, 0], [0, 1]], name: 'Tank',    cost: 3, hits: 6, hp: 250, dmg: 12, speed: 26, range: 30, cd: 1.1,  ranged: false, splash: 0,  radius: 15, color: '#8a94a8' },
+    dwarf:   { shape: [[0, 0]], name: 'Dwarf',   cost: 2, hits: 2, hp: 70,  dmg: 12, speed: 78, range: 26, cd: 0.55, ranged: false, splash: 0,  radius: 10, color: '#e08a3c' },
+    mage:    { shape: [[0, 0], [1, 0], [1, 1]], name: 'Mage',    cost: 4, hits: 8, hp: 65,  dmg: 30, speed: 38, range: 105, cd: 1.6, ranged: true,  splash: 38, radius: 11, color: '#a974ff' },
   };
 
   const UPGRADES = {
-    extraBalls: { name: 'Extra Balls',    desc: '+5 balls per round',   color: '#ffb703' },
-    doubleShot: { name: 'Double Shot',    desc: '2 balls per shot',     color: '#4dd2ff' },
+    extraBalls: { name: 'Extra Balls',    cost: 3, desc: '+5 balls per round',   color: '#ffb703' },
+    doubleShot: { name: 'Double Shot',    cost: 4, desc: '2 balls per shot',     color: '#4dd2ff' },
     rapidFire:  { name: 'Rapid Fire',     desc: 'Shoot faster',         color: '#ff6b4a' },
     piercing:   { name: 'Piercing Ball',  desc: 'Hits 2 units',         color: '#ffd84d' },
     precision:  { name: 'Precision Shot', desc: 'Tighter aim',          color: '#7dffb0' },

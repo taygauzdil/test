@@ -22,7 +22,7 @@
         let ball, other;
         if (a.label === 'ball') { ball = a; other = b; } else if (b.label === 'ball') { ball = b; other = a; } else continue;
         if (ball.bb.dead) continue;
-        if (other.label === 'unit') B.Game.onBallHitUnit(side, ball.bb, other.bbRef);
+        if (other.label === 'unit') { if (!ball.bb.fade) B.Game.onBallHitUnit(side, ball.bb, other.bbRef); }
         else B.FX.burst(ball.position.x, ball.position.y, B.TEAM[side].ball, 2, 40, 0.25, 1.5);
       }
     });
@@ -55,7 +55,7 @@
       restitution: 1, friction: 0, frictionStatic: 0, frictionAir: 0, inertia: Infinity, label: 'ball',
       collisionFilter: { group: -1 },
     });
-    const bb = { body, side, age: 0, hitsLeft: hitsAllowed, hitSet: new Set(), trail: [], dead: false, pierce: hitsAllowed > 1 };
+    const bb = { body, side, age: 0, fade: 0, hitsLeft: hitsAllowed, hitSet: new Set(), trail: [], dead: false, pierce: hitsAllowed > 1 };
     body.bb = bb;
     Body.setVelocity(body, { x: Math.cos(angle) * CFG.BALL_SPEED, y: Math.sin(angle) * CFG.BALL_SPEED });
     Composite.add(worlds[side].engine.world, body);
@@ -70,6 +70,7 @@
       const bb = list[i], body = bb.body;
       bb.age += 1 / 60;
       if (bb.age > CFG.BALL_LIFE) bb.dead = true;
+      if (bb.fade > 0 && (bb.fade -= 1 / 60) <= 0) bb.dead = true;
       if (!bb.dead) {
         // keep constant speed; avoid near-horizontal infinite loops
         let vx = body.velocity.x, vy = body.velocity.y;
@@ -79,7 +80,7 @@
         if (Math.abs(vy) < minV) { vy = (vy < 0 ? -1 : 1) * minV; const k = Math.sqrt(Math.max(0, CFG.BALL_SPEED ** 2 - vy * vy)); vx = (vx < 0 ? -1 : 1) * k; }
         Body.setVelocity(body, { x: vx, y: vy });
         bb.trail.push({ x: body.position.x, y: body.position.y });
-        if (bb.trail.length > 9) bb.trail.shift();
+        if (bb.trail.length > 14) bb.trail.shift();
       } else {
         Composite.remove(w.engine.world, body);
         list.splice(i, 1);

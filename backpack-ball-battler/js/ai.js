@@ -31,14 +31,15 @@
 
   // Perform one AI action. Returns false when nothing is left to do.
   function act(side) {
-    if (side.hand.length) {
-      const card = side.hand[0];
-      if (!Game.isUnitCard(card.key)) { if (!Game.playUpgradeCard(side, 0)) side.hand.shift(); return true; }
+    // play the first card the AI can afford; keep the rest for later rounds
+    for (let i = 0; i < side.hand.length; i++) {
+      const card = side.hand[i];
+      if (!Game.canAfford(side, card.key)) continue;
+      if (!Game.isUnitCard(card.key)) { if (Game.playUpgradeCard(side, i)) return true; continue; }
       const m = Game.unitsOf(side).find(u => u.type === card.key && u.level === 1);
-      if (m && Game.playUnitCard(side, 0, m.ar, m.ac)) return true;
+      if (m && Game.playUnitCard(side, i, m.ar, m.ac)) return true;
       const p = bestPlacement(side, card.key);
-      if (p) { card.rot = p.rot; if (Game.playUnitCard(side, 0, p.r, p.c)) return true; }
-      side.hand.shift(); return true;      // backpack full: discard
+      if (p) { card.rot = p.rot; if (Game.playUnitCard(side, i, p.r, p.c)) return true; }
     }
     return mergeScan(side);
   }

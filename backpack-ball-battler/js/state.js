@@ -22,7 +22,7 @@
 
   function makeSide(idx) {
     return {
-      idx, grid: Array.from({ length: CFG.ROWS }, () => Array(CFG.COLS).fill(null)),
+      idx, coins: CFG.START_COINS, coinPop: 0, grid: Array.from({ length: CFG.ROWS }, () => Array(CFG.COLS).fill(null)),
       deck: makeDeck(), hand: [],
       upg: { extraBalls: 0, doubleShot: 0, rapidFire: 0, piercing: 0, precision: 0 },
       launcher: { left: 0, timer: 0, angle: Math.random() * Math.PI * 2, dir: idx === 0 ? 1 : -1, recoil: 0 },
@@ -69,7 +69,7 @@
 
   // ---- backpack operations (units can cover several cells; grid[r][c] holds the unit object) ----
   Game.canMerge = (a, b) => !!(a && b && a !== b && a.type === b.type && a.level === b.level && a.level < CFG.MAX_LEVEL);
-  const isBlocked = (r, c) => r === CFG.CENTER && c === CFG.CENTER;
+  const isBlocked = (r, c) => Math.abs(r - CFG.CENTER) <= 1 && Math.abs(c - CFG.CENTER) <= 1;
   Game.isBlocked = isBlocked;
 
   // Shape cells relative to the anchor (first cell), rotated clockwise `rot` quarter turns.
@@ -82,6 +82,13 @@
     return cells.map(([r, c]) => [r - ar, c - ac]);
   }
   const footprint = (type, rot, r, c) => shapeCells(type, rot).map(([dr, dc]) => [r + dr, c + dc]);
+  Game.cardCost = key => (U[key] || UP[key]).cost;
+  Game.canAfford = (side, key) => side.coins >= Game.cardCost(key);
+  function pay(side, key, x, y) {
+    side.coins -= Game.cardCost(key); side.coinPop = 1;
+    FX.float(x, y - 18, '-' + Game.cardCost(key), '#ffb36b', 13);
+  }
+  function noCoins(side, key) { if (side.idx === 0) Game.toast('Need ' + Game.cardCost(key) + ' coins', '#ffd84d'); return false; }
   Game.shapeCells = shapeCells; Game.footprint = footprint;
   Game.isMulti = type => U[type].shape.length > 1;
 
@@ -149,11 +156,12 @@
     const card = side.hand[handIdx]; if (!card || !isUnitCard(card.key)) return false;
     const pre = Game.dropPreview(side, { kind: 'card', key: card.key, rot: card.rot }, r, c);
     if (!pre || !pre.action) return false;
+    if (!Game.canAfford(side, card.key)) return noCoins(side, card.key);
     if (pre.action === 'place') {
       const u = newUnit(card.key, 1, card.rot); putUnit(side, u, r, c);
       const q = Game.unitCenter(side.idx, u);
-      FX.ring(q.x, q.y, B.TEAM[side.idx].light, 28, 0.4);
-    } else doMerge(side, null, side.grid[r][c]);
+      FX.ring(q.x, q.y, B.TEAM[side.idx].light, 28, 0.4); pay(side, card.key, q.x, q.y);
+    } else { const t = side.grid[r][c], q = Game.unitCenter(side.idx, t); doMerge(side, null, t); pay(side, card.key, q.x, q.y); }
     side.hand.splice(handIdx, 1);
     return true;
   };
@@ -202,9 +210,11 @@
     const card = side.hand[handIdx]; if (!card || isUnitCard(card.key)) return false;
     const k = card.key;
     if (side.upg[k] >= CFG.UPGRADE_CAPS[k]) { if (side.idx === 0) Game.toast(UP[k].name + ' is maxed!', '#ffb703'); return false; }
+    if (!Game.canAfford(side, k)) return noCoins(side, k);
     side.upg[k]++;
     side.hand.splice(handIdx, 1);
     const lp = L.launcher(side.idx);
+    pay(side, k, lp.x, lp.y - 20);
     FX.ring(lp.x, lp.y, UP[k].color, 60, 0.7);
     FX.burst(lp.x, lp.y, UP[k].color, 18, 150, 0.7, 3);
     FX.float(lp.x, lp.y + (side.idx === 0 ? -34 : 34), UP[k].name + '!', UP[k].color, 14);
@@ -233,7 +243,7 @@
     FX.burst(pos.x, pos.y, B.TEAM[sideIdx].ball, 7, 120, 0.35, 2.2);
     if (ball.hitSet.has(unit)) return;      // piercing ball bouncing off the same unit: no extra count
     ball.hitSet.add(unit);
-    if (--ball.hitsLeft <= 0) ball.dead = true;
+    if (--ball.hitsLeft <= 0) ball.fade = 0.4;      // ball bounces off visibly, then fades
     unit.hits++;
     if (unit.hits >= Game.stats(unit.type, unit.level).need) {
       unit.hits = 0; unit.pop = 1.3;
@@ -296,6 +306,7 @@
     for (const c of G.castles) { c.shake = Math.max(0, c.shake - dt * 4); c.flash = Math.max(0, c.flash - dt * 4); }
     for (const s of G.sides) {
       spinLauncher(s, dt);
+      s.coinPop = Math.max(0, s.coinPop - dt * 3);
       for (const u of Game.unitsOf(s)) { u.pop = Math.max(0, u.pop - dt * 3); u.flash = Math.max(0, u.flash - dt * 5); }
     }
 
@@ -303,8 +314,10 @@
       G.prepTimer -= dt;
       B.AI.update(dt);
       if ((G.pruneT -= dt) <= 0) { G.pruneT = 0.25; Game.pruneHand(G.sides[0]); }
-      // battle starts by itself once every card has been placed
-      if (!G.sides[0].hand.length) G.autoT += dt; else G.autoT = 0;
+      // battle starts by itself once no card can be played any more (all placed or out of coins)
+      const s0 = G.sides[0];
+      G.canPlay = s0.hand.some(c => Game.canAfford(s0, c.key) && (isUnitCard(c.key) ? Game.canPlaceCard(s0, c.key) : s0.upg[c.key] < CFG.UPGRADE_CAPS[c.key]));
+      if (!G.canPlay) G.autoT += dt; else G.autoT = 0;
       if (G.autoT > 1.0 || G.prepTimer <= 0) Game.startBattle();
     } else if (G.phase === 'combat') {
       G.combatT += dt;

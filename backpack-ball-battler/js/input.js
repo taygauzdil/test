@@ -43,7 +43,7 @@
       const idx = side.hand.findIndex(h => h.id === d.id); if (idx < 0) return;
       if (!d.moved) { if (Game.isMulti(d.key)) side.hand[idx].rot = (side.hand[idx].rot + 1) % 4; return; }   // tap = rotate
       if (Game.isUnitCard(d.key)) {
-        if (cell && !Game.playUnitCard(side, idx, cell.r, cell.c)) Game.toast('Does not fit there', '#ffb0a0');
+        if (cell && !Game.playUnitCard(side, idx, cell.r, cell.c) && !(B.G.toast && B.G.toast.t > 1.3)) Game.toast('Does not fit there', '#ffb0a0');
       } else if (d.py >= CFG.PLAYER_ZONE.y0) Game.playUpgradeCard(side, idx);
     } else if (d.kind === 'unit') {
       if (!d.moved) { Game.rotateUnit(side, d.unit); return; }

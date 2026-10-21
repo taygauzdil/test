@@ -8,5 +8,6 @@ Open `index.html` in a browser (no build step; Matter.js is vendored in `lib/`).
 - Drag cards onto your board. Tank covers 2 cells, Mage is L-shaped; tap a card (or a placed unit) to rotate it.
 - Same type + level merges (up to Lv3). Drag placed units to move/swap/merge.
 - Drop upgrade cards on your board to upgrade the launcher.
-- The battle starts automatically once all cards are placed (or press START NOW).
+- Cards cost coins (start with 8, +1 per enemy unit killed). The battle starts automatically once no card can be played (or press START NOW); unplayed cards stay in your hand.
+- The 3x3 block around the launcher stays empty so you can watch the balls fly and bounce.
 - Balance numbers and unit shapes: `js/config.js`.

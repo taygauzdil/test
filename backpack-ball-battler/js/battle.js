@@ -21,6 +21,8 @@
     FX.burst(target.x, target.y, '#fff', 4, 70, 0.25, 2);
     if (target.hp <= 0 && !target.dead) {
       target.dead = true; FX.ghost(target);
+      const killer = B.G.sides[1 - target.owner]; killer.coins++; killer.coinPop = 1;
+      FX.float(target.x, target.y - target.r - 16, '+1 ●', '#ffd84d', 14); FX.burst(target.x, target.y, '#ffd84d', 6, 90, 0.5, 2.5);
       FX.burst(target.x, target.y, B.TEAM[target.owner].main, 12, 120, 0.6, 3);
     }
   }
