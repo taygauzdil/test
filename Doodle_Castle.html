@@ -46,6 +46,10 @@ button{font-family:inherit;color:inherit}
 #meter{display:flex;align-items:center;gap:5px;font-size:14px}
 #meter .bar{flex:1;height:13px;border:2.5px solid var(--ink);border-radius:8px;background:var(--red);overflow:hidden}
 #meter .bar i{display:block;height:100%;width:50%;background:var(--blue);border-right:2.5px solid var(--ink);transition:width .5s}
+#timer{display:flex;align-items:center;gap:5px;margin-top:3px;font-size:17px}
+#timer .bar{flex:1;height:11px;border:2.5px solid var(--ink);border-radius:8px;background:var(--ui);overflow:hidden}
+#timer i{display:block;height:100%;width:100%;background:var(--green)}
+#timer.low i{background:var(--red)} #timer.low span{color:var(--red)}
 #turnLbl{margin-top:4px;font-size:16px}
 #zoomBtn{position:absolute;top:78px;right:8px;font-size:15px;padding:3px 10px;background:var(--ui);border:2.5px solid var(--ink);border-radius:12px;box-shadow:0 3px 0 var(--ink);cursor:pointer}
 #ctrl{position:absolute;left:0;right:0;bottom:120px;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none}
@@ -111,6 +115,7 @@ button{font-family:inherit;color:inherit}
     <div id="mid">
       <div id="meter"><span id="mMe">100</span><div class="bar"><i id="mFill"></i></div><span id="mEn">100</span></div>
       <div id="turnLbl"></div>
+      <div id="timer" class="hidden"><div class="bar"><i id="tFill"></i></div><span id="tTxt"></span></div>
     </div>
     <div class="chip en"><div class="tag">ENEMY</div><div class="hearts" id="heartsEn"></div></div>
   </div>
@@ -160,7 +165,7 @@ const WORLD_W=830, PIL_TOP=720, PIL_W=330, BLK=36;
 const GRID_COLS=4, GRID_C=0;        // block grid: 4 columns, centred on the pillar
 const VMAX=17, HEARTS=4, ROUNDS=5, WINS=3, PIECES=3;
 const LINE_BASE=210, LINE_STEP=70;     // build line: height above the pillar, rises every round
-const FALL_V=2.2, BATTLE_MAX=3000;
+const PREP_SECONDS=15, FALL_V=2.2, BATTLE_MAX=3000;
 const LASER_DMG=1.5, BEAM_LIFE=45, BEAM_RANGE=900, BURST_N=3, BURST_GAP=7;      // soft-drop speed cap; battle time limit (frames)
 const SIDES={player:{cx:190,s:1},enemy:{cx:640,s:-1}};
 const CAT={pBlock:2,eBlock:4,pHero:16,eHero:32,proj:64};
@@ -538,7 +543,7 @@ function banner(txt,sub){
   b.innerHTML=txt+(sub?'<br><small>'+sub+'</small>':'');b.classList.add('show');
 }
 const lineY=r=>PIL_TOP-LINE_BASE-(r-1)*LINE_STEP;       // blocks must be dropped above this line
-const buildPhase=()=>!!G&&(G.phase==='prep'||G.phase==='buildEnemy'||G.phase==='buildSettle');
+const buildPhase=()=>!!G&&(G.phase==='prep'||G.phase==='buildSettle');
 function snapshotCastle(sd){
   sd.snap=sd.blocks.filter(b=>b.hp>0&&b.body).map(b=>({pc:b.pc,seed:b.seed,x:b.body.position.x,y:b.body.position.y,angle:b.body.angle}));
 }
@@ -552,12 +557,13 @@ function restoreCastle(sd){
   }
 }
 function startRound(){
-  G.round++;G.pieces=newPieces(PIECES);G.place=null;G.fall=null;G.phase='prep';G.camSide='player';
+  G.round++;G.pieces=newPieces(PIECES);G.place=null;G.fall=null;G.efall=null;G.phase='prep';G.camSide='player';
+  G.prepT=PREP_SECONDS*60;G.eb={n:PIECES,t:ri(40,90)};      // the enemy builds at the same time as you
   for(const sd of [G.sides.player,G.sides.enemy]){
     if(sd.snap)restoreCastle(sd);                    // back to the layout it had when the last battle began
     sd.hearts=HEARTS;
   }
-  banner('ROUND '+G.round+'/'+ROUNDS,'Drop '+PIECES+' blocks above the line, then Battle');
+  banner('ROUND '+G.round+'/'+ROUNDS,'Build for '+PREP_SECONDS+' s: drop blocks above the line');
 }
 const SLOT_DX=105, SLOT_DY=110;
 const slotX=i=>SIDES.player.cx+(i-1)*SLOT_DX, slotY=()=>PIL_TOP+SLOT_DY;
@@ -582,23 +588,26 @@ function overGrid(x,y){
 /* ---------- tetris-style drop: the piece falls slowly and can be slid sideways until it lands ---------- */
 function startFall(sd,pc,col,fromY){
   const ob=spawnPiece(sd,pc,col,fromY),d=cellDims(rotCells(SHAPES[pc.shape],pc.rot||0));
-  G.fall={sd,ob,col,range:colRange(sd,d),hold:0,off:ob.body.position.x-(gridLeft(sd)+col*BLK),age:0,still:0};
+  G[sd.name==='player'?'fall':'efall']={sd,ob,col,range:colRange(sd,d),hold:0,off:ob.body.position.x-(gridLeft(sd)+col*BLK),age:0,still:0};
 }
 function shiftFall(amt){                              // amt in blocks
   const f=G.fall;if(!f||f.sd.name!=='player')return;
   f.col=clamp(f.col+amt,f.range[0],f.range[1]);
 }
 function stepFall(){
-  const f=G.fall;if(!f)return;
+  for(const k of ['fall','efall'])stepOneFall(k);
+}
+function stepOneFall(k){
+  const f=G[k];if(!f)return;
   const b=f.ob.body;
-  if(!b){G.fall=null;return;}
+  if(!b){G[k]=null;return;}
   f.age++;
   if(f.hold)shiftFall(f.hold*.07);              // held button / key: glide
   const v=b.velocity,tx=gridLeft(f.sd)+f.col*BLK+f.off;
   // steer sideways by nudging the velocity; rotation and collisions stay fully physical
   Body.setVelocity(b,{x:v.x+clamp((tx-b.position.x)*.3,-7,7)*.35-v.x*.35,y:Math.min(v.y,FALL_V)});
   f.still=(f.age>15&&b.speed<.6&&Math.abs(b.angularSpeed)<.02)?f.still+1:0;
-  if(f.still>10||f.age>900)G.fall=null;        // came to rest: control is released
+  if(f.still>10||f.age>900)G[k]=null;          // came to rest: control is released
 }
 function placePlayer(i,col,cy){
   const pc=G.pieces[i];if(!pc||G.fall)return;
@@ -606,8 +615,13 @@ function placePlayer(i,col,cy){
   startFall(G.sides.player,pc,col,Math.min(cy-d.h*BLK/2,lineY(G.round)-d.h*BLK-2));
   G.pieces[i]=null;G.place=null;cardKey='';
 }
-function startEnemyBuild(){
-  G.phase='buildEnemy';G.camSide='enemy';G.aiBuild={n:PIECES,t:0};G.pieces=[];G.place=null;cardKey='';
+function endPrep(){                                   // timer ran out or Battle pressed: unplaced blocks are lost
+  G.fall=null;G.place=null;G.swipe=null;G.pieces=[];G.phase='buildSettle';G.settleT=0;cardKey='';
+}
+function stepEnemyBuild(){
+  const e=G.eb;
+  if(G.efall||e.n<=0||--e.t>0)return;
+  enemyPlacePiece();e.n--;e.t=G.phase==='prep'?ri(30,80):20;
 }
 function enemyPlacePiece(){
   const E=G.sides.enemy,sh=pick(SHAPE_KEYS),pc={shape:sh,rot:ri(0,3),mat:sh,hero:pick(HERO_KEYS)};
@@ -745,15 +759,14 @@ function stepGame(){
   stepBeams();
 
   switch(G.phase){
-    case 'buildEnemy':{
-      const ab=G.aiBuild;ab.t++;
-      if(!G.fall&&ab.n>0&&ab.t>35){enemyPlacePiece();ab.n--;ab.t=0;}
-      if(ab.n===0&&!G.fall){G.phase='buildSettle';G.settleT=0;}
+    case 'prep':
+      stepEnemyBuild();
+      if(--G.prepT<=0)endPrep();
       break;
-    }
     case 'buildSettle':
       G.settleT++;
-      if((G.settleT>40&&calm())||G.settleT>240)beginBattle();
+      stepEnemyBuild();
+      if((G.eb.n===0&&!G.efall&&((G.settleT>40&&calm())||G.settleT>300))||G.settleT>1200)beginBattle();
       break;
     case 'intro':
       if(++G.t0>60)G.phase='battle';
@@ -799,8 +812,7 @@ function camTarget(){
   let t;
   if(lo>hi)return WORLD_W/2;
   if(zoomWide&&Math.abs(scNear-scWide)>=.01)return WORLD_W/2;
-  if(G.phase==='prep')t=-1e5;
-  else if(G.phase==='buildEnemy'||G.phase==='buildSettle')t=1e5;
+  if(G.phase==='prep'||G.phase==='buildSettle')t=-1e5;
   else t=WORLD_W/2;
   return clamp(t,lo,hi);
 }
@@ -1071,7 +1083,7 @@ function updateHUD(){
   const P=G.sides.player,E=G.sides.enemy;
   const pi=integrity(P),ei=integrity(E);
   const prep=G.phase==='prep',falling=!!G.fall,canBattle=prep&&!falling&&standing(P);
-  const lbl=prep?(falling?'Slide it into place':'Place your blocks'):(G.phase==='buildEnemy'||G.phase==='buildSettle')?'Enemy is building…':G.phase==='roundEnd'?'Round over':G.phase==='over'?'Match over':'Battle!';
+  const lbl=prep?(falling?'Slide it into place':'Place your blocks'):G.phase==='buildSettle'?'Get ready…':G.phase==='roundEnd'?'Round over':G.phase==='over'?'Match over':'Battle!';
   const key=[P.hearts,E.hearts,Math.round(pi*100),Math.round(ei*100),lbl,G.round,G.score.player,G.score.enemy].join('|');
   if(key!==hudKey){
     hudKey=key;
@@ -1086,10 +1098,13 @@ function updateHUD(){
   if(k2!==cardKey){
     cardKey=k2;
     $('cards').innerHTML=prep?'<button class="btn primary" data-act="battle"'+(canBattle?'':' disabled')+'>Battle!</button>'
-      :'<div class="card empty"><b>'+(G.phase==='battle'?'Your heroes fire on their own':(G.phase==='buildEnemy'||G.phase==='buildSettle')?'Enemy is building…':'…')+'</b></div>';
+      :'<div class="card empty"><b>'+(G.phase==='battle'?'Your heroes fire on their own':G.phase==='buildSettle'?'Get ready…':'…')+'</b></div>';
     $('shotLbl').textContent=prep?'Blocks left: '+left:'Round '+G.round+'/'+ROUNDS;
     $('pileLbl').textContent=prep?'Tap a block to rotate':'Heroes: '+hp+' vs '+he;
   }
+  const tm=$('timer'),left2=Math.max(0,G.prepT);
+  tm.classList.toggle('hidden',!prep);tm.classList.toggle('low',left2<=300);
+  $('tFill').style.width=(left2/(PREP_SECONDS*60)*100)+'%';$('tTxt').textContent=Math.ceil(left2/60)+'s';
   const ctrl=$('ctrl');
   ctrl.classList.toggle('hidden',!(prep&&falling));
   ctrl.style.bottom=($('tray').offsetHeight+12)+'px';
@@ -1158,7 +1173,7 @@ window.addEventListener('keyup',e=>{
 });
 $('cards').addEventListener('click',e=>{
   if(!e.target.closest('[data-act="battle"]'))return;
-  if(G&&G.phase==='prep'&&!G.fall&&standing(G.sides.player))startEnemyBuild();
+  if(G&&G.phase==='prep'&&!G.fall&&standing(G.sides.player))endPrep();
 });
 $('zoomBtn').addEventListener('click',()=>{zoomWide=!zoomWide;});
 
@@ -1172,7 +1187,7 @@ function startGame(){
   ['hud','tray'].forEach(i=>$(i).classList.remove('hidden'));
   buildWorld();
   G={t:0,phase:'prep',t0:0,bt:0,settleT:0,shake:0,groupN:0,overT:0,result:null,
-     round:0,score:{player:0,enemy:0},beams:[],pieces:[],place:null,fall:null,swipe:null,ghostA:1,camSide:'player',aiBuild:null,
+     round:0,score:{player:0,enemy:0},beams:[],pieces:[],place:null,fall:null,swipe:null,ghostA:1,camSide:'player',efall:null,eb:null,prepT:0,
      sides:{player:makeSide('player'),enemy:makeSide('enemy')}};
   for(const n of ['player','enemy'])addPillar(G.sides[n]);   // bare pillars: the first block is the one you place
   queue=[];
