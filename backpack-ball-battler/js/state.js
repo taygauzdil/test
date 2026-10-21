@@ -319,11 +319,8 @@
       G.prepTimer -= dt;
       B.AI.update(dt);
       if ((G.pruneT -= dt) <= 0) { G.pruneT = 0.25; Game.pruneHand(G.sides[0]); }
-      // battle starts by itself once no card can be played any more (all placed or out of coins)
-      const s0 = G.sides[0];
-      G.canPlay = s0.hand.some(c => Game.canAfford(s0, c.key) && (isUnitCard(c.key) ? Game.canPlaceCard(s0, c.key) : s0.upg[c.key] < CFG.UPGRADE_CAPS[c.key]));
-      if (!G.canPlay) G.autoT += dt; else G.autoT = 0;
-      if (G.autoT > 1.0 || G.prepTimer <= 0) Game.startBattle();
+      // the battle starts when the prep timer runs out, or earlier when the player presses BATTLE
+      if (G.prepTimer <= 0) Game.startBattle();
     } else if (G.phase === 'combat') {
       G.combatT += dt;
       for (const s of G.sides) fireLauncher(s, dt);

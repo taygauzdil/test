@@ -444,9 +444,9 @@
       const secs = Math.max(0, Math.ceil(G.prepTimer));
       if (!G.banner) {
         text(ctx, 'PREPARATION', 195, 322, 15, '#fff', 'center', 'bold', 'rgba(0,0,0,.55)');
-        text(ctx, !G.sides[0].hand.length ? 'All placed — battle starting…' : G.canPlay === false ? 'No playable cards left — battle starting…' : 'Battle starts when no card is left to play  •  0:' + String(secs).padStart(2, '0'), 195, 345, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.6)');
+        text(ctx, (!G.sides[0].hand.length ? 'All placed — press BATTLE when ready' : 'Place your cards, then press BATTLE') + '  •  0:' + String(secs).padStart(2, '0'), 195, 345, 11, '#fff', 'center', 'bold', 'rgba(0,0,0,.6)');
       }
-      btn(ctx, L.startBtn, 'START NOW', '#ffb703', '#ff7a1a', 24, true);
+      btn(ctx, L.startBtn, 'BATTLE', '#ffb703', '#ff7a1a', 24, true);
     }
     if (G.toast) { ctx.globalAlpha = Math.min(1, G.toast.t * 2); text(ctx, G.toast.text, 195, 440, 15, G.toast.color, 'center', 'bold', 'rgba(0,0,0,.7)'); ctx.globalAlpha = 1; }
     if (G.banner) {

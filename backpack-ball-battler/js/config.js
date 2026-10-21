@@ -22,7 +22,7 @@ window.BBB = window.BBB || {};
     CASTLE_DMG_MULT: 3,            // unit damage multiplier when it slams into a castle
     FRONT_Y: [552, 292],           // castle front lines: [player castle, enemy castle]
     HAND_SIZE: 3,
-    PREP_TIME: 15,                 // seconds before battle auto-starts
+    PREP_TIME: 45,                 // seconds before battle auto-starts
     UNIT_CLEANUP_CAP: 25,          // max seconds to wait for units after last ball
     MAX_LEVEL: 3,
 
