@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Doodle Castle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f6f2da; --grid:#cddfd6; --dirt:#d8b886; --hatch:rgba(90,60,30,.30);
+  --ui:#fffdf0; --ui-text:#2b2a24; --ui-sub:#6f6a58;
+  --green:#86cf4a; --green-d:#4d9a1f; --blue:#3b8de0; --red:#e5484d; --ink:#2b2a24;
+  --font:"Gochi Hand","Patrick Hand","Comic Sans MS","Marker Felt",cursive;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1d2435; --grid:#2c3852; --dirt:#a3855c; --hatch:rgba(20,10,0,.38);
+    --ui:#2a3350; --ui-text:#f2efdd; --ui-sub:#b4b19c;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1d2435; --grid:#2c3852; --dirt:#a3855c; --hatch:rgba(20,10,0,.38);
+  --ui:#2a3350; --ui-text:#f2efdd; --ui-sub:#b4b19c;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(--paper)}
+body{margin:0;height:100%;background:var(--paper);color:var(--ui-text);font-family:var(--font);
+  overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;color:inherit}
+#app{position:relative;width:100%;height:100%;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+.hidden{display:none!important}
+
+/* HUD */
+#hud{position:absolute;top:6px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;gap:6px;padding:0 8px;pointer-events:none}
+.chip{background:var(--ui);border:2.5px solid var(--ink);border-radius:12px;padding:3px 9px;box-shadow:0 3px 0 var(--ink)}
+.chip .tag{font-size:14px;line-height:1.1;letter-spacing:.5px}
+.chip.me .tag{color:var(--blue)} .chip.en .tag{color:var(--red)}
+.hearts{display:flex;gap:2px;margin-top:2px}
+.heart{width:19px;height:19px;fill:var(--red);stroke:var(--ink);stroke-width:1.8;stroke-linejoin:round}
+.heart.lost{fill:none;opacity:.35}
+#mid{flex:1;max-width:240px;text-align:center}
+#meter{display:flex;align-items:center;gap:5px;font-size:14px}
+#meter .bar{flex:1;height:13px;border:2.5px solid var(--ink);border-radius:8px;background:var(--red);overflow:hidden}
+#meter .bar i{display:block;height:100%;width:50%;background:var(--blue);border-right:2.5px solid var(--ink);transition:width .5s}
+#turnLbl{margin-top:4px;font-size:16px}
+#zoomBtn{position:absolute;top:78px;right:8px;font-size:15px;padding:3px 10px;background:var(--ui);border:2.5px solid var(--ink);border-radius:12px;box-shadow:0 3px 0 var(--ink);cursor:pointer}
+#ctrl{position:absolute;left:0;right:0;bottom:120px;display:flex;justify-content:space-between;padding:0 14px;pointer-events:none}
+#ctrl button{pointer-events:auto;touch-action:manipulation;width:72px;height:72px;font-size:32px;line-height:1;background:var(--ui);border:3px solid var(--ink);border-radius:18px;box-shadow:0 4px 0 var(--ink);cursor:pointer}
+#ctrl button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+#cards .btn{flex:1;margin:0}
+#hint{position:absolute;top:78px;left:50%;transform:translateX(-50%);font-size:17px;background:var(--ui);border:2.5px dashed var(--ink);border-radius:12px;padding:3px 12px;pointer-events:none;white-space:nowrap;max-width:70%;overflow:hidden;text-overflow:ellipsis}
+
+/* Tray */
+#tray{position:absolute;left:0;right:0;bottom:0;background:var(--ui);border-top:3px solid var(--ink);border-radius:18px 18px 0 0;padding:6px 8px 8px}
+#trayTop{display:flex;justify-content:space-between;align-items:center;font-size:16px;padding:0 4px 4px;color:var(--ui-sub)}
+#shotLbl{color:var(--ui-text);font-size:19px}
+#cards{display:flex;gap:8px}
+.card{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;text-align:center;padding:3px 3px 5px;
+  background:var(--paper);border:2.5px solid var(--ink);border-radius:12px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.card img{width:44px;height:44px;display:block}
+.card b{font-weight:normal;font-size:16px;line-height:1}
+.card small{font-size:11.5px;line-height:1.05;color:var(--ui-sub);margin-top:2px}
+.card.sel{transform:translateY(-5px);box-shadow:0 0 0 3px var(--green),0 4px 0 var(--ink)}
+.card.dis{opacity:.5;cursor:default}
+.card.empty{border-style:dashed;opacity:.4;min-height:86px;cursor:default}
+
+.rotBtn{font-size:16px;padding:1px 12px;background:var(--green);color:#1d3309;border:2.5px solid var(--ink);border-radius:10px;box-shadow:0 2px 0 var(--ink);cursor:pointer}
+/* Banner */
+#banner{position:absolute;left:0;right:0;top:32%;text-align:center;pointer-events:none;opacity:0;
+  font-size:clamp(34px,11vw,66px);color:#fffbe0;-webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
+  text-shadow:0 5px 0 var(--ink);transform:rotate(-3deg)}
+#banner small{display:block;font-size:.38em;-webkit-text-stroke:0;text-shadow:none;color:var(--ui-text);background:var(--ui);
+  display:inline-block;padding:2px 12px;border:2.5px solid var(--ink);border-radius:10px;margin-top:6px}
+#banner.show{animation:pop 1.25s ease forwards}
+@keyframes pop{0%{opacity:0;transform:scale(.4) rotate(-8deg)}15%{opacity:1;transform:scale(1.12) rotate(-3deg)}25%{transform:scale(1) rotate(-3deg)}80%{opacity:1}100%{opacity:0;transform:scale(1.05) rotate(-3deg)}}
+
+/* Screens */
+.screen{position:absolute;inset:0;z-index:5;overflow-y:auto;padding:16px 14px 24px;text-align:center;
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:36px 36px}
+.screen h1{margin:6px 0 2px;font-weight:normal;font-size:clamp(36px,10vw,54px);color:var(--green-d);-webkit-text-stroke:1.5px var(--ink);paint-order:stroke fill;text-shadow:0 4px 0 var(--ink)}
+.screen .sub{margin:0 auto 12px;max-width:520px;font-size:17px;color:var(--ui-text)}
+#slots{display:flex;justify-content:center;gap:6px;margin:6px 0 12px;flex-wrap:wrap}
+.slot{width:52px;height:52px;border:2.5px dashed var(--ink);border-radius:12px;background:var(--ui);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.slot.full{border-style:solid}
+.slot img{width:44px;height:44px}
+#roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;max-width:620px;margin:0 auto 14px}
+.rc{cursor:default!important;display:flex;align-items:center;gap:6px;text-align:left;padding:5px 7px;background:var(--ui);border:2.5px solid var(--ink);border-radius:12px;cursor:pointer;box-shadow:0 3px 0 var(--ink)}
+.rc img{width:46px;height:46px;flex:none}
+.rc b{display:block;font-weight:normal;font-size:18px;line-height:1}
+.rc small{display:block;font-size:13px;line-height:1.05;color:var(--ui-sub);margin-top:2px}
+.rc.on{background:var(--green);color:#1d3309} .rc.on small{color:#2c4a14}
+.btn{font-size:22px;padding:7px 22px;background:var(--ui);border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);cursor:pointer;margin:4px}
+.btn.primary{background:var(--green);color:#1d3309}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.err{background:var(--ui);border:2.5px solid var(--ink);border-radius:12px;padding:10px;margin:8px auto;max-width:420px}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="cv"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="chip me"><div class="tag">YOU</div><div class="hearts" id="heartsMe"></div></div>
+    <div id="mid">
+      <div id="meter"><span id="mMe">100</span><div class="bar"><i id="mFill"></i></div><span id="mEn">100</span></div>
+      <div id="turnLbl"></div>
+    </div>
+    <div class="chip en"><div class="tag">ENEMY</div><div class="hearts" id="heartsEn"></div></div>
+  </div>
+  <button id="zoomBtn" class="hidden">Wide view</button>
+  <div id="hint" class="hidden"></div>
+  <div id="ctrl" class="hidden"><button id="ctrlL" aria-label="Move left">&#9664;</button><button id="ctrlR" aria-label="Move right">&#9654;</button></div>
+
+  <div id="tray" class="hidden">
+    <div id="trayTop"><span id="shotLbl"></span><span id="pileLbl"></span></div>
+    <div id="cards"></div>
+  </div>
+
+  <div id="banner"></div>
+
+  <div id="deck" class="screen">
+    <h1>Doodle Castle</h1>
+    <p class="sub">Every block is a hero. Each round you drop 3 new blocks above the rising build line, slide them into place while they fall, then hit Battle: every hero slings shots on its own cooldown until one castle has no blocks left. Your castle carries over between rounds. First to win 3 of 5 rounds takes the match.</p>
+    <div id="roster"></div>
+    <div><button class="btn primary" id="goBtn">Play</button></div>
+  </div>
+
+  <div id="end" class="screen hidden">
+    <h1 id="endTitle">VICTORY!</h1>
+    <p class="sub" id="endSub"></p>
+    <div>
+      <button class="btn primary" id="againBtn">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+if(!window.Matter){
+  $('deck').insertAdjacentHTML('afterbegin','<div class="err">Physics engine failed to load. Check your connection and reload the page.</div>');
+  return;
+}
+const {Engine,Bodies,Body,Composite,Events,Sleeping} = Matter;
+
+/* ============================== sabitler ============================== */
+const INK='#2b2a24';
+const FONT='"Gochi Hand","Patrick Hand","Comic Sans MS","Marker Felt",cursive';
+const STEP=1000/60, TAU=Math.PI*2;
+const WORLD_W=830, PIL_TOP=720, PIL_W=330, BLK=36;
+const GRID_COLS=4, GRID_C=0;        // block grid: 4 columns, centred on the pillar
+const VMAX=17, HEARTS=4, ROUNDS=5, WINS=3, PIECES=3;
+const LINE_BASE=140, LINE_STEP=85;     // build line: height above the pillar, rises every round
+const FALL_V=4.2, BATTLE_MAX=3000;      // soft-drop speed cap; battle time limit (frames)
+const SIDES={player:{cx:190,s:1},enemy:{cx:640,s:-1}};
+const CAT={pBlock:2,eBlock:4,pHero:16,eHero:32,proj:64};
+const SHAPES={I:[[0,0],[1,0],[2,0],[3,0]],O:[[0,0],[1,0],[0,1],[1,1]],T:[[0,0],[1,0],[2,0],[1,1]],L:[[0,0],[0,1],[0,2],[1,2]],J:[[1,0],[1,1],[1,2],[0,2]],S:[[1,0],[2,0],[0,1],[1,1]],Z:[[0,0],[1,0],[1,1],[2,1]]};
+const SHAPE_KEYS=Object.keys(SHAPES);
+const SHAPE_HERO={I:'simsek',O:'koca',T:'uclu',L:'dalis',J:'lastik',S:'bombo',Z:'dikenli'};   // every block shape = its own hero
+const FOE={player:'enemy',enemy:'player'};
+
+const HERO={
+  zipir:  {name:'Zippy',  col:'#8fd14f',dk:'#5fa52f',desc:'Balanced shot',               w:30,h:32,r:17,dens:.0022,dmg:6, rest:.25,cd:240},
+  bombo:  {name:'Boomer',  col:'#ef6a55',dk:'#c4412f',desc:'Explodes on tap or impact',w:30,h:32,r:17,dens:.0022,dmg:4, rest:.1,cd:300},
+  uclu:   {name:'Trio',    col:'#a77be0',dk:'#7d52b8',desc:'Tap: splits in three',          w:30,h:32,r:17,dens:.0020,dmg:5, rest:.25,cd:260},
+  simsek: {name:'Zap', col:'#4aa8ee',dk:'#2d78bd',desc:'Tap: speeds up',             w:28,h:32,r:16,dens:.0022,dmg:6, rest:.2,cd:190},
+  koca:   {name:'Bruiser', col:'#b98a5e',dk:'#8a5f38',desc:'Super heavy, crushes walls',    w:44,h:40,r:24,dens:.0042,dmg:8, rest:.1,cd:340},
+  dalis:  {name:'Diver',  col:'#46cdc2',dk:'#2a9a90',desc:'Tap: dives straight down',         w:28,h:32,r:16,dens:.0024,dmg:7, rest:.1,cd:230},
+  lastik: {name:'Boing', col:'#f48fb6',dk:'#cc5f89',desc:'Very bouncy. Tap: hop',   w:30,h:34,r:17,dens:.0018,dmg:4, rest:.85,cd:220},
+  dikenli:{name:'Spike',col:'#f2cf47',dk:'#c29d1c',desc:'2x damage to blocks',        w:32,h:32,r:18,dens:.0022,dmg:12,rest:.2,cd:250}
+};
+const HERO_KEYS=Object.keys(HERO);
+const BLOCK_T={base:{hp:130,dens:.0024}};   // hp per cell (all wood)
+for(const sh of SHAPE_KEYS)BLOCK_T[sh]={hp:80,dens:.0018};
+const TEAM={player:{col:'#6aa6e8',dk:'#3b73b8'},enemy:{col:'#ea6a62',dk:'#b53f39'}};   // blue castle vs red castle
+
+/* ============================== yardımcılar ============================== */
+const ri=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const rf=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function rng(seed){let s=(seed|0)||1;return()=>{s=(Math.imul(s,1664525)+1013904223)|0;return(s>>>0)/4294967296;};}
+const wxu=(sd,u)=>sd.cx+sd.s*u;
+const lsGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}};
+
+/* ============================== tema ============================== */
+let TH={paper:'#f6f2da',grid:'#cddfd6',dirt:'#d8b886',hatch:'rgba(90,60,30,.3)'};
+function readTheme(){
+  const cs=getComputedStyle(document.documentElement);
+  const g=(n,d)=>cs.getPropertyValue(n).trim()||d;
+  TH={paper:g('--paper',TH.paper),grid:g('--grid',TH.grid),dirt:g('--dirt',TH.dirt),hatch:g('--hatch',TH.hatch)};
+}
+readTheme();
+try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',readTheme);}catch(e){}
+
+/* ============================== çizim: karakalem yardımcıları ============================== */
+function smoothPath(c,pts){
+  const n=pts.length;c.beginPath();
+  c.moveTo((pts[n-1].x+pts[0].x)/2,(pts[n-1].y+pts[0].y)/2);
+  for(let i=0;i<n;i++){const p=pts[i],q=pts[(i+1)%n];c.quadraticCurveTo(p.x,p.y,(p.x+q.x)/2,(p.y+q.y)/2);}
+  c.closePath();
+}
+function rrPts(hw,hh,d,amp,rnd){
+  const cs=[[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]],pts=[];
+  const j=()=>(rnd()-.5)*amp;
+  for(let i=0;i<4;i++){
+    const a=cs[i],nx=cs[(i+1)%4],pv=cs[(i+3)%4];
+    let ux=pv[0]-a[0],uy=pv[1]-a[1],l=Math.hypot(ux,uy);ux/=l;uy/=l;
+    let vx=nx[0]-a[0],vy=nx[1]-a[1];l=Math.hypot(vx,vy);vx/=l;vy/=l;
+    pts.push({x:a[0]+ux*d+j(),y:a[1]+uy*d+j()},{x:a[0]+j()*.5,y:a[1]+j()*.5},{x:a[0]+vx*d+j(),y:a[1]+vy*d+j()});
+    pts.push({x:(a[0]+nx[0])/2+j()*1.4,y:(a[1]+nx[1])/2+j()*1.4});
+  }
+  return pts;
+}
+function blobPts(rx,ry,n,amp,rnd,e){
+  const pts=[];
+  for(let k=0;k<n;k++){
+    const a=TAU*k/n,co=Math.cos(a),si=Math.sin(a);
+    const x=rx*Math.sign(co)*Math.pow(Math.abs(co),2/e),y=ry*Math.sign(si)*Math.pow(Math.abs(si),2/e);
+    pts.push({x:x+(rnd()-.5)*amp,y:y+(rnd()-.5)*amp});
+  }
+  return pts;
+}
+function sketch(c,mk,seed,fill,lw){
+  smoothPath(c,mk(rng(seed)));
+  if(fill){c.fillStyle=fill;c.fill();}
+  c.strokeStyle=INK;c.lineWidth=lw;c.stroke();
+  c.save();c.globalAlpha*=.5;
+  smoothPath(c,mk(rng(seed+977)));
+  c.lineWidth=lw*.45;c.stroke();c.restore();
+}
+function star(c,x,y,r,rot,fill){
+  c.beginPath();
+  for(let i=0;i<10;i++){const a=rot+i*Math.PI/5-Math.PI/2,rr=i%2?r*.45:r;c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr);}
+  c.closePath();c.fillStyle=fill||'#ffd84a';c.fill();c.strokeStyle=INK;c.lineWidth=1.6;c.stroke();
+}
+
+/* ============================== çizim: kahramanlar ============================== */
+function drawHero(c,type,o){
+  const H=HERO[type],sd=o.seed||11,t=o.t||0,mood=o.mood||'idle';
+  const bw=H.w/2+2,bh=H.h/2+1+(o.still?0:Math.sin(t*.07+sd)*.55);
+  c.lineJoin='round';c.lineCap='round';
+  c.strokeStyle=INK;
+  // --- gövde öncesi parçalar
+  if(type==='dikenli'){
+    c.fillStyle=H.dk;c.lineWidth=2;
+    for(let i=-2;i<=2;i++){const x=i*bw*.42;c.beginPath();c.moveTo(x-5,-bh+4);c.lineTo(x,-bh-10+Math.abs(i)*2);c.lineTo(x+5,-bh+4);c.closePath();c.fill();c.stroke();}
+  }
+  if(type==='dalis'){
+    c.fillStyle=H.dk;c.lineWidth=2;
+    c.beginPath();c.moveTo(-bw*.6,-bh+4);c.lineTo(bw*.05,-bh-15);c.lineTo(bw*.6,-bh+4);c.closePath();c.fill();c.stroke();
+  }
+  if(type==='uclu'){
+    c.lineWidth=2;c.fillStyle=H.col;
+    for(const x of [-bw*.55,bw*.45]){c.beginPath();c.moveTo(x,-bh+3);c.lineTo(x+(x<0?-3:3),-bh-6);c.stroke();c.beginPath();c.arc(x+(x<0?-3:3),-bh-8,4.4,0,TAU);c.fill();c.stroke();}
+  }
+  if(type==='simsek'){
+    c.fillStyle=H.dk;c.lineWidth=2;
+    for(let i=0;i<3;i++){const y=-bh*.55+i*bh*.5;c.beginPath();c.moveTo(-bw+3,y-4);c.lineTo(-bw-8,y+1);c.lineTo(-bw+3,y+6);c.closePath();c.fill();c.stroke();}
+  }
+  if(type==='lastik'){
+    c.lineWidth=3;c.beginPath();
+    let sx=-bw*.3;c.moveTo(sx,bh-2);
+    for(let i=0;i<4;i++){c.lineTo(sx+(i%2?-5:5),bh+1.5+i*2.4);}
+    c.stroke();
+    c.beginPath();c.moveTo(bw*.3,bh-2);for(let i=0;i<4;i++){c.lineTo(bw*.3+(i%2?-5:5),bh+1.5+i*2.4);}c.stroke();
+  }else if(!o.noLegs){
+    c.lineWidth=3.2;
+    for(const x of [-bw*.45,bw*.35]){c.beginPath();c.moveTo(x,bh-3);c.lineTo(x,bh+5);c.lineTo(x+4.5,bh+5);c.stroke();}
+  }
+  // --- burun (gövdenin arkasında kalır)
+  const sx=bw*.5,sy=-bh*.02,sl=bw*.66;
+  c.beginPath();c.moveTo(sx,sy-4.6);c.lineTo(sx+sl,sy-4.6);c.arc(sx+sl,sy,4.6,-Math.PI/2,Math.PI/2);c.lineTo(sx,sy+4.6);c.closePath();
+  c.fillStyle=H.col;c.fill();c.lineWidth=2.2;c.stroke();
+  // --- gövde
+  sketch(c,r=>blobPts(bw,bh,16,1.4,r,2.8),sd,H.col,2.6);
+  c.save();c.globalAlpha=.28;c.fillStyle=H.dk;c.beginPath();c.ellipse(-bw*.1,bh*.46,bw*.7,bh*.36,0,0,TAU);c.fill();c.restore();
+  if(type==='koca'){
+    c.lineWidth=1.6;c.globalAlpha=.7;
+    c.beginPath();c.moveTo(-bw*.7,bh*.1);c.lineTo(-bw*.35,bh*.35);c.lineTo(-bw*.5,bh*.65);c.stroke();
+    c.beginPath();c.moveTo(bw*.2,bh*.55);c.lineTo(bw*.5,bh*.35);c.stroke();c.globalAlpha=1;
+  }
+  if(type==='simsek'){
+    c.fillStyle='#ffe86b';c.lineWidth=1.4;c.beginPath();
+    const bx=-bw*.1,by=bh*.18;
+    [[0,-6],[-5,3],[-1,3],[-3,11],[5,0],[1,0],[3,-6]].forEach((p,i)=>i?c.lineTo(bx+p[0],by+p[1]):c.moveTo(bx+p[0],by+p[1]));
+    c.closePath();c.fill();c.stroke();
+  }
+  if(type==='bombo'){
+    c.lineWidth=2.2;c.beginPath();c.moveTo(0,-bh+1);c.quadraticCurveTo(-4,-bh-6,3,-bh-11);c.stroke();
+    star(c,3,-bh-13,4.5+Math.sin(t*.4)*1.3,t*.3,'#ffb12b');
+  }
+  // --- gözler
+  const er=type==='koca'?6.4:5.4,look=o.look||{x:.8,y:0};
+  const eyes=[[-bw*.02,-bh*.26],[bw*.5,-bh*.3]];
+  for(const e of eyes){
+    const x=e[0],y=e[1];
+    if(mood==='hurt'){c.lineWidth=2.2;c.beginPath();c.moveTo(x-er*.7,y-er*.7);c.lineTo(x+er*.5,y);c.lineTo(x-er*.7,y+er*.7);c.stroke();continue;}
+    if(mood==='dizzy'){c.lineWidth=2;c.beginPath();c.moveTo(x-er*.7,y-er*.7);c.lineTo(x+er*.7,y+er*.7);c.moveTo(x+er*.7,y-er*.7);c.lineTo(x-er*.7,y+er*.7);c.stroke();continue;}
+    if(mood==='idle'&&((t+sd*7)%230)<7){c.lineWidth=2.2;c.beginPath();c.moveTo(x-er,y);c.lineTo(x+er,y);c.stroke();continue;}
+    c.beginPath();c.ellipse(x,y,er,er*1.1,0,0,TAU);c.fillStyle='#fff';c.fill();c.lineWidth=2;c.stroke();
+    const wide=(mood==='scared'||mood==='fly'),pr=wide?er*.32:er*.46;
+    c.beginPath();c.arc(x+look.x*er*.45,y+look.y*er*.45,pr,0,TAU);c.fillStyle=INK;c.fill();
+  }
+  if(type==='koca'||mood==='aim'||mood==='fly'){
+    c.lineWidth=2.4;c.beginPath();
+    c.moveTo(eyes[0][0]-er-1,eyes[0][1]-er-4);c.lineTo(eyes[0][0]+er*.9,eyes[0][1]-er*.5);
+    c.moveTo(eyes[1][0]+er+1,eyes[1][1]-er-4);c.lineTo(eyes[1][0]-er*.9,eyes[1][1]-er*.5);c.stroke();
+  }
+  // --- ağız
+  c.lineWidth=2;c.beginPath();
+  const mx=bw*.38,my=bh*.42;
+  if(mood==='fly'||mood==='scared'){c.arc(mx,my,3,0,TAU);}
+  else if(mood==='hurt'||mood==='dizzy'){c.moveTo(mx-5,my+2);c.quadraticCurveTo(mx,my-3,mx+5,my+2);}
+  else{c.moveTo(mx-5,my);c.quadraticCurveTo(mx,my+4.5,mx+5,my);}
+  c.stroke();
+}
+const ICON={};
+function makeIcons(){
+  for(const k of HERO_KEYS){
+    const cv=document.createElement('canvas');cv.width=cv.height=128;
+    const c=cv.getContext('2d'),H=HERO[k];
+    const s=Math.min(100/(H.w*1.5),104/(H.h+26));
+    c.translate(58,68);c.scale(s,s);
+    drawHero(c,k,{seed:5,t:0,mood:'idle',still:true});
+    ICON[k]=cv.toDataURL();
+  }
+}
+
+/* ============================== oyun durumu ============================== */
+const app=$('app'),cv=$('cv'),ctx=cv.getContext('2d');
+let engine,world,GRAV=.3056;
+let G=null;
+let particles=[],projs=[],queue=[];
+let W=0,H=0,dpr=1,sc=1,anchorY=0,zoomWide=false,scNear=1,scWide=1,awCur=800;
+const cam={x:0};
+
+/* ---------- fizik dünyası ---------- */
+function buildWorld(){
+  engine=Engine.create({enableSleeping:true,positionIterations:10,velocityIterations:8});
+  engine.gravity.y=1;engine.gravity.scale=.0011;
+  GRAV=engine.gravity.y*engine.gravity.scale*STEP*STEP;
+  world=engine.world;
+  queue=[];projs=[];particles=[];
+  Events.on(engine,'collisionStart',ev=>{
+    for(const pr of ev.pairs){
+      const a=pr.bodyA.parent||pr.bodyA,b=pr.bodyB.parent||pr.bodyB;
+      if(!a.gameObj||!b.gameObj)continue;
+      queue.push({A:a.gameObj,B:b.gameObj,
+        rv:Math.hypot(a.velocity.x-b.velocity.x,a.velocity.y-b.velocity.y),
+        x:(a.position.x+b.position.x)/2,y:(a.position.y+b.position.y)/2});
+    }
+  });
+}
+function wakeAll(){for(const b of Composite.allBodies(world)){if(b.isSleeping)Sleeping.set(b,false);}}
+
+function makeSide(name){
+  return {name,s:SIDES[name].s,cx:SIDES[name].cx,hearts:HEARTS,blocks:[],hp0:0};
+}
+function addPillar(sd){
+  const b=Bodies.rectangle(sd.cx,PIL_TOP+400,PIL_W,800,{isStatic:true,friction:1,frictionStatic:1.5});
+  b.gameObj={kind:'ground'};Composite.add(world,b);
+}
+const rotCells=(cells,rot)=>{
+  let c=cells.map(p=>[p[0],p[1]]);
+  for(let r=0;r<(rot%4);r++){
+    c=c.map(p=>[-p[1],p[0]]);
+    const mx=Math.min(...c.map(p=>p[0])),my=Math.min(...c.map(p=>p[1]));
+    c=c.map(p=>[p[0]-mx,p[1]-my]);
+  }
+  return c;
+};
+const cellDims=c=>({w:Math.max(...c.map(p=>p[0]))+1,h:Math.max(...c.map(p=>p[1]))+1});
+const gridLeft=sd=>sd.cx+sd.s*GRID_C-GRID_COLS*BLK/2;
+function stackTop(sd,x0,x1){
+  let top=PIL_TOP;
+  for(const b of sd.blocks){
+    if(b.hp<=0||!b.body)continue;
+    const bd=b.body.bounds;
+    if(bd.max.x<x0||bd.min.x>x1)continue;
+    top=Math.min(top,bd.min.y);
+  }
+  return top;
+}
+function pieceOrigin(sd,cells,col){
+  const d=cellDims(cells),x0=gridLeft(sd)+col*BLK,x1=x0+d.w*BLK,top=stackTop(sd,x0,x1);
+  return {x0,x1,top,y0:top-3-d.h*BLK,d};
+}
+function spawnPiece(sd,pc,col,fromY){
+  const cells=rotCells(SHAPES[pc.shape],pc.rot||0),o=pieceOrigin(sd,cells,col),T=BLOCK_T[pc.mat];
+  const y0=fromY===undefined?o.y0:Math.min(fromY,o.y0);
+  const cf={category:sd.name==='player'?CAT.pBlock:CAT.eBlock,mask:0xFFFFFFFF,group:0};
+  const parts=cells.map(p=>Bodies.rectangle(o.x0+p[0]*BLK+BLK/2,y0+p[1]*BLK+BLK/2,BLK-.8,BLK-.8,
+    {density:T.dens,friction:.9,frictionStatic:1.6,restitution:.02,slop:.05,collisionFilter:cf}));
+  const body=Body.create({parts,friction:.9,frictionStatic:1.6,restitution:.02,slop:.05,collisionFilter:cf});
+  const max=T.hp*cells.length*.5;
+  const ob={kind:'block',type:pc.mat,hero:SHAPE_HERO[pc.mat]||null,fired:false,cd:0,cdMax:0,hp:max,max,body,sd,seed:ri(1,99999),hurtT:0,n:cells.length};
+  body.gameObj=ob;Composite.add(world,body);sd.blocks.push(ob);sd.hp0+=max;
+  return ob;
+}
+const newPieces=n=>Array.from({length:n},()=>{const sh=pick(SHAPE_KEYS);return {shape:sh,rot:0,mat:sh};});
+function faceCell(b){
+  const parts=b.body.parts,c=b.body.position;
+  let best=null,bd=1e9;
+  for(let i=1;i<parts.length;i++){const d=Math.hypot(parts[i].position.x-c.x,parts[i].position.y-c.y);if(d<bd){bd=d;best=parts[i].position;}}
+  return best||c;
+}
+const liveHeroes=sd=>sd.blocks.filter(b=>b.hero&&b.hp>0&&b.body);
+const standing=sd=>sd.blocks.some(b=>b.type!=='base'&&b.hp>0&&b.body);   // placed blocks still on the pillar
+function launchProj(sd,type,seed,x,y,vx,vy,opt){
+  const Hd=HERO[type],r=opt.r||Hd.r,group=opt.group||-(++G.groupN);
+  const body=Bodies.circle(x,y,r,{density:Hd.dens,friction:.5,frictionAir:0,restitution:Hd.rest,sleepThreshold:1e9,
+    collisionFilter:{group,category:CAT.proj,mask:0xFFFFFFFF&~(sd.name==='player'?CAT.pBlock:CAT.eBlock)},slop:.05});
+  const p={kind:'proj',type,sd,body,r,age:0,hit:false,used:false,trail:[],group,fuse:-1,still:0,child:!!opt.child,dead:false,ai:null,seed};
+  body.gameObj=p;
+  Composite.add(world,body);
+  Body.setVelocity(body,{x:vx,y:vy});
+  Body.setAngularVelocity(body,.12*sd.s);
+  projs.push(p);return p;
+}
+
+/* ---------- hasar ---------- */
+function damageBlock(b,d){
+  if(b.hp<=0||!b.body)return;
+  b.hp-=d;b.hurtT=12;
+  if(d>8)chips(b.body.position.x,b.body.position.y,2,TEAM[b.sd.name].dk,3);
+  if(b.hp<=0)breakBlock(b);
+}
+function breakBlock(b,silent){
+  const parts=b.body.parts,c0=b.body.position,cx=c0.x,cy=c0.y,col=TEAM[b.sd.name].col;
+  if(!silent)for(let i=1;i<parts.length;i++){const q=parts[i].position;chips(q.x,q.y,4,col,5);puff(q.x,q.y,1,2,12);}
+  Composite.remove(world,b.body);b.body=null;b.hp=0;wakeAll();
+  if(b.hero){
+    b.sd.hearts=Math.max(0,b.sd.hearts-1);
+    popText(cx,cy-34,'KO!','#e5484d',36);stars(cx,cy,5);
+    G.shake=Math.max(G.shake,7);
+  }else G.shake=Math.max(G.shake,3);
+}
+function explode(p){
+  if(p.dead)return;
+  const c=p.body.position,R=150,cx=c.x,cy=c.y;
+  retire(p,true);
+  const list=[];
+  for(const sd of [G.sides.player,G.sides.enemy]){
+    for(const b of sd.blocks)if(b.hp>0&&b.body)list.push(b);
+  }
+  for(const o of list){
+    const bp=o.body.position,dx=bp.x-cx,dy=bp.y-cy,d=Math.hypot(dx,dy);
+    if(d>R)continue;
+    const f=1-d/R;
+    let nx=d>1?dx/d:0,ny=d>1?dy/d:-1;ny-=.45;const nl=Math.hypot(nx,ny);nx/=nl;ny/=nl;
+    if(o.body.isSleeping)Sleeping.set(o.body,false);
+    const k=f*15/Math.sqrt(o.body.mass);
+    Body.setVelocity(o.body,{x:o.body.velocity.x+nx*k,y:o.body.velocity.y+ny*k});
+    damageBlock(o,f*f*170);
+  }
+  burst(cx,cy,R);ring(cx,cy,R);popText(cx,cy-R*.45,'BOOM!','#ff8a1f',46);puff(cx,cy,8,4,20);
+  G.shake=Math.max(G.shake,14);
+}
+function retire(p,silent){
+  if(p.dead)return;p.dead=true;
+  const pos=p.body.position;
+  if(!silent){puff(pos.x,pos.y,3,1.6,12);stars(pos.x,pos.y,3);}
+  Composite.remove(world,p.body);
+  const i=projs.indexOf(p);if(i>=0)projs.splice(i,1);
+}
+
+/* ---------- yetenekler ---------- */
+function canUse(p){return !p.dead&&!p.used&&!p.child&&(!p.hit||p.type==='bombo')&&['bombo','uclu','simsek','dalis','lastik'].indexOf(p.type)>=0;}
+function useAbility(p){
+  if(!canUse(p))return false;
+  const b=p.body,v=b.velocity,pos=b.position;
+  p.used=true;
+  switch(p.type){
+    case 'bombo':explode(p);return true;
+    case 'uclu':{
+      const sp=Math.hypot(v.x,v.y),an=Math.atan2(v.y,v.x);
+      for(const da of [-.3,.3]){
+        launchProj(p.sd,p.type,p.seed,pos.x,pos.y,Math.cos(an+da)*sp,Math.sin(an+da)*sp,{child:true,r:p.r*.75,group:p.group});
+      }
+      popText(pos.x,pos.y-26,'TRIO!','#a77be0',28);puff(pos.x,pos.y,3,2,10);return true;
+    }
+    case 'simsek':{
+      const sp=Math.hypot(v.x,v.y),k=Math.min(2,30/Math.max(sp,1));
+      Body.setVelocity(b,{x:v.x*k,y:v.y*k});
+      popText(pos.x,pos.y-26,'ZAP!','#4aa8ee',28);puff(pos.x-v.x*2,pos.y-v.y*2,3,2,9);return true;
+    }
+    case 'dalis':
+      Body.setVelocity(b,{x:v.x*.15,y:17});
+      popText(pos.x,pos.y-26,'DIVE!','#2a9a90',26);return true;
+    case 'lastik':
+      Body.setVelocity(b,{x:v.x*1.1,y:-9});
+      popText(pos.x,pos.y-26,'BOING!','#cc5f89',26);return true;
+  }
+  return false;
+}
+function aiAbility(p){
+  if(!canUse(p)||!p.ai)return;
+  const v=p.body.velocity,pos=p.body.position;
+  if(p.type==='uclu'&&v.y>0&&p.age>10)useAbility(p);
+  else if(p.type==='dalis'&&v.y>0&&Math.abs(pos.x-p.ai.tx)<40)useAbility(p);
+}
+
+/* ---------- çarpışmalar ---------- */
+function hit(X,Y,rv,q){
+  if(X.kind==='proj'){
+    if(X.dead)return;
+    if(!X.hit){X.hit=true;if(X.type==='bombo'&&X.fuse<0)X.fuse=28;}
+    const Hd=HERO[X.type];
+    if(Y.kind==='block'&&Y.hp>0&&rv>2.5)damageBlock(Y,(rv-2.5)*Hd.dmg*(X.child?.6:1));
+    if(rv>5)G.shake=Math.max(G.shake,Math.min(8,rv*.35));
+    if(rv>4)puff(q.x,q.y,2,1.5,10);
+  }else if(X.kind==='block'){
+    if(Y.kind==='block'&&Y.hp>0&&rv>7)damageBlock(Y,(rv-7)*3.5);
+    else if(Y.kind==='ground'&&X.hp>0&&rv>9)damageBlock(X,(rv-9)*6);
+  }
+}
+let _id=0;
+function flushHits(){
+  const seen=new Set();
+  while(queue.length){
+    const q=queue.shift();
+    if(!q.A._id)q.A._id=++_id;if(!q.B._id)q.B._id=++_id;
+    const key=Math.min(q.A._id,q.B._id)+'_'+Math.max(q.A._id,q.B._id);
+    if(seen.has(key))continue;seen.add(key);
+    hit(q.A,q.B,q.rv,q);hit(q.B,q.A,q.rv,q);
+  }
+}
+
+/* ---------- parçacıklar ---------- */
+function puff(x,y,n,sp,size){for(let i=0;i<n;i++)particles.push({k:'puff',x:x+rf(-6,6),y:y+rf(-6,6),vx:rf(-1,1)*sp,vy:rf(-1,.2)*sp,g:-.012,life:rf(26,46),max:46,size:size*rf(.6,1.1)});}
+function chips(x,y,n,col,sp){for(let i=0;i<n;i++)particles.push({k:'chip',x,y,vx:rf(-1,1)*sp,vy:rf(-1.3,.2)*sp,g:.25,life:rf(30,55),max:55,size:rf(4,8),rot:rf(0,TAU),vr:rf(-.3,.3),col});}
+function stars(x,y,n){for(let i=0;i<n;i++)particles.push({k:'star',x,y,vx:rf(-2.5,2.5),vy:rf(-4,-1),g:.18,life:rf(30,50),max:50,size:rf(5,8),rot:rf(0,TAU),vr:rf(-.2,.2)});}
+function popText(x,y,txt,col,size){particles.push({k:'text',x,y,vx:0,vy:-.7,g:0,life:60,max:60,txt,col,size,rot:rf(-.15,.15)});}
+function ring(x,y,R){particles.push({k:'ring',x,y,vx:0,vy:0,g:0,life:22,max:22,size:R});}
+function burst(x,y,R){particles.push({k:'burst',x,y,vx:0,vy:0,g:0,life:16,max:16,size:R,rot:rf(0,TAU)});}
+function stepParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=p.g;if(p.vr)p.rot+=p.vr;
+    if(--p.life<=0)particles.splice(i,1);
+  }
+}
+
+/* ============================== AI + turn flow ============================== */
+function aiPlan(sd,b){
+  const foe=G.sides[FOE[sd.name]],sp=faceCell(b);
+  const bl=foe.blocks.filter(x=>x.hp>0&&x.body),hs=bl.filter(x=>x.hero);
+  let tx=foe.cx,ty=PIL_TOP-60;
+  if(bl.length){const t=pick(hs.length&&Math.random()<.7?hs:bl),fp=faceCell(t);tx=fp.x;ty=fp.y;}
+  const dir=Math.sign(tx-sp.x)||1,X=Math.abs(tx-sp.x);
+  let best=null;
+  for(let k=0;k<14;k++){
+    const th=rf(25,62)*Math.PI/180,c=Math.cos(th),t=Math.tan(th);
+    const den=2*c*c*((ty-sp.y)+X*t);
+    if(den<=1e-3)continue;
+    const v=Math.sqrt(GRAV*X*X/den);
+    if(v<VMAX*.97&&v>4){best={th,v};if(Math.random()<.35)break;}
+  }
+  if(!best)best={th:45*Math.PI/180,v:VMAX*.95};
+  const v=best.v*(1+(Math.random()-.5)*.06),th=best.th+(Math.random()-.5)*.035;
+  return {vx:dir*v*Math.cos(th),vy:-v*Math.sin(th),tx,ty};
+}
+function banner(txt,sub){
+  const b=$('banner');b.classList.remove('show');void b.offsetWidth;
+  b.innerHTML=txt+(sub?'<br><small>'+sub+'</small>':'');b.classList.add('show');
+}
+const lineY=r=>PIL_TOP-LINE_BASE-(r-1)*LINE_STEP;       // blocks must be dropped above this line
+const buildPhase=()=>!!G&&(G.phase==='prep'||G.phase==='buildEnemy'||G.phase==='buildSettle');
+function startRound(){
+  G.round++;G.pieces=newPieces(PIECES);G.place=null;G.fall=null;G.phase='prep';G.camSide='player';
+  for(const sd of [G.sides.player,G.sides.enemy]){
+    sd.blocks=sd.blocks.filter(b=>b.hp>0&&b.body);   // the castle carries over, wrecks do not
+    sd.hearts=HEARTS;
+  }
+  banner('ROUND '+G.round+'/'+ROUNDS,'Drop '+PIECES+' blocks above the line, then Battle');
+}
+const SLOT_DX=105, SLOT_DY=110;
+const slotX=i=>SIDES.player.cx+(i-1)*SLOT_DX, slotY=()=>PIL_TOP+SLOT_DY;
+const DRAG_LIFT=64;                                   // dragged block floats above the finger
+function colFromX(pc,x){
+  const d=cellDims(rotCells(SHAPES[pc.shape],pc.rot));
+  return clamp(Math.round((x-gridLeft(G.sides.player))/BLK-d.w/2),0,GRID_COLS-d.w);
+}
+function pickSlot(pt){
+  for(let i=0;i<3;i++)if(G.pieces[i]&&Math.abs(pt.x-slotX(i))<58&&Math.abs(pt.y-slotY())<62)return i;
+  return -1;
+}
+function overGrid(x,y){
+  const gl=gridLeft(G.sides.player);
+  return x>=gl-34&&x<=gl+GRID_COLS*BLK+34&&y<lineY(G.round);
+}
+
+/* ---------- tetris-style drop: the piece falls slowly and can be slid sideways until it lands ---------- */
+function startFall(sd,pc,col,fromY){
+  const ob=spawnPiece(sd,pc,col,fromY),d=cellDims(rotCells(SHAPES[pc.shape],pc.rot||0));
+  G.fall={sd,ob,col,maxCol:GRID_COLS-d.w,off:ob.body.position.x-(gridLeft(sd)+col*BLK),age:0,still:0};
+}
+function shiftFall(dir){
+  const f=G.fall;if(!f||f.sd.name!=='player')return;
+  f.col=clamp(f.col+dir,0,f.maxCol);
+}
+function stepFall(){
+  const f=G.fall;if(!f)return;
+  const b=f.ob.body;
+  if(!b){G.fall=null;return;}
+  f.age++;
+  const v=b.velocity,tx=gridLeft(f.sd)+f.col*BLK+f.off;
+  Body.setVelocity(b,{x:clamp((tx-b.position.x)*.3,-7,7),y:Math.min(v.y,FALL_V)});
+  Body.setAngle(b,0);Body.setAngularVelocity(b,0);
+  f.still=(f.age>15&&Math.abs(v.y)<.5)?f.still+1:0;
+  if(f.still>14||f.age>900)G.fall=null;        // landed: from here on it is a free physics body
+}
+function placePlayer(i,col,cy){
+  const pc=G.pieces[i];if(!pc||G.fall)return;
+  const d=cellDims(rotCells(SHAPES[pc.shape],pc.rot));
+  startFall(G.sides.player,pc,col,Math.min(cy-d.h*BLK/2,lineY(G.round)-d.h*BLK-2));
+  G.pieces[i]=null;G.place=null;cardKey='';
+}
+function startEnemyBuild(){
+  G.phase='buildEnemy';G.camSide='enemy';G.aiBuild={n:PIECES,t:0};G.pieces=[];G.place=null;cardKey='';
+}
+function enemyPlacePiece(){
+  const E=G.sides.enemy,sh=pick(SHAPE_KEYS),pc={shape:sh,rot:ri(0,3),mat:sh};
+  const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells);
+  let bestCol=0,bestV=-1e9;
+  for(let col=0;col<=GRID_COLS-d.w;col++){
+    const v=pieceOrigin(E,cells,col).top+rf(0,28);
+    if(v>bestV){bestV=v;bestCol=col;}
+  }
+  startFall(E,pc,bestCol,lineY(G.round)-d.h*BLK-2);
+}
+
+/* ---------- auto battle ---------- */
+function beginBattle(){
+  G.phase='intro';G.t0=0;G.bt=0;G.camSide=null;
+  for(const sd of [G.sides.player,G.sides.enemy]){
+    sd.hp0=sd.blocks.reduce((a,b)=>a+(b.hp>0&&b.body?b.hp:0),0);
+    for(const b of sd.blocks){b.fired=false;b.cd=ri(50,140);b.cdMax=0;}
+  }
+  banner('FIGHT!','Heroes fire on their own');
+}
+function autoFire(sd,b){
+  const o=faceCell(b),pl=aiPlan(sd,b);
+  launchProj(sd,b.hero,b.seed,o.x,o.y,pl.vx,pl.vy,{}).ai={tx:pl.tx,ty:pl.ty};
+  b.fired=true;b.cdMax=b.cd=Math.round(HERO[b.hero].cd*rf(.9,1.15));
+}
+function timeUpWinner(){
+  const P=G.sides.player,E=G.sides.enemy;
+  if(P.hearts!==E.hearts)return P.hearts>E.hearts?'player':'enemy';
+  const a=integrity(P),b=integrity(E);
+  if(Math.abs(a-b)>.005)return a>b?'player':'enemy';
+  return 'draw';
+}
+function endRound(w,sub){
+  G.phase='roundEnd';G.overT=0;
+  if(w!=='draw')G.score[w]++;
+  banner(w==='player'?'ROUND WON!':w==='enemy'?'ROUND LOST':'DRAW ROUND',sub);
+}
+function stepBattle(){
+  const P=G.sides.player,E=G.sides.enemy;
+  G.bt++;
+  for(const sd of [P,E]){
+    for(const b of sd.blocks){
+      if(!b.hero||b.hp<=0||!b.body)continue;
+      if(b.cd>0)b.cd--;
+      if(b.fired&&b.cd<=45)b.fired=false;
+      if(b.cd===0&&b.body.speed<2.5)autoFire(sd,b);   // a tumbling block waits until it is steady
+    }
+  }
+  const pd=!standing(P),ed=!standing(E);
+  if(pd&&ed)endRound('draw','Both castles fell');
+  else if(ed)endRound('player','Every enemy block fell');
+  else if(pd)endRound('enemy','Every block of yours fell');
+  else if(G.bt>=BATTLE_MAX){const w=timeUpWinner();endRound(w,'Time is up');}
+}
+function finishMatch(){
+  const s=G.score,r=s.player===s.enemy?'draw':(s.player>s.enemy?'win':'lose');
+  G.phase='over';G.overT=0;G.result=r;
+  banner(r==='win'?'VICTORY!':r==='lose'?'DEFEAT':'DRAW',s.player+' – '+s.enemy+' in rounds');
+}
+
+/* ============================== ana güncelleme ============================== */
+function integrity(sd){let s=0;for(const b of sd.blocks)if(b.hp>0)s+=b.hp;return sd.hp0>0?clamp(s/sd.hp0,0,1):0;}
+function calm(){
+  for(const n of ['player','enemy']){
+    for(const b of G.sides[n].blocks)if(b.hp>0&&b.body&&!b.body.isSleeping&&b.body.speed>.35)return false;
+  }
+  return true;
+}
+function stepGame(){
+  if(!G)return;
+  G.t++;
+  stepFall();
+  Engine.update(engine,STEP);
+  flushHits();
+
+  for(const n of ['player','enemy']){
+    for(const b of G.sides[n].blocks){
+      if(b.hp>0&&b.body&&(b.body.position.y>PIL_TOP+80||b.body.position.x<-200||b.body.position.x>WORLD_W+200))breakBlock(b,true);
+      if(b.hurtT>0)b.hurtT--;
+    }
+  }
+
+  for(const p of projs.slice()){
+    if(p.dead)continue;
+    p.age++;
+    const v=p.body.velocity,pos=p.body.position,sp=Math.hypot(v.x,v.y);
+    if(p.age%3===0){p.trail.push({x:pos.x,y:pos.y});if(p.trail.length>22)p.trail.shift();}
+    if(p.type==='bombo'&&p.fuse>0){p.fuse--;if(p.fuse===0){explode(p);continue;}}
+    aiAbility(p);
+    if(p.hit&&sp<.7)p.still++;else p.still=0;
+    const oob=pos.x<-300||pos.x>WORLD_W+300||pos.y>1300;
+    if(p.still>45||p.age>900||oob){
+      if(p.type==='bombo'&&!oob)explode(p);else retire(p,oob);
+    }
+  }
+
+  switch(G.phase){
+    case 'buildEnemy':{
+      const ab=G.aiBuild;ab.t++;
+      if(!G.fall&&ab.n>0&&ab.t>35){enemyPlacePiece();ab.n--;ab.t=0;}
+      if(ab.n===0&&!G.fall){G.phase='buildSettle';G.settleT=0;}
+      break;
+    }
+    case 'buildSettle':
+      G.settleT++;
+      if((G.settleT>40&&calm())||G.settleT>240)beginBattle();
+      break;
+    case 'intro':
+      if(++G.t0>60)G.phase='battle';
+      break;
+    case 'battle':
+      stepBattle();
+      break;
+    case 'roundEnd':
+      if(++G.overT===110){
+        for(const p of projs.slice())retire(p,true);
+        if(G.score.player>=WINS||G.score.enemy>=WINS||G.round>=ROUNDS)finishMatch();else startRound();
+      }
+      break;
+    case 'over':
+      if(++G.overT===110)showEnd();
+      break;
+  }
+  stepParticles();
+  G.shake*=.9;
+  const gt=1;
+  G.ghostA+=(gt-G.ghostA)*.12;
+  updateCamera();
+}
+
+/* ============================== kamera ============================== */
+function computeView(){
+  const trayH=G?$('tray').offsetHeight:0,hudH=G?72:0;
+  const availH=Math.max(200,H-trayH-hudH-14);
+  const awT=buildPhase()?960:800;
+  awCur+=(awT-awCur)*.12;if(Math.abs(awT-awCur)<.5)awCur=awT;
+  const scH=availH/(awT===960?840:720);
+  scNear=Math.min(W/860,scH);scWide=Math.min(W/860,scH);
+  const same=Math.abs(scNear-scWide)<.01;
+  sc=(zoomWide||same)?scWide:scNear;
+  anchorY=H-trayH-14;
+  const zb=$('zoomBtn');
+  if(G){zb.classList.toggle('hidden',same);zb.textContent=zoomWide?'Close view':'Wide view';}
+}
+function camTarget(){
+  const half=W/sc/2;
+  const lo=half-50,hi=WORLD_W+50-half;
+  let t;
+  if(lo>hi)return WORLD_W/2;
+  if(zoomWide&&Math.abs(scNear-scWide)>=.01)return WORLD_W/2;
+  if(G.phase==='prep')t=-1e5;
+  else if(G.phase==='buildEnemy'||G.phase==='buildSettle')t=1e5;
+  else t=WORLD_W/2;
+  return clamp(t,lo,hi);
+}
+function updateCamera(){
+  const t=camTarget();
+  cam.x+=(t-cam.x)*.05;
+}
+function toWorld(e){
+  const r=cv.getBoundingClientRect();
+  const px=e.clientX-r.left,py=e.clientY-r.top;
+  return {x:(px-W/2)/sc+cam.x,y:awCur+(py-anchorY)/sc};
+}
+
+/* ============================== çizim ============================== */
+function drawGrid(){
+  const left=cam.x-W/sc/2-40,right=cam.x+W/sc/2+40;
+  const top=awCur-anchorY/sc-40,bot=awCur+(H-anchorY)/sc+40;
+  ctx.strokeStyle=TH.grid;ctx.lineWidth=Math.max(1/sc,.8);ctx.beginPath();
+  for(let x=Math.floor(left/BLK)*BLK;x<=right;x+=BLK){ctx.moveTo(x,top);ctx.lineTo(x,bot);}
+  for(let y=Math.floor(top/BLK)*BLK;y<=bot;y+=BLK){ctx.moveTo(left,y);ctx.lineTo(right,y);}
+  ctx.stroke();
+}
+function drawPillar(sd){
+  const x0=sd.cx-PIL_W/2,c=ctx;
+  c.save();
+  // toprak gövde
+  const bodyTop=PIL_TOP+8,bodyH=900;
+  c.beginPath();c.rect(x0+4,bodyTop,PIL_W-8,bodyH);c.fillStyle=TH.dirt;c.fill();
+  c.save();c.clip();
+  c.strokeStyle=TH.hatch;c.lineWidth=1.4;c.beginPath();
+  for(let k=-40;k<bodyH/12+40;k++){const y=bodyTop+k*13;c.moveTo(x0,y);c.lineTo(x0+PIL_W,y+PIL_W*.55);}
+  c.stroke();c.restore();
+  c.strokeStyle=INK;c.lineWidth=2.6;c.lineJoin='round';
+  const r=rng(sd.cx);
+  c.beginPath();c.moveTo(x0+4,bodyTop);
+  for(let y=bodyTop;y<bodyTop+bodyH;y+=60)c.lineTo(x0+4+(r()-.5)*3,y+60);
+  c.moveTo(x0+PIL_W-4,bodyTop);
+  for(let y=bodyTop;y<bodyTop+bodyH;y+=60)c.lineTo(x0+PIL_W-4+(r()-.5)*3,y+60);
+  c.stroke();
+  // çimen plaka
+  sketch(c,rr=>{const p=rrPts(PIL_W/2+6,13,6,2,rr);for(const q of p){q.x+=sd.cx;q.y+=PIL_TOP+7;}return p;},sd.cx+3,'#86cf4a',2.8);
+  c.strokeStyle='#4d9a1f';c.lineWidth=2;c.beginPath();
+  for(let i=0;i<9;i++){const x=x0+16+i*(PIL_W-32)/8;c.moveTo(x-3,PIL_TOP+3);c.lineTo(x,PIL_TOP-3);c.lineTo(x+3,PIL_TOP+3);}
+  c.stroke();
+  c.restore();
+}
+function drawFace(c,look,mood,t,seed){
+  c.lineCap='round';c.lineJoin='round';
+  const er=6;
+  for(const x of [-7.5,7.5]){
+    if(mood==='hurt'){c.strokeStyle=INK;c.lineWidth=2.2;c.beginPath();c.moveTo(x-er*.7,-er*.7);c.lineTo(x+er*.5,0);c.lineTo(x-er*.7,er*.7);c.stroke();continue;}
+    if(mood==='sleep'||((t+seed)%230)<7){c.strokeStyle=INK;c.lineWidth=2.2;c.beginPath();c.moveTo(x-er,0);c.quadraticCurveTo(x,mood==='sleep'?er*.9:0,x+er,0);c.stroke();continue;}
+    c.beginPath();c.ellipse(x,-1,er,er*1.1,0,0,TAU);c.fillStyle='#fff';c.fill();c.strokeStyle=INK;c.lineWidth=2;c.stroke();
+    c.beginPath();c.arc(x+look.x*er*.45,-1+look.y*er*.45,mood==='aim'?er*.5:er*.42,0,TAU);c.fillStyle=INK;c.fill();
+  }
+  if(mood==='aim'){
+    c.strokeStyle=INK;c.lineWidth=2.4;c.beginPath();
+    c.moveTo(-14,-11);c.lineTo(-3,-6);c.moveTo(14,-11);c.lineTo(3,-6);c.stroke();
+  }
+  c.strokeStyle=INK;c.lineWidth=2;c.beginPath();
+  if(mood==='hurt'){c.moveTo(-4,11);c.quadraticCurveTo(0,7,4,11);}
+  else if(mood==='aim'){c.moveTo(-4,9);c.lineTo(4,9);}
+  else{c.moveTo(-4,8);c.quadraticCurveTo(0,12,4,8);}
+  c.stroke();
+}
+function drawBlock(b,alpha){
+  const c=ctx,T=TEAM[b.sd.name],w=(BLK-.8)/2,parts=b.body.parts,ang=b.body.angle;
+  const flash=b.hurtT>0?(b.hurtT/12)*.45:0,ratio=b.hp/b.max;
+  c.save();c.globalAlpha=alpha;
+  for(let i=1;i<parts.length;i++){
+    const pp=parts[i].position,seed=b.seed+i*13;
+    c.save();c.translate(pp.x,pp.y);c.rotate(ang);
+    sketch(c,r=>rrPts(w,w,5,1.6,r),seed,T.col,2.6);
+    if(flash>0){c.fillStyle='rgba(255,255,255,'+flash+')';c.fillRect(-w,-w,w*2,w*2);}
+    const st=seed%3;
+    c.strokeStyle=T.dk;c.lineWidth=1.8;c.lineCap='round';c.beginPath();
+    if(st===0){c.moveTo(-w+5,-w+5);c.lineTo(w-5,w-5);c.moveTo(w-5,-w+5);c.lineTo(-w+5,w-5);}
+    else if(st===1){c.moveTo(-w+4,-w*.35);c.lineTo(w-4,-w*.35);c.moveTo(-w+4,w*.35);c.lineTo(w-4,w*.35);}
+    else{c.moveTo(-w*.35,-w+4);c.lineTo(-w*.35,w-4);c.moveTo(w*.35,-w+4);c.lineTo(w*.35,w-4);}
+    c.stroke();
+    c.strokeStyle=INK;c.lineWidth=1.6;
+    if(ratio<.7&&i%2===1){c.beginPath();c.moveTo(-w,-w*.2);c.lineTo(-w*.4,0);c.lineTo(-w*.2,w*.4);c.lineTo(w*.2,w*.2);c.stroke();}
+    if(ratio<.4){c.beginPath();c.moveTo(w*.1,-w);c.lineTo(0,-w*.3);c.lineTo(w*.5,w*.1);c.lineTo(w*.3,w);c.stroke();}
+    c.restore();
+  }
+  c.restore();
+  if(!b.hero)return;
+  if(!b.fired){
+    c.save();
+    const fp=faceCell(b),Hd=HERO[b.hero],hs=Math.min(.95,32/Math.max(Hd.w,Hd.h)),aim=G.phase==='battle'&&b.cd<=14;
+    c.translate(fp.x,fp.y);c.rotate(ang);c.scale(b.sd.s*hs,hs);
+    drawHero(c,b.hero,{seed:b.seed,t:G.t,mood:b.hurtT>0?'hurt':aim?'aim':'idle',noLegs:true,still:true,look:{x:.8,y:0}});
+    c.restore();
+  }
+  if(G.phase==='battle'&&b.cdMax){          // reload bar
+    const fp=faceCell(b),f=clamp(1-b.cd/b.cdMax,0,1);
+    c.fillStyle=TH.paper;c.fillRect(fp.x-12,fp.y-30,24,5);
+    c.fillStyle=f>=1?'#86cf4a':'#e5b84a';c.fillRect(fp.x-12,fp.y-30,24*f,5);
+    c.strokeStyle=INK;c.lineWidth=1.6;c.strokeRect(fp.x-12,fp.y-30,24,5);
+  }
+}
+function drawCells(cells,x0,y0,cs,mat,alpha,flat){
+  const c=ctx,T=TEAM.player;
+  c.save();c.globalAlpha=alpha;c.lineJoin='round';
+  for(const q of cells){
+    const x=x0+q[0]*cs,y=y0+q[1]*cs;
+    c.fillStyle=T.col;c.fillRect(x,y,cs,cs);
+    c.strokeStyle=T.dk;c.lineWidth=Math.max(1.2,cs/16);c.beginPath();c.moveTo(x+cs*.18,y+cs*.18);c.lineTo(x+cs*.82,y+cs*.82);c.stroke();
+    c.strokeStyle=INK;c.lineWidth=Math.max(1.6,cs/13);c.strokeRect(x,y,cs,cs);
+  }
+  c.restore();
+}
+function drawLine(){
+  if(!buildPhase())return;
+  const c=ctx,y=lineY(G.round),l=cam.x-W/sc/2-40,r=cam.x+W/sc/2+40;
+  c.save();
+  c.strokeStyle='#5fbf2a';c.lineWidth=3.2;c.setLineDash([16,9]);
+  c.beginPath();c.moveTo(l,y);c.lineTo(r,y);c.stroke();
+  c.setLineDash([]);
+  if(G.phase==='prep'){c.font='20px '+FONT;c.fillStyle='#5fbf2a';c.textAlign='left';c.fillText('BUILD LINE · drop above it',SIDES.player.cx+PIL_W/2+14,y-8);}
+  c.restore();
+}
+function drawBuildGrid(){
+  if(G.phase!=='prep')return;
+  const c=ctx,gl=gridLeft(G.sides.player),rows=Math.ceil((PIL_TOP-lineY(G.round))/BLK);
+  c.save();
+  c.fillStyle='rgba(255,255,255,.30)';c.strokeStyle='rgba(43,42,36,.28)';c.lineWidth=1.4;
+  for(let col=0;col<GRID_COLS;col++)for(let r=0;r<rows;r++){
+    const x=gl+col*BLK,y=PIL_TOP-(r+1)*BLK;
+    c.fillRect(x+1,y+1,BLK-2,BLK-2);c.strokeRect(x+1,y+1,BLK-2,BLK-2);
+  }
+  // block slots carved into the pillar
+  for(let i=0;i<3;i++){
+    const x=slotX(i)-50,y=slotY()-52;
+    c.fillStyle='rgba(60,35,10,.22)';c.strokeStyle=INK;c.lineWidth=2;c.setLineDash([7,5]);
+    c.beginPath();c.moveTo(x+12,y);c.arcTo(x+100,y,x+100,y+104,12);c.arcTo(x+100,y+104,x,y+104,12);c.arcTo(x,y+104,x,y,12);c.arcTo(x,y,x+100,y,12);c.closePath();c.fill();c.stroke();
+  }
+  c.restore();
+}
+function drawBuildUI(){
+  if(G.phase!=='prep')return;
+  const c=ctx,pl=G.place;
+  for(let i=0;i<3;i++){
+    const pc=G.pieces[i];if(!pc)continue;
+    if(pl&&pl.i===i&&pl.moved)continue;
+    const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells),cs=22;
+    const bob=Math.sin(G.t*.07+i*2)*2;
+    drawCells(cells,slotX(i)-d.w*cs/2,slotY()-d.h*cs/2+bob,cs,pc.mat,1);
+  }
+  if(pl&&pl.moved){
+    const pc=G.pieces[pl.i];if(!pc)return;
+    const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells);
+    const cx=pl.x,cy=pl.y-DRAG_LIFT;
+    if(overGrid(cx,cy)){       // column the piece will fall down
+      const x0=gridLeft(G.sides.player)+colFromX(pc,cx)*BLK,ly=lineY(G.round),top=stackTop(G.sides.player,x0,x0+d.w*BLK);
+      c.save();c.fillStyle='rgba(134,207,74,.25)';c.fillRect(x0,ly,d.w*BLK,top-ly);
+      c.setLineDash([6,5]);c.strokeStyle='#2f7d12';c.lineWidth=2.4;c.strokeRect(x0,ly,d.w*BLK,top-ly);c.restore();
+    }
+    drawCells(cells,cx-d.w*BLK/2,cy-d.h*BLK/2,BLK,pc.mat,.95);
+  }
+}
+function drawProj(p){
+  const c=ctx,pos=p.body.position,v=p.body.velocity,sp=Math.hypot(v.x,v.y);
+  for(let i=0;i<p.trail.length;i++){
+    const t=p.trail[i],k=(i+1)/p.trail.length;
+    c.globalAlpha=k*.7;c.fillStyle=TH.paper;c.strokeStyle=INK;c.lineWidth=1.6;
+    c.beginPath();c.arc(t.x,t.y,1.5+k*2.6,0,TAU);c.fill();c.stroke();
+  }
+  c.globalAlpha=1;
+  const dizzy=p.hit&&sp<3;
+  const sc2=p.r/HERO[p.type].r;
+  c.save();c.translate(pos.x,pos.y);c.rotate(p.body.angle);c.scale(p.sd.s*sc2,sc2);
+  drawHero(c,p.type,{seed:p.seed,t:G.t,mood:dizzy?'dizzy':'fly',noLegs:true,still:true,look:{x:.8,y:-.2}});
+  c.restore();
+  if(dizzy){for(let i=0;i<3;i++){const a=G.t*.12+i*TAU/3;star(c,pos.x+Math.cos(a)*(p.r+6),pos.y-p.r-6+Math.sin(a)*4,4.5,a);}}
+  if(p.type==='bombo'&&p.fuse>0){c.globalAlpha=.9;c.strokeStyle='#ff8a1f';c.lineWidth=3;c.beginPath();c.arc(pos.x,pos.y,p.r+8+Math.sin(G.t*.8)*2,0,TAU);c.stroke();c.globalAlpha=1;}
+}
+function drawParticle(p){
+  const c=ctx,a=clamp(p.life/p.max,0,1);
+  c.save();
+  switch(p.k){
+    case 'puff':{
+      const r=p.size*(1+(1-a)*.9);
+      c.globalAlpha=Math.min(1,a*1.4)*.92;c.fillStyle='#fffdf2';c.strokeStyle=INK;c.lineWidth=1.8;
+      c.beginPath();c.arc(p.x,p.y,r,0,TAU);c.fill();c.stroke();
+      c.beginPath();c.arc(p.x+r*.6,p.y+r*.2,r*.7,0,TAU);c.fill();c.stroke();
+      break;
+    }
+    case 'chip':
+      c.globalAlpha=Math.min(1,a*2);c.translate(p.x,p.y);c.rotate(p.rot);c.fillStyle=p.col;c.strokeStyle=INK;c.lineWidth=1.5;
+      c.fillRect(-p.size/2,-p.size*.3,p.size,p.size*.6);c.strokeRect(-p.size/2,-p.size*.3,p.size,p.size*.6);break;
+    case 'star':c.globalAlpha=Math.min(1,a*2);star(c,p.x,p.y,p.size,p.rot);break;
+    case 'ring':
+      c.globalAlpha=a;c.strokeStyle=INK;c.lineWidth=4;c.setLineDash([10,8]);
+      c.beginPath();c.arc(p.x,p.y,p.size*(1-a*a)+8,0,TAU);c.stroke();break;
+    case 'burst':{
+      const R=p.size*(.35+(1-a)*.7);
+      c.globalAlpha=Math.min(1,a*2.2);c.beginPath();
+      for(let i=0;i<24;i++){const an=p.rot+i*TAU/24,rr=i%2?R*.6:R;c.lineTo(p.x+Math.cos(an)*rr,p.y+Math.sin(an)*rr);}
+      c.closePath();c.fillStyle='#ffd84a';c.fill();c.strokeStyle=INK;c.lineWidth=3;c.stroke();
+      c.beginPath();
+      for(let i=0;i<20;i++){const an=p.rot+i*TAU/20,rr=i%2?R*.3:R*.5;c.lineTo(p.x+Math.cos(an)*rr,p.y+Math.sin(an)*rr);}
+      c.closePath();c.fillStyle='#ff8a1f';c.fill();break;
+    }
+    case 'text':
+      c.globalAlpha=Math.min(1,a*2.5);c.translate(p.x,p.y);c.rotate(p.rot);
+      c.font='bold '+p.size+'px '+FONT;c.textAlign='center';c.textBaseline='middle';
+      c.lineJoin='round';c.strokeStyle=INK;c.lineWidth=6;c.strokeText(p.txt,0,0);
+      c.fillStyle=p.col;c.fillText(p.txt,0,0);break;
+  }
+  c.restore();
+}
+function render(){
+  computeView();
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle=TH.paper;ctx.fillRect(0,0,W,H);
+  if(!G)return;
+  const shx=G.shake>.3?(Math.random()-.5)*G.shake*2:0,shy=G.shake>.3?(Math.random()-.5)*G.shake*2:0;
+  ctx.setTransform(sc*dpr,0,0,sc*dpr,(W/2-cam.x*sc+shx)*dpr,(anchorY-awCur*sc+shy)*dpr);
+  ctx.lineJoin='round';ctx.lineCap='round';
+  drawGrid();
+  const sides=[G.sides.player,G.sides.enemy];
+  for(const sd of sides)drawPillar(sd);
+  drawLine();
+  drawBuildGrid();
+  for(const sd of sides)for(const b of sd.blocks)if(b.hp>0&&b.body)drawBlock(b,sd.name==='player'?G.ghostA:1);
+  drawBuildUI();
+  for(const p of projs)if(!p.dead)drawProj(p);
+  for(const p of particles)drawParticle(p);
+}
+
+/* ============================== HUD / DOM ============================== */
+const heartSVG=f=>'<svg viewBox="0 0 24 24" class="heart'+(f?'':' lost')+'"><path d="M12 21s-9-5.7-9-12a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 6.300-9 12-9 12z"/></svg>';
+let hudKey='',cardKey='',hudTick=0;
+const PIC={};
+function pieceIcon(pc){
+  const k=pc.shape+pc.rot+pc.mat;if(PIC[k])return PIC[k];
+  const cells=rotCells(SHAPES[pc.shape],pc.rot),d=cellDims(cells),T=TEAM.player;
+  const cv2=document.createElement('canvas');cv2.width=cv2.height=96;const c=cv2.getContext('2d');
+  const cs=Math.min(24,80/Math.max(d.w,d.h)),x0=(96-d.w*cs)/2,y0=(96-d.h*cs)/2;
+  c.lineJoin='round';
+  for(const p of cells){
+    const x=x0+p[0]*cs,y=y0+p[1]*cs;
+    c.fillStyle=T.col;c.fillRect(x,y,cs,cs);
+    c.strokeStyle=T.dk;c.lineWidth=1.4;c.beginPath();c.moveTo(x+4,y+4);c.lineTo(x+cs-4,y+cs-4);c.stroke();
+    c.strokeStyle=INK;c.lineWidth=2.4;c.strokeRect(x,y,cs,cs);
+  }
+  return PIC[k]=cv2.toDataURL();
+}
+function updateHUD(){
+  if(!G)return;
+  const P=G.sides.player,E=G.sides.enemy;
+  const pi=integrity(P),ei=integrity(E);
+  const prep=G.phase==='prep',falling=!!G.fall,canBattle=prep&&!falling&&standing(P);
+  const lbl=prep?(falling?'Slide it into place':'Place your blocks'):(G.phase==='buildEnemy'||G.phase==='buildSettle')?'Enemy is building…':G.phase==='roundEnd'?'Round over':G.phase==='over'?'Match over':'Battle!';
+  const key=[P.hearts,E.hearts,Math.round(pi*100),Math.round(ei*100),lbl,G.round,G.score.player,G.score.enemy].join('|');
+  if(key!==hudKey){
+    hudKey=key;
+    let a='',b='';for(let i=0;i<HEARTS;i++){a+=heartSVG(i<P.hearts);b+=heartSVG(i<E.hearts);}
+    $('heartsMe').innerHTML=a;$('heartsEn').innerHTML=b;
+    $('mMe').textContent=Math.round(pi*100);$('mEn').textContent=Math.round(ei*100);
+    $('mFill').style.width=(pi+ei>0?pi/(pi+ei)*100:50)+'%';
+    $('turnLbl').textContent='Round '+G.round+'/'+ROUNDS+' · '+G.score.player+'–'+G.score.enemy;
+  }
+  const hp=liveHeroes(P).length,he=liveHeroes(E).length,left=G.pieces.filter(Boolean).length;
+  const k2=[prep,canBattle,left,G.phase,G.round,hp,he].join('|');
+  if(k2!==cardKey){
+    cardKey=k2;
+    $('cards').innerHTML=prep?'<button class="btn primary" data-act="battle"'+(canBattle?'':' disabled')+'>Battle!</button>'
+      :'<div class="card empty"><b>'+(G.phase==='battle'?'Your heroes fire on their own':(G.phase==='buildEnemy'||G.phase==='buildSettle')?'Enemy is building…':'…')+'</b></div>';
+    $('shotLbl').textContent=prep?'Blocks left: '+left:'Round '+G.round+'/'+ROUNDS;
+    $('pileLbl').textContent=prep?'Tap a block to rotate':'Heroes: '+hp+' vs '+he;
+  }
+  const ctrl=$('ctrl');
+  ctrl.classList.toggle('hidden',!(prep&&falling));
+  ctrl.style.bottom=($('tray').offsetHeight+12)+'px';
+  const hint=$('hint');let txt='';
+  if(prep&&falling)txt='Slide it: ◀ ▶ or swipe';
+  else if(prep&&G.round===1)txt='Drag a block above the line and let go';
+  hint.textContent=txt;hint.classList.toggle('hidden',!txt);
+}
+
+/* ============================== giriş ============================== */
+cv.addEventListener('pointerdown',e=>{
+  if(!G||G.phase!=='prep')return;e.preventDefault();
+  if(G.fall){
+    G.swipe={id:e.pointerId,x:e.clientX,acc:0};
+    try{cv.setPointerCapture(e.pointerId);}catch(err){}
+    return;
+  }
+  const pt=toWorld(e),i=pickSlot(pt);
+  if(i>=0){
+    G.place={id:e.pointerId,i,sx:pt.x,sy:pt.y,x:pt.x,y:pt.y,moved:false};
+    try{cv.setPointerCapture(e.pointerId);}catch(err){}
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  if(!G)return;
+  const sw=G.swipe;
+  if(sw&&sw.id===e.pointerId){                       // swipe = slide the falling piece one column per BLK of travel
+    sw.acc+=e.clientX-sw.x;sw.x=e.clientX;
+    const step=BLK*sc;
+    while(sw.acc>=step){shiftFall(1);sw.acc-=step;}
+    while(sw.acc<=-step){shiftFall(-1);sw.acc+=step;}
+    return;
+  }
+  if(G.place&&G.place.id===e.pointerId){
+    const pt=toWorld(e),pl=G.place;
+    pl.x=pt.x;pl.y=pt.y;
+    if(!pl.moved&&Math.hypot(pt.x-pl.sx,pt.y-pl.sy)>12)pl.moved=true;
+  }
+});
+function endDrag(e){
+  if(!G)return;
+  if(G.swipe&&G.swipe.id===e.pointerId){G.swipe=null;return;}
+  if(G.place&&G.place.id===e.pointerId){
+    const pl=G.place;G.place=null;
+    if(e.type!=='pointerup'||G.phase!=='prep'||G.fall)return;
+    const pc=G.pieces[pl.i];if(!pc)return;
+    if(!pl.moved){pc.rot=(pc.rot+1)%4;cardKey='';return;}      // tap = rotate
+    const cx=pl.x,cy=pl.y-DRAG_LIFT;
+    if(overGrid(cx,cy))placePlayer(pl.i,colFromX(pc,cx),cy);   // otherwise it snaps back to its slot
+  }
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+for(const [id,dir] of [['ctrlL',-1],['ctrlR',1]])
+  $(id).addEventListener('pointerdown',e=>{e.preventDefault();if(G&&G.phase==='prep')shiftFall(dir);});
+window.addEventListener('keydown',e=>{
+  if(!G||G.phase!=='prep')return;
+  const k=e.key;
+  if(k==='ArrowLeft'||k==='a'||k==='A'){e.preventDefault();shiftFall(-1);}
+  else if(k==='ArrowRight'||k==='d'||k==='D'){e.preventDefault();shiftFall(1);}
+});
+$('cards').addEventListener('click',e=>{
+  if(!e.target.closest('[data-act="battle"]'))return;
+  if(G&&G.phase==='prep'&&!G.fall&&standing(G.sides.player))startEnemyBuild();
+});
+$('zoomBtn').addEventListener('click',()=>{zoomWide=!zoomWide;});
+
+/* ============================== start / end ============================== */
+function buildLegend(){
+  $('roster').innerHTML=SHAPE_KEYS.map(sh=>{
+    const hk=SHAPE_HERO[sh],Hd=HERO[hk];
+    return '<div class="rc"><img alt="" src="'+pieceIcon({shape:sh,rot:0,mat:sh})+'"><span><b>'+Hd.name+' · '+sh+'</b><small>'+Hd.desc+'</small></span></div>';
+  }).join('');
+}
+function startGame(){
+  $('deck').classList.add('hidden');$('end').classList.add('hidden');
+  ['hud','tray'].forEach(i=>$(i).classList.remove('hidden'));
+  buildWorld();
+  G={t:0,phase:'prep',t0:0,bt:0,settleT:0,shake:0,groupN:0,overT:0,result:null,
+     round:0,score:{player:0,enemy:0},pieces:[],place:null,fall:null,swipe:null,ghostA:1,camSide:'player',aiBuild:null,
+     sides:{player:makeSide('player'),enemy:makeSide('enemy')}};
+  for(const n of ['player','enemy']){
+    const sd=G.sides[n];
+    addPillar(sd);
+    spawnPiece(sd,{shape:'I',rot:0,mat:'base'},0);   // base stone
+  }
+  for(let i=0;i<110;i++)Engine.update(engine,STEP);   // let everything settle
+  queue=[];
+  hudKey='';cardKey='';
+  computeView();cam.x=-1e5;cam.x=camTarget();
+  startRound();
+}
+function showEnd(){
+  const r=G.result,sc2=G.score.player+' – '+G.score.enemy;
+  $('endTitle').textContent=r==='win'?'VICTORY!':r==='lose'?'DEFEAT':'DRAW';
+  $('endSub').textContent=(r==='win'?'You took the match ':r==='lose'?'The enemy took the match ':'The match is tied ')+sc2+' in rounds.';
+  $('end').classList.remove('hidden');
+}
+$('goBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+
+/* ============================== döngü ============================== */
+let last=0,acc=0;
+function frame(ts){
+  requestAnimationFrame(frame);
+  const dt=Math.min(100,ts-last||16);last=ts;acc+=dt;
+  let n=0;
+  while(acc>=STEP&&n<4){stepGame();acc-=STEP;n++;}
+  if(acc>STEP*4)acc=0;
+  render();
+  if(++hudTick%4===0)updateHUD();
+}
+function resize(){
+  W=app.clientWidth;H=app.clientHeight;dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+}
+window.addEventListener('resize',resize);
+resize();
+
+makeIcons();
+buildLegend();
+try{document.fonts.load('20px "Gochi Hand"');}catch(e){}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
