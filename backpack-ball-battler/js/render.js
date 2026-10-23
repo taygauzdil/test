@@ -272,7 +272,7 @@
   function balls(ctx, sideIdx) {
     const t = TEAM[sideIdx];
     for (const bb of B.Physics.balls[sideIdx]) {
-      const pos = bb.body.position, tr = bb.trail, col = bb.pierce ? '#ffd84d' : t.ball;
+      const pos = bb.body.position, tr = bb.trail, col = bb.maxHits > 3 ? '#ffd84d' : t.ball;
       ctx.lineCap = 'round';
       for (let i = 1; i < tr.length; i++) {
         ctx.globalAlpha = i / tr.length * 0.7; ctx.strokeStyle = col; ctx.lineWidth = CFG.BALL_R * 2 * (i / tr.length);
@@ -284,7 +284,10 @@
       const g = ctx.createRadialGradient(pos.x - 1.5, pos.y - 1.5, 0, pos.x, pos.y, CFG.BALL_R + 1);
       g.addColorStop(0, '#fff'); g.addColorStop(0.5, col); g.addColorStop(1, t.main);
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pos.x, pos.y, CFG.BALL_R, 0, 7); ctx.fill();
-      if (bb.pierce) { ctx.strokeStyle = 'rgba(255,240,150,.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(pos.x, pos.y, CFG.BALL_R + 2.5, 0, 7); ctx.stroke(); }
+      // life ring: one arc segment per remaining hit
+      ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.6; ctx.lineCap = 'butt';
+      const seg = Math.PI * 2 / bb.maxHits;
+      for (let i = 0; i < bb.hitsLeft; i++) { ctx.beginPath(); ctx.arc(pos.x, pos.y, CFG.BALL_R + 2.6, i * seg + 0.2, (i + 1) * seg - 0.2); ctx.stroke(); }
       ctx.globalAlpha = 1;
     }
   }

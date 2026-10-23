@@ -35,7 +35,7 @@
       balls: CFG.BASE_BALLS + CFG.EXTRA_BALLS * u.extraBalls,
       shots: 1 + u.doubleShot,
       interval: CFG.BASE_INTERVAL * Math.pow(CFG.RAPID_MULT, u.rapidFire),
-      pierce: 1 + u.piercing,
+      pierce: CFG.BALL_HP + u.piercing,
       spread: CFG.BASE_SPREAD * Math.pow(CFG.PRECISION_MULT, u.precision),
     };
   };
@@ -246,8 +246,8 @@
     const unit = ref.unit, pos = ball.body.position;
     unit.flash = 1;
     FX.burst(pos.x, pos.y, B.TEAM[sideIdx].ball, 7, 120, 0.35, 2.2);
-    if (ball.hitSet.has(unit)) return;      // piercing ball bouncing off the same unit: no extra count
-    ball.hitSet.add(unit);
+    if (ball.last === unit) return;         // still touching the unit it just hit: no extra count
+    ball.last = unit;
     if (--ball.hitsLeft <= 0) ball.fade = 0.4;      // ball bounces off visibly, then fades
     unit.hits++;
     if (unit.hits >= Game.stats(unit.type, unit.level).need) {

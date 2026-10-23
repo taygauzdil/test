@@ -23,7 +23,7 @@
         if (a.label === 'ball') { ball = a; other = b; } else if (b.label === 'ball') { ball = b; other = a; } else continue;
         if (ball.bb.dead) continue;
         if (other.label === 'unit') { if (!ball.bb.fade) B.Game.onBallHitUnit(side, ball.bb, other.bbRef); }
-        else B.FX.burst(ball.position.x, ball.position.y, B.TEAM[side].ball, 2, 40, 0.25, 1.5);
+        else { ball.bb.last = null; B.FX.burst(ball.position.x, ball.position.y, B.TEAM[side].ball, 2, 40, 0.25, 1.5); }
       }
     });
     return { engine, unitBodies: [] };
@@ -55,7 +55,7 @@
       restitution: 1, friction: 0, frictionStatic: 0, frictionAir: 0, inertia: Infinity, label: 'ball',
       collisionFilter: { group: -1 },
     });
-    const bb = { body, side, age: 0, fade: 0, hitsLeft: hitsAllowed, hitSet: new Set(), trail: [], dead: false, pierce: hitsAllowed > 1 };
+    const bb = { body, side, age: 0, fade: 0, hitsLeft: hitsAllowed, maxHits: hitsAllowed, last: null, trail: [], dead: false };
     body.bb = bb;
     Body.setVelocity(body, { x: Math.cos(angle) * CFG.BALL_SPEED, y: Math.sin(angle) * CFG.BALL_SPEED });
     Composite.add(worlds[side].engine.world, body);

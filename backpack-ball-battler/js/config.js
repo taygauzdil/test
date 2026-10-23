@@ -31,6 +31,7 @@ window.BBB = window.BBB || {};
     BASE_INTERVAL: 0.45,           // seconds between shots
     BASE_SPREAD: 0.25,             // radians of random launch-angle spread (+/-)
     BALL_R: 5,
+    BALL_HP: 3,                    // units a ball can hit before it is used up (Piercing adds +1 each)
     BALL_SPEED: 5,                 // px per physics step (60/s)
     BALL_LIFE: 9,                  // seconds before a stray ball fizzles
     UPGRADE_CAPS: { extraBalls: 9, doubleShot: 2, rapidFire: 3, piercing: 2, precision: 3 },
@@ -59,7 +60,7 @@ window.BBB = window.BBB || {};
     extraBalls: { name: 'Extra Balls',    cost: 3, desc: '+5 balls per round',   color: '#ffb703' },
     doubleShot: { name: 'Double Shot',    cost: 4, desc: '2 balls per shot',     color: '#4dd2ff' },
     rapidFire:  { name: 'Rapid Fire',     desc: 'Shoot faster',         color: '#ff6b4a' },
-    piercing:   { name: 'Piercing Ball',  desc: 'Hits 2 units',         color: '#ffd84d' },
+    piercing:   { name: 'Piercing Ball',  desc: '+1 life per ball',         color: '#ffd84d' },
     precision:  { name: 'Precision Shot', desc: 'Tighter aim',          color: '#7dffb0' },
   };
 
