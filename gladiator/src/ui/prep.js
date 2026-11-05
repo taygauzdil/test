@@ -302,10 +302,12 @@ export class PrepUI {
       this.cellEls.forEach(ce => { if (!ce.el.classList.contains('ok') && !ce.el.classList.contains('no') && ce.c.regions.includes(r) && ok) ce.el.classList.add('reg'); });
     }
     d.target = ok ? { kind: 'place', x: tlx, y: tly } : { kind: 'invalid' };
+    d.ghost.classList.add(ok ? 'ghost-ok' : 'ghost-bad');
     this.onHover && this.onHover(regs.filter(r => def.regions.includes(r)), ok ? 'ok' : 'bad');
   }
 
   _clearHover() {
+    this.drag?.ghost?.classList.remove('ghost-ok', 'ghost-bad');
     document.querySelectorAll('.cell.ok, .cell.no, .cell.reg').forEach(e => e.classList.remove('ok', 'no', 'reg'));
     document.querySelectorAll('.merge-target').forEach(e => e.classList.remove('merge-target'));
     document.querySelectorAll('.merge-tag').forEach(e => e.remove());

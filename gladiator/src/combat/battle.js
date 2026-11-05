@@ -168,8 +168,10 @@ export class Battle {
     // knockback direction: attacker -> defender, biased toward the rear cliff
     const dir = new Vector3().subVectors(def.root, att.root); dir.y = 0;
     if (dir.lengthSq() < 1e-6) dir.copy(att.forward());
-    dir.normalize().multiplyScalar(1 - C.cliffBias).add(new Vector3(0, 0, -C.cliffBias)).normalize();
     const kbEff = kb / def.st.stability;
+    // heavier blows are angled more toward the cliff: knockback builds win by ring-out
+    const bias = Math.min(0.55, C.cliffBias + 0.06 * kbEff);
+    dir.normalize().multiplyScalar(1 - bias).add(new Vector3(0, 0, -bias)).normalize();
     if (!h.magic || true) def.kv.addScaledVector(dir, kbEff * C.knockbackScale);
 
     // physical reaction: impulse at the struck joint + neighbours, scaled by weapon knockback

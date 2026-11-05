@@ -23,7 +23,7 @@ export const CONFIG = {
     baseMoveSpeed: 2.2,
     knockbackScale: 0.95, // m/s of root slide per point of knockback
     knockdownThreshold: 3.0,
-    cliffBias: 0.3,       // fraction of knockback pushed toward the rear cliff
+    cliffBias: 0.18,      // fraction of knockback pushed toward the rear cliff
     hitStop: 0.06,
   },
 
