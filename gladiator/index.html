@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#2a1a10">
+<title>Gladiator Backpack</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="gl"></canvas>
+
+  <!-- ============ PREPARATION ============ -->
+  <section id="prep" class="screen">
+    <header class="topbar">
+      <div class="tb-round"><small>ROUND</small><b id="roundNo">1</b></div>
+      <div class="scoreboard" id="scoreboard"></div>
+      <div class="tb-coins" id="coinBox"><span class="coin-ico"></span><b id="coins">10</b></div>
+    </header>
+    <div class="stats" id="stats"></div>
+    <div id="gridWrap">
+      <svg id="links"></svg>
+      <div id="grid"></div>
+      <div id="regionTags"></div>
+    </div>
+    <div id="benchRow">
+      <div class="bench-label">BENCH</div>
+      <div id="bench"></div>
+      <div class="hint" id="hint">Drag items onto the grid. Touching cells power body parts.</div>
+    </div>
+    <div id="shop">
+      <div class="shop-title"><span>SHOP</span><small id="shopNote">Tap to inspect · drag to buy &amp; place</small></div>
+      <div id="shopCards"></div>
+      <div id="sellZone"><b>SELL</b><span id="sellAmt"></span></div>
+    </div>
+    <div class="bottom">
+      <button id="muteBtn" class="icon-btn" title="Sound">🔊</button>
+      <button id="fightBtn" class="fight">FIGHT!</button>
+    </div>
+    <div id="info" class="hidden"></div>
+  </section>
+
+  <!-- ============ COMBAT HUD ============ -->
+  <section id="hud" class="screen">
+    <div class="hud-top">
+      <div class="hpbox p"><div class="hp-name" id="pName">YOU</div><div class="hpbar"><i id="pHp"></i><s id="pHpLag"></s><em id="pHpTxt"></em></div><div class="perks" id="pPerks"></div></div>
+      <div class="hud-score" id="hudScore"></div>
+      <div class="hpbox e"><div class="hp-name" id="eName">RIVAL</div><div class="hpbar"><i id="eHp"></i><s id="eHpLag"></s><em id="eHpTxt"></em></div><div class="perks" id="ePerks"></div></div>
+    </div>
+    <div class="hud-sub" id="hudSub"></div>
+    <div id="banner"></div>
+    <div class="hud-bottom">
+      <button id="speedBtn" class="pill">▶ 1x</button>
+    </div>
+  </section>
+
+  <div id="overlay"></div>
+  <div id="drag-layer"></div>
+  <div id="modal" class="hidden"></div>
+  <div id="toast"></div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

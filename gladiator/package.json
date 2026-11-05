@@ -1,0 +1,1 @@
+{ "name": "gladiator-backpack", "private": true, "type": "module", "scripts": { "test": "node tests/rules.test.js && node tests/combat.sim.js" } }
