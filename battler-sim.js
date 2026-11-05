@@ -9,6 +9,7 @@
     CARD_OPTIONS: 3,                            // cards offered per action
     UPGRADE_CHANCE: 0.33,                       // chance each offered card is an upgrade (when one is possible)
     DOUBLE_CHANCE: 0.08,                        // chance each offered card is a Double card (when a group has room)
+    MERGE_ADJACENT: false,                      // true = same unit + same level side by side merge into one multi-slot group
     UNIT_WEIGHTS: { archer: 1, knight: 1, cavalry: 1, bomber: 1, dwarf: 1 }, // relative card frequency
     ACTIONS_PER_ROUND: 3,
     COMEBACK_ACTIONS: 1,                        // extra action for the previous round's loser
@@ -95,7 +96,7 @@
   function sortSlots(g) { g.slots.sort((a, b) => a.row - b.row || a.col - b.col); g.col = g.slots[0].col; g.row = g.slots[0].row; }
   const touches = (a, b) => a.slots.some(s => b.slots.some(t => Math.abs(s.col - t.col) + Math.abs(s.row - t.row) === 1));
   // Same unit type + same level + side by side => they merge into one bigger group.
-  const canMerge = (a, b) => a !== b && a.type === b.type && a.level === b.level && touches(a, b);
+  const canMerge = (a, b) => CONFIG.MERGE_ADJACENT && a !== b && a.type === b.type && a.level === b.level && touches(a, b);
   function mergeAround(player, g) {
     const absorbed = [];
     for (let changed = true; changed;) {
@@ -195,10 +196,13 @@
     }
     const g = groupAt(player, col, row);
     if (card.kind === 'double') {
+      // the copy is its own group (same unit, same level) in the neighbouring slot
       const added = doubleSlots(player, g, col, row);
-      g.slots.push(...added);
-      const absorbed = mergeAround(player, g);
-      return { ok: true, group: g, kind: 'double', added, merged: absorbed.length > 0 };
+      const copy = { id: player.team[0] + (player.nextId++), type: g.type, level: g.level, slots: added.map(sl => ({ col: sl.col, row: sl.row })) };
+      sortSlots(copy);
+      player.groups.push(copy);
+      const absorbed = mergeAround(player, copy);
+      return { ok: true, group: copy, source: g, kind: 'double', added, merged: absorbed.length > 0 };
     }
     g.level++;
     const absorbed = mergeAround(player, g); // reaching a neighbour's level makes them merge

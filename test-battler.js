@@ -26,8 +26,7 @@ function playMatch(seed, deckB, deckR) {
       const all = P[t].groups.flatMap(g => g.slots.map(sl => sl.col + ',' + sl.row));
       assert(new Set(all).size === all.length, 'no overlapping slots');
       assert(P[t].groups.every(g => g.level <= CONFIG.MAX_LEVEL && g.slots.every(sl => S.inTerritory(t, sl.col, sl.row))), 'levels/territory');
-      for (const g of P[t].groups) for (const h of P[t].groups) if (g !== h && g.type === h.type && g.level === h.level)
-        assert(!g.slots.some(a => h.slots.some(b => Math.abs(a.col - b.col) + Math.abs(a.row - b.row) === 1)), 'touching same groups must be merged');
+      assert(P[t].groups.every(g => g.slots.length === 1), 'every group occupies exactly one slot (no merging)');
     }
     const st = S.simulate(P.blue.groups, P.red.groups, seed * 31 + round);
     assert(st.winner, 'battle must end by elimination');
@@ -52,27 +51,21 @@ assert(JSON.stringify(a.times) === JSON.stringify(b.times) && a.winner === b.win
   assert(!S.applyCard(p, { kind: 'unit', type: 'knight' }, 0, 9).ok, 'reject occupied');
   const st = S.createBattle(p.groups, [], 1);
   assert(st.chars.length === 10 && st.chars.every(c => c.hp === c.maxHp), 'full count/health');
-  // merging: same type + same level side by side => one group over two slots
+  // no merging: same units side by side stay separate groups
   const m = S.createPlayer('blue', ['archer', 'knight', 'bomber', 'dwarf']);
   S.applyCard(m, { kind: 'unit', type: 'archer' }, 4, 8); S.applyCard(m, { kind: 'unit', type: 'archer' }, 5, 8);
-  assert(m.groups.length === 1 && m.groups[0].slots.length === 2 && S.groupCount(m.groups[0]) === 10, 'adjacent archers merge');
-  S.applyCard(m, { kind: 'unit', type: 'knight' }, 4, 7);
-  assert(m.groups.length === 2, 'different type does not merge');
-  S.applyCard(m, { kind: 'unit', type: 'archer' }, 7, 8); S.applyCard(m, { kind: 'upgrade', type: 'archer' }, 7, 8);
-  S.applyCard(m, { kind: 'unit', type: 'archer' }, 6, 8);
-  assert(m.groups.filter(g => g.type === 'archer').length === 2, 'different level does not merge');
-  S.applyCard(m, { kind: 'upgrade', type: 'archer' }, 4, 8); // 3-slot Lv1 archers -> Lv2, now touches the Lv2 group
-  const arch = m.groups.filter(g => g.type === 'archer');
-  assert(arch.length === 1 && arch[0].slots.length === 4 && arch[0].level === 2, 'upgrade merges with same-level neighbour');
-  // double: copies the group into adjacent empty slots
+  assert(m.groups.length === 2 && m.groups.every(g => g.slots.length === 1), 'adjacent archers stay separate');
+  S.applyCard(m, { kind: 'upgrade', type: 'archer' }, 4, 8);
+  assert(S.groupAt(m, 4, 8).level === 2 && S.groupAt(m, 5, 8).level === 1, 'upgrade stays slot-specific');
+  // double: a separate copy (same type and level) appears in the neighbouring slot
   const d = S.createPlayer('blue', ['archer', 'knight', 'bomber', 'dwarf']);
-  S.applyCard(d, { kind: 'unit', type: 'knight' }, 3, 6);
+  S.applyCard(d, { kind: 'unit', type: 'knight' }, 3, 6); S.applyCard(d, { kind: 'upgrade', type: 'knight' }, 3, 6);
   const r1 = S.applyCard(d, { kind: 'double' }, 3, 6);
-  assert(r1.ok && d.groups.length === 1 && d.groups[0].slots.length === 2 && d.groups[0].slots.every(sl => sl.row === 6), 'double adds a side slot');
+  assert(r1.ok && d.groups.length === 2 && r1.group.slots.length === 1 && r1.group.slots[0].row === 6 && r1.group.level === 2, 'double adds a separate side copy');
   S.applyCard(d, { kind: 'double' }, 3, 6);
-  assert(d.groups[0].slots.length === 3 && S.groupCount(d.groups[0]) === 9, 'double adds one more copy');
+  assert(d.groups.length === 3 && d.groups.every(g => g.slots.length === 1 && g.type === 'knight'), 'double again adds another copy');
   const bt = S.createBattle(d.groups, [], 2);
-  assert(bt.chars.length === 9, 'every slot spawns characters');
+  assert(bt.chars.length === 9, 'every group spawns characters');
   const full = S.createPlayer('blue', ['knight', 'archer', 'bomber', 'dwarf']);
   for (let c = 0; c < 10; c++) for (let r = 5; r < 10; r++) full.groups.push({ id: 'x' + c + r, type: (c + r) % 2 ? 'knight' : 'archer', level: 1, slots: [{ col: c, row: r }], col: c, row: r });
   assert(!S.checkPlacement(full, { kind: 'double' }, 0, 5).ok, 'double needs room');

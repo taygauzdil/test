@@ -199,8 +199,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <div class="rules">
       • Each turn pick <b>1 of 3 cards</b> and <b>drag</b> it onto your blue half of the grid.<br>
       • <b>Upgrade</b> cards go onto one of your existing groups (that group only).<br>
-      • Same unit + same level <b>side by side merge</b> into one bigger group (5+5 Archers = 10 over two slots).<br>
-      • <b>Double</b> card: drop it on a unit and a copy appears in the slot next to it.<br>
+      • <b>Double</b> card: drop it on a unit and a copy (same level) appears in the slot next to it.<br>
       • Your army <b>stays</b> between rounds and returns at full strength.<br>
       • Lose a round → <b>Comeback Bonus</b>: one extra card next round.<br>
       • Battles are automatic. Wipe out every enemy to win the round.
@@ -671,7 +670,7 @@ function onCardDown(e, idx, el) {
       ghost.remove(); G.drag = null;
       G.hintUntil = performance.now() + 1300; G.hintCard = card;
       el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint');
-      toast(card.kind === 'unit' ? 'Drag this card onto an empty slot in your blue zone (next to the same unit to merge)'
+      toast(card.kind === 'unit' ? 'Drag this card onto an empty slot in your blue zone'
         : card.kind === 'double' ? 'Drag onto one of your units: a copy appears in the slot next to it'
         : 'Drag onto a glowing ' + UNITS[card.type].name + ' group to upgrade it');
       return;
@@ -728,9 +727,9 @@ async function aiTurn() {
   if (res && res.ok) {
     const g = res.group, nm = UNITS[g.type].name + 's', tot = S.groupCount(g);
     const msg = res.kind === 'unit' ? 'Red deployed ' + UNITS[g.type].count + ' ' + nm
-      : res.kind === 'double' ? 'Red doubled its ' + nm
+      : res.kind === 'double' ? 'Red doubled its ' + nm + ' (+' + tot + ' next to them)'
       : 'Red upgraded ' + nm + ' to Level ' + g.level;
-    toast(msg + (res.merged || res.kind === 'double' ? ' → ×' + tot + ' ' + nm : ''), false, 1500);
+    toast(msg + (res.merged ? ' → ×' + tot + ' ' + nm : ''), false, 1500);
   }
   await wait(480);
   nextAction();
@@ -915,7 +914,7 @@ function drawGrid(c, now) {
           c.fillStyle = `rgba(127,247,236,${0.25 + 0.2 * pulse})`; c.fillRect(AX + 2, AY + 2, F.cw - 4, F.ch - 4);
           c.setLineDash([5, 4]); c.strokeStyle = '#7ff7ec'; c.lineWidth = 2; c.strokeRect(AX + 3, AY + 3, F.cw - 6, F.ch - 6); c.setLineDash([]);
         }
-        label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, '×2 → ' + (S.groupCount(g) + UNITS[g.type].count) + ' ' + UNITS[g.type].name + 's', '#7ff7ec');
+        label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, '×2 → +' + S.groupCount(g) + ' ' + UNITS[g.type].name + 's', '#7ff7ec');
       }
     }
   }
