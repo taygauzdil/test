@@ -8,6 +8,7 @@
     COLS: 10, ROWS: 10, TERRITORY_ROWS: 5,     // Red owns rows 0-4 (top), Blue owns rows 5-9 (bottom)
     CARD_OPTIONS: 3,                            // cards offered per action
     UPGRADE_CHANCE: 0.33,                       // chance each offered card is an upgrade (when one is possible)
+    DOUBLE_CHANCE: 0.08,                        // chance each offered card is a Double card (when a group has room)
     UNIT_WEIGHTS: { archer: 1, knight: 1, cavalry: 1, bomber: 1, dwarf: 1 }, // relative card frequency
     ACTIONS_PER_ROUND: 3,
     COMEBACK_ACTIONS: 1,                        // extra action for the previous round's loser
@@ -79,29 +80,73 @@
   function depth(team, row) { return team === 'red' ? CONFIG.TERRITORY_ROWS - 1 - row : row - (CONFIG.ROWS - CONFIG.TERRITORY_ROWS); }
 
   function createPlayer(team, deck) { return { team, deck: deck.slice(), groups: [], nextId: 1 }; }
-  function groupAt(player, col, row) { return player.groups.find(g => g.col === col && g.row === row) || null; }
+
+  // A group is one unit type at one level that covers one or more orthogonally connected slots:
+  //   { id, type, level, slots: [{col,row}, ...], col, row }   (col/row = anchor = first slot)
+  // Each slot contributes one card's worth of characters (UNITS[type].count).
+  const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  function groupAt(player, col, row) { return player.groups.find(g => g.slots.some(s => s.col === col && s.row === row)) || null; }
+  function groupCount(g) { return UNITS[g.type].count * g.slots.length; }
   function emptySlots(player) {
     const out = []; const [a, b] = territoryRows(player.team);
     for (let r = a; r <= b; r++) for (let c = 0; c < CONFIG.COLS; c++) if (!groupAt(player, c, r)) out.push({ col: c, row: r });
     return out;
   }
-  function upgradeableTypes(player) {
-    return player.deck.filter(t => player.groups.some(g => g.type === t && g.level < CONFIG.MAX_LEVEL));
+  function sortSlots(g) { g.slots.sort((a, b) => a.row - b.row || a.col - b.col); g.col = g.slots[0].col; g.row = g.slots[0].row; }
+  const touches = (a, b) => a.slots.some(s => b.slots.some(t => Math.abs(s.col - t.col) + Math.abs(s.row - t.row) === 1));
+  // Same unit type + same level + side by side => they merge into one bigger group.
+  const canMerge = (a, b) => a !== b && a.type === b.type && a.level === b.level && touches(a, b);
+  function mergeAround(player, g) {
+    const absorbed = [];
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const o of player.groups) {
+        if (!canMerge(g, o)) continue;
+        g.slots.push(...o.slots); player.groups.splice(player.groups.indexOf(o), 1); absorbed.push(o); changed = true; break;
+      }
+    }
+    sortSlots(g);
+    return absorbed;
   }
+  // Double card: one more copy of the unit (one card's worth) appears automatically in a free slot next to the
+  // slot it was dropped on (or next to any slot of that group if that one is boxed in). Preference: side by side,
+  // then toward the front, then toward the centre. Returns [{col,row}] or null if there is no room.
+  function doubleSlots(player, g, col, row) {
+    const free = (c, r) => inTerritory(player.team, c, r) && !groupAt(player, c, r);
+    const from = col != null ? [{ col, row }].concat(g.slots) : g.slots;
+    for (let pass = 0; pass < 2; pass++) {
+      let best = null;
+      for (const s of pass === 0 ? from.slice(0, 1) : from) for (const [dc, dr] of N4) {
+        const c = s.col + dc, r = s.row + dr;
+        if (!free(c, r)) continue;
+        const v = (dr === 0 ? 2 : 0) + (depth(player.team, r) < depth(player.team, s.row) ? 0.5 : 0) - Math.abs(c - 4.5) * 0.05 - r * 0.001;
+        if (!best || v > best.v) best = { v, col: c, row: r };
+      }
+      if (best) return [{ col: best.col, row: best.row }];
+    }
+    return null;
+  }
+  const canUpgrade = g => g.level < CONFIG.MAX_LEVEL;
+  function upgradeableTypes(player) { return player.deck.filter(t => player.groups.some(g => g.type === t && canUpgrade(g))); }
+  function doubleableGroups(player) { return player.groups.filter(g => doubleSlots(player, g)); }
   const sameCard = (a, b) => a.kind === b.kind && a.type === b.type;
   let cardUid = 1;
 
-  // Three options; unit cards only from the deck, upgrade cards only when a compatible group can still level up.
+  // Three options. Unit cards only from the deck; upgrade cards only when a compatible group can still level up;
+  // Double cards only when some group has room to double.
   function genCards(player, rng) {
     const hasEmpty = emptySlots(player).length > 0;
     const upTypes = upgradeableTypes(player);
+    const canDouble = doubleableGroups(player).length > 0;
     const cards = [];
     for (let i = 0; i < CONFIG.CARD_OPTIONS; i++) {
       let card = null;
       for (let attempt = 0; attempt < 12; attempt++) {
         let c = null;
-        if (upTypes.length && (!hasEmpty || rng() < CONFIG.UPGRADE_CHANCE)) c = { kind: 'upgrade', type: pick(upTypes, rng) };
+        if (canDouble && rng() < CONFIG.DOUBLE_CHANCE) c = { kind: 'double', type: null };
+        else if (upTypes.length && (!hasEmpty || rng() < CONFIG.UPGRADE_CHANCE)) c = { kind: 'upgrade', type: pick(upTypes, rng) };
         else if (hasEmpty) c = { kind: 'unit', type: weightedPick(player.deck, rng) };
+        else if (canDouble) c = { kind: 'double', type: null };
         if (!c) break;
         card = c;
         if (!cards.some(x => sameCard(x, c))) break; // prefer variety, accept a duplicate if unavoidable
@@ -113,31 +158,51 @@
     return cards;
   }
 
-  // Valid drop targets for a card
+  // Valid drop targets for a card (every slot of an eligible group counts)
   function validTargets(player, card) {
     if (card.kind === 'unit') return emptySlots(player);
-    return player.groups.filter(g => g.type === card.type && g.level < CONFIG.MAX_LEVEL).map(g => ({ col: g.col, row: g.row }));
+    const gs = card.kind === 'double' ? doubleableGroups(player) : player.groups.filter(g => g.type === card.type && canUpgrade(g));
+    const out = []; for (const g of gs) for (const s of g.slots) out.push({ col: s.col, row: s.row });
+    return out;
   }
   function checkPlacement(player, card, col, row) {
-    if (!inTerritory(player.team, col, row)) return { ok: false, reason: card.kind === 'unit' ? 'Place units inside your own territory' : 'Drop the upgrade on one of your groups' };
+    if (!inTerritory(player.team, col, row)) return { ok: false, reason: card.kind === 'unit' ? 'Place units inside your own territory' : 'Drop the card on one of your groups' };
     const g = groupAt(player, col, row);
     if (card.kind === 'unit') return g ? { ok: false, reason: 'That slot is already occupied' } : { ok: true };
+    if (card.kind === 'double') {
+      if (!g) return { ok: false, reason: 'Drop the Double card on one of your groups' };
+      if (!doubleSlots(player, g, col, row)) return { ok: false, reason: 'No free slot next to that group for the copy' };
+      return { ok: true };
+    }
     if (!g) return { ok: false, reason: 'Drop the upgrade on an existing ' + UNITS[card.type].name + ' group' };
     if (g.type !== card.type) return { ok: false, reason: 'This upgrade only fits ' + UNITS[card.type].name + ' groups' };
-    if (g.level >= CONFIG.MAX_LEVEL) return { ok: false, reason: 'That group is already at max level' };
+    if (!canUpgrade(g)) return { ok: false, reason: 'That group is already at max level' };
     return { ok: true };
+  }
+  // Predicts what a unit card dropped on (col,row) would merge with (for UI previews / AI)
+  function mergePreview(player, type, col, row) {
+    const probe = { type, level: 1, slots: [{ col, row }] };
+    return player.groups.filter(g => canMerge(probe, g));
   }
   function applyCard(player, card, col, row) {
     const chk = checkPlacement(player, card, col, row);
     if (!chk.ok) return chk;
     if (card.kind === 'unit') {
-      const g = { id: player.team[0] + (player.nextId++), type: card.type, level: 1, col, row };
+      const g = { id: player.team[0] + (player.nextId++), type: card.type, level: 1, slots: [{ col, row }] };
       player.groups.push(g);
-      return { ok: true, group: g, kind: 'unit' };
+      const absorbed = mergeAround(player, g);
+      return { ok: true, group: g, kind: 'unit', added: [{ col, row }], merged: absorbed.length > 0 };
     }
     const g = groupAt(player, col, row);
+    if (card.kind === 'double') {
+      const added = doubleSlots(player, g, col, row);
+      g.slots.push(...added);
+      const absorbed = mergeAround(player, g);
+      return { ok: true, group: g, kind: 'double', added, merged: absorbed.length > 0 };
+    }
     g.level++;
-    return { ok: true, group: g, kind: 'upgrade' };
+    const absorbed = mergeAround(player, g); // reaching a neighbour's level makes them merge
+    return { ok: true, group: g, kind: 'upgrade', added: [], merged: absorbed.length > 0 };
   }
 
   function groupStats(type, level) {
@@ -154,11 +219,13 @@
   }
 
   // ---------------------------------------------------------------- AI
-  function countTypes(groups) { const o = {}; for (const g of groups) o[g.type] = (o[g.type] || 0) + 1; return o; }
+  // counts in slots (one slot = one card's worth of characters)
+  function countTypes(groups) { const o = {}; for (const g of groups) o[g.type] = (o[g.type] || 0) + g.slots.length; return o; }
+  const totalSlots = groups => groups.reduce((n, g) => n + g.slots.length, 0);
 
   // How well a unit type answers the opponent's visible army (0..~1.5)
   function counterScore(type, opp) {
-    const E = countTypes(opp.groups), n = Math.max(1, opp.groups.length);
+    const E = countTypes(opp.groups), n = Math.max(1, totalSlots(opp.groups));
     const f = t => (E[t] || 0) / n;
     switch (type) {
       case 'cavalry': return f('archer') + f('bomber');
@@ -174,7 +241,8 @@
     const pref = { knight: 0, dwarf: 0.6, cavalry: 1.1, archer: 3.1, bomber: 2.5 }[type];
     const front = !!FRONTLINE[type];
     const enemyCols = new Array(CONFIG.COLS).fill(0);
-    for (const g of opp.groups) enemyCols[g.col] += UNITS[g.type].count >= 4 ? 1.2 : 1;
+    for (const g of opp.groups) for (const s of g.slots) enemyCols[s.col] += UNITS[g.type].count >= 4 ? 1.2 : 1;
+    const ownFront = []; for (const g of self.groups) if (FRONTLINE[g.type]) ownFront.push(...g.slots);
     let best = null;
     for (const s of emptySlots(self)) {
       const d = depth(self.team, s.row);
@@ -182,10 +250,11 @@
       if (type === 'cavalry') v -= Math.min(s.col, CONFIG.COLS - 1 - s.col) * 0.45;
       else v -= Math.abs(s.col - 4.5) * 0.12;
       if (!front) { // ranged: sit behind an existing frontline group
-        if (self.groups.some(g => FRONTLINE[g.type] && Math.abs(g.col - s.col) <= 1 && depth(self.team, g.row) < d)) v += 0.55;
+        if (ownFront.some(f => Math.abs(f.col - s.col) <= 1 && depth(self.team, f.row) < d)) v += 0.55;
       } else if (type !== 'cavalry') { // melee: face where the enemy is
         v += 0.12 * ((enemyCols[s.col - 1] || 0) + enemyCols[s.col] + (enemyCols[s.col + 1] || 0));
       }
+      if (mergePreview(self, type, s.col, s.row).length) v += 0.45; // merging is good value
       v += rng() * 0.4;
       if (!best || v > best.v) best = { v, col: s.col, row: s.row };
     }
@@ -194,10 +263,18 @@
   function bestUpgradeTarget(self, type, rng) {
     let best = null;
     for (const g of self.groups) {
-      if (g.type !== type || g.level >= CONFIG.MAX_LEVEL) continue;
+      if (g.type !== type || !canUpgrade(g)) continue;
       const d = depth(self.team, g.row);
-      let v = g.level * 0.5 + (FRONTLINE[type] ? -d * 0.15 : -Math.abs(g.col - 4.5) * 0.05) + rng() * 0.3;
-      if (!best || v > best.v) best = { v, col: g.col, row: g.row, level: g.level };
+      let v = g.level * 0.5 + g.slots.length * 0.4 + (FRONTLINE[type] ? -d * 0.15 : -Math.abs(g.col - 4.5) * 0.05) + rng() * 0.3;
+      if (!best || v > best.v) best = { v, col: g.col, row: g.row, level: g.level, size: g.slots.length };
+    }
+    return best;
+  }
+  function bestDoubleTarget(self, opp, rng) {
+    let best = null;
+    for (const g of doubleableGroups(self)) {
+      const v = g.slots.length * 0.35 + (g.level - 1) * 0.3 + counterScore(g.type, opp) * 0.5 + rng() * 0.3;
+      if (!best || v > best.v) best = { v, col: g.col, row: g.row, level: g.level, size: g.slots.length };
     }
     return best;
   }
@@ -205,7 +282,7 @@
   function aiDecide(self, opp, cards, round, rng) {
     const own = countTypes(self.groups);
     let front = 0, back = 0;
-    for (const g of self.groups) FRONTLINE[g.type] ? front++ : back++;
+    for (const g of self.groups) FRONTLINE[g.type] ? front += g.slots.length : back += g.slots.length;
     let best = null;
     cards.forEach((c, i) => {
       let v, slot;
@@ -215,9 +292,12 @@
         if (!own[c.type]) v += 0.2;
         if (FRONTLINE[c.type] && front <= back) v += 0.35;
         if (!FRONTLINE[c.type] && back < front) v += 0.3;
+      } else if (c.kind === 'double') {
+        slot = bestDoubleTarget(self, opp, rng); if (!slot) return;
+        v = 1.1 + 0.3 * slot.size + 0.2 * (slot.level - 1);
       } else {
         slot = bestUpgradeTarget(self, c.type, rng); if (!slot) return;
-        v = 0.7 + 0.22 * (round - 1) + 0.1 * (slot.level - 1) + counterScore(c.type, opp) * 0.6 + (self.groups.length >= 6 ? 0.2 : 0);
+        v = 0.7 + 0.22 * (round - 1) + 0.1 * (slot.level - 1) + 0.15 * (slot.size - 1) + counterScore(c.type, opp) * 0.6 + (self.groups.length >= 6 ? 0.2 : 0);
       }
       v += rng() * 0.35;
       if (!best || v > best.v) best = { v, idx: i, col: slot.col, row: slot.row };
@@ -235,14 +315,17 @@
     const st = { t: 0, chars: [], projs: [], events: [], rng: mkRng(seed), dmg: { blue: 0, red: 0 }, alive: { blue: 0, red: 0 }, total: { blue: 0, red: 0 }, winner: null, tie: false, sudden: false, endT: 0 };
     let id = 0;
     for (const [team, groups] of [['blue', blueGroups], ['red', redGroups]]) {
-      const sorted = groups.slice().sort((a, b) => (a.row * 10 + a.col) - (b.row * 10 + b.col));
+      // every slot of every group spawns one card's worth of characters around that slot's centre
+      const cells = [];
+      for (const g of groups) for (const sl of g.slots) cells.push({ g, col: sl.col, row: sl.row });
+      cells.sort((a, b) => (a.row * 10 + a.col) - (b.row * 10 + b.col));
       const flip = team === 'red' ? -1 : 1;
-      for (const g of sorted) {
-        const U = UNITS[g.type], s = groupStats(g.type, g.level), F = FORMATIONS[U.count];
+      for (const cell of cells) {
+        const g = cell.g, U = UNITS[g.type], s = groupStats(g.type, g.level), F = FORMATIONS[U.count];
         for (let i = 0; i < U.count; i++) {
-          const x = g.col + 0.5 + F[i][0], y = g.row + 0.5 + F[i][1] * flip;
+          const x = cell.col + 0.5 + F[i][0], y = cell.row + 0.5 + F[i][1] * flip;
           st.chars.push({
-            id: id++, team, type: g.type, gid: g.id, level: g.level, U, gx: g.col + 0.5, gy: g.row + 0.5,
+            id: id++, team, type: g.type, gid: g.id, level: g.level, U, gx: cell.col + 0.5, gy: cell.row + 0.5,
             x, y, hp: s.hp, maxHp: s.hp, dmg: s.dmg, cd: U.cd * (0.15 + 0.35 * st.rng()),
             target: null, threat: null, rt: st.rng() * CONFIG.RETARGET_T, moved: 0, chargeReady: !!U.charge,
             alive: true, deadT: 0, face: x < 5 ? 1 : -1, atk: 0, flash: 0, walk: st.rng() * 6, moving: false, vx: 0, vy: 0,
@@ -416,8 +499,8 @@
 
   const API = {
     CONFIG, UNITS, ORDER, FRONTLINE, FORMATIONS, mkRng, clamp,
-    territoryRows, inTerritory, depth, createPlayer, groupAt, emptySlots, upgradeableTypes,
-    genCards, validTargets, checkPlacement, applyCard, groupStats, buildQueue,
+    territoryRows, inTerritory, depth, createPlayer, groupAt, groupCount, emptySlots, upgradeableTypes,
+    doubleSlots, doubleableGroups, mergePreview, genCards, validTargets, checkPlacement, applyCard, groupStats, buildQueue,
     counterScore, aiDecide, randomDeck, createBattle, step, simulate,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

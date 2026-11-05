@@ -82,6 +82,13 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .ghost.upg{background:#2f2160;border-color:var(--gold)}
 .ghost .gl{position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:900;background:var(--uc);color:#fff;border-radius:6px;padding:1px 6px;white-space:nowrap}
 .ghost.upg .gl{background:var(--gold);color:#4a2c00}
+.card.dbl{background:linear-gradient(#0f6e6a,#0a3f45);color:#d7fffb;border-color:#5ff2e4}
+.card.dbl .ctop{background:linear-gradient(#7ff7ec,#22c3b5);color:#053b37;text-shadow:none}
+.card.dbl .lvl{font-weight:900;font-size:12.5px;color:#fff;margin-top:1px}
+.card.dbl .bonus{font-size:10px;font-weight:800;color:#bffcf5;line-height:1.25;text-align:center;margin-top:2px;padding:0 4px}
+.card.dbl .ribbon{background:#ffd75e;color:#4a2c00}
+.ghost.dbl{background:#0c4f52;border-color:#5ff2e4}
+.ghost.dbl .gl{background:#5ff2e4;color:#053b37}
 .ghost.fly{transition:transform .38s cubic-bezier(.4,0,.7,1),opacity .38s}
 
 /* ---------- battle bar */
@@ -191,7 +198,9 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <div id="dgrid"></div>
     <div class="rules">
       • Each turn pick <b>1 of 3 cards</b> and <b>drag</b> it onto your blue half of the grid.<br>
-      • <b>Upgrade</b> cards go onto one of your existing groups (that slot only).<br>
+      • <b>Upgrade</b> cards go onto one of your existing groups (that group only).<br>
+      • Same unit + same level <b>side by side merge</b> into one bigger group (5+5 Archers = 10 over two slots).<br>
+      • <b>Double</b> card: drop it on a unit and a copy appears in the slot next to it.<br>
       • Your army <b>stays</b> between rounds and returns at full strength.<br>
       • Lose a round → <b>Comeback Bonus</b>: one extra card next round.<br>
       • Battles are automatic. Wipe out every enemy to win the round.
@@ -380,6 +389,22 @@ function unitArt(type, team, upgrade) {
   if (upgrade) { c.font = '900 54px system-ui'; c.textAlign = 'center'; c.fillStyle = '#ffd34d'; c.strokeStyle = '#7a4b00'; c.lineWidth = 6; c.strokeText('▲', cw - 34, 60); c.fillText('▲', cw - 34, 60); }
   return (artCache[key] = oc.toDataURL());
 }
+
+function doubleArt(team) {
+  const key = 'dbl' + team; if (artCache[key]) return artCache[key];
+  const cw = 240, ch = 200, oc = document.createElement('canvas'); oc.width = cw; oc.height = ch;
+  const c = oc.getContext('2d');
+  const g = c.createRadialGradient(cw / 2, ch * 0.55, 10, cw / 2, ch * 0.55, 110); g.addColorStop(0, 'rgba(127,247,236,.7)'); g.addColorStop(1, 'rgba(127,247,236,0)');
+  c.fillStyle = g; c.fillRect(0, 0, cw, ch);
+  drawUnit(c, 'knight', team, cw / 2 - 38, ch - 22, 130, { face: 1, alpha: 0.55 });
+  drawUnit(c, 'knight', team, cw / 2 + 22, ch - 14, 140, { face: 1 });
+  c.font = '1000 64px system-ui'; c.textAlign = 'center'; c.lineWidth = 8; c.strokeStyle = '#053b37'; c.fillStyle = '#ffffff';
+  c.strokeText('×2', cw - 48, 70); c.fillText('×2', cw - 48, 70);
+  return (artCache[key] = oc.toDataURL());
+}
+const cardArt = (card, team) => card.kind === 'double' ? doubleArt(team) : unitArt(card.type, team, card.kind === 'upgrade');
+const cardCls = card => card.kind === 'upgrade' ? ' upg' : card.kind === 'double' ? ' dbl' : '';
+const cardCol = card => card.kind === 'double' ? '#22c3b5' : UCOL[card.type];
 
 // ======================================================================= layout & background
 let W = 0, H = 0, DPR = 1, F = { x: 0, y: 0, cw: 10, ch: 10, w: 100, h: 100 }, bg = null;
@@ -585,9 +610,14 @@ function upgradeInfo(player, type) {
 
 function cardEl(card, team, i) {
   const U = UNITS[card.type], el = document.createElement('div');
-  el.style.setProperty('--uc', UCOL[card.type]);
+  el.style.setProperty('--uc', cardCol(card));
   el.style.animationDelay = (i * 0.07) + 's';
-  if (card.kind === 'unit') {
+  if (card.kind === 'double') {
+    el.className = 'card dbl';
+    el.innerHTML = `<div class="shine"></div><div class="ribbon">SPECIAL</div><div class="ctop">DOUBLE</div><img class="art" src="${doubleArt(team)}" alt="">
+      <div class="lvl">×2 Your Unit</div>
+      <div class="bonus">Drop on a unit: a copy appears in the slot next to it</div>`;
+  } else if (card.kind === 'unit') {
     el.className = 'card unit';
     el.innerHTML = `<div class="ribbon">NEW</div><div class="ctop">${U.name.toUpperCase()}</div><img class="art" src="${unitArt(card.type, team)}" alt="">
       <div class="cnt">x${U.count} Units</div><div class="role">${U.icon} ${U.role}</div>
@@ -617,9 +647,9 @@ function onCardDown(e, idx, el) {
   try { el.setPointerCapture(e.pointerId); } catch (_) {}
   const card = G.cards[idx];
   const ghost = document.createElement('div');
-  ghost.className = 'ghost' + (card.kind === 'upgrade' ? ' upg' : '');
-  ghost.style.setProperty('--uc', UCOL[card.type]);
-  ghost.innerHTML = `<img src="${unitArt(card.type, 'blue', card.kind === 'upgrade')}" alt=""><div class="gl">${card.kind === 'upgrade' ? '▲ ' + UNITS[card.type].name : UNITS[card.type].name + ' x' + UNITS[card.type].count}</div>`;
+  ghost.className = 'ghost' + cardCls(card);
+  ghost.style.setProperty('--uc', cardCol(card));
+  ghost.innerHTML = `<img src="${cardArt(card, 'blue')}" alt=""><div class="gl">${card.kind === 'double' ? '×2 Double' : card.kind === 'upgrade' ? '▲ ' + UNITS[card.type].name : UNITS[card.type].name + ' x' + UNITS[card.type].count}</div>`;
   ghost.style.display = 'none';
   app.appendChild(ghost);
   const p = appPoint(e);
@@ -641,11 +671,13 @@ function onCardDown(e, idx, el) {
       ghost.remove(); G.drag = null;
       G.hintUntil = performance.now() + 1300; G.hintCard = card;
       el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint');
-      toast(card.kind === 'unit' ? 'Drag this card onto an empty slot in your blue zone' : 'Drag onto a glowing ' + UNITS[card.type].name + ' group to upgrade it');
+      toast(card.kind === 'unit' ? 'Drag this card onto an empty slot in your blue zone (next to the same unit to merge)'
+        : card.kind === 'double' ? 'Drag onto one of your units: a copy appears in the slot next to it'
+        : 'Drag onto a glowing ' + UNITS[card.type].name + ' group to upgrade it');
       return;
     }
     const h = d.hover;
-    const chk = h ? S.checkPlacement(G.P.blue, card, h.col, h.row) : { ok: false, reason: card.kind === 'unit' ? 'Drop the card on an empty slot in your zone' : 'Drop the upgrade on a matching group' };
+    const chk = h ? S.checkPlacement(G.P.blue, card, h.col, h.row) : { ok: false, reason: card.kind === 'unit' ? 'Drop the card on an empty slot in your zone' : card.kind === 'double' ? 'Drop the Double card on one of your units' : 'Drop the upgrade on a matching group' };
     if (chk.ok) { G.drag = null; commitHuman(d, h); }
     else {
       toast(chk.reason, true);
@@ -684,28 +716,51 @@ async function aiTurn() {
   // fly a ghost from the chosen card to the slot
   const card = G.cards[dec.idx], el = els[dec.idx], r = el.getBoundingClientRect(), ar = app.getBoundingClientRect();
   const ghost = document.createElement('div');
-  ghost.className = 'ghost' + (card.kind === 'upgrade' ? ' upg' : ''); ghost.style.setProperty('--uc', UCOL[card.type]);
-  ghost.innerHTML = `<img src="${unitArt(card.type, 'red', card.kind === 'upgrade')}" alt="">`;
+  ghost.className = 'ghost' + cardCls(card); ghost.style.setProperty('--uc', cardCol(card));
+  ghost.innerHTML = `<img src="${cardArt(card, 'red')}" alt="">`;
   ghost.style.transform = `translate(${r.left - ar.left + r.width / 2}px,${r.top - ar.top + r.height / 2}px)`;
   app.appendChild(ghost); el.classList.add('gone');
   void ghost.offsetWidth; ghost.classList.add('fly');
   ghost.style.transform = `translate(${wx(dec.col + 0.5)}px,${wy(dec.row + 0.5)}px) scale(.45)`;
   await wait(380);
   ghost.remove();
-  applyAndAnimate('red', card, dec.col, dec.row);
-  toast(card.kind === 'unit' ? 'Red deployed ' + UNITS[card.type].count + ' ' + UNITS[card.type].name + 's' : 'Red upgraded ' + UNITS[card.type].name + 's to Level ' + S.groupAt(self, dec.col, dec.row).level, false, 1300);
+  const res = applyAndAnimate('red', card, dec.col, dec.row);
+  if (res && res.ok) {
+    const g = res.group, nm = UNITS[g.type].name + 's', tot = S.groupCount(g);
+    const msg = res.kind === 'unit' ? 'Red deployed ' + UNITS[g.type].count + ' ' + nm
+      : res.kind === 'double' ? 'Red doubled its ' + nm
+      : 'Red upgraded ' + nm + ' to Level ' + g.level;
+    toast(msg + (res.merged || res.kind === 'double' ? ' → ×' + tot + ' ' + nm : ''), false, 1500);
+  }
   await wait(480);
   nextAction();
 }
 
+const skey = (c, r) => c + ',' + r;
 function applyAndAnimate(team, card, col, row) {
   const res = S.applyCard(G.P[team], card, col, row);
-  if (!res.ok) { console.warn('placement rejected', res); return; }
-  const id = res.group.id, now = performance.now();
-  G.gfx[id] = G.gfx[id] || {};
-  if (res.kind === 'unit') { G.gfx[id].pop = now; burst(col + 0.5, row + 0.5, ['#fff', '#e8dcc0', TEAM[team].light], 14, 2.4); ring(col + 0.5, row + 0.5, TEAM[team].main, 0.8); }
-  else { G.gfx[id].up = now; burst(col + 0.5, row + 0.5, ['#ffd34d', '#fff2a8', '#ffffff'], 22, 3, 'star'); ring(col + 0.5, row + 0.5, '#ffd34d', 1.0); floatText(col + 0.5, row + 0.1, 'LV ' + res.group.level, '#ffd34d'); }
-  G.lastMove = { team, col, row, t: now };
+  if (!res.ok) { console.warn('placement rejected', res); return res; }
+  const g = res.group, now = performance.now(), T = TEAM[team];
+  const fx = (sl, k) => { const key = skey(sl.col, sl.row); (G.gfx[key] = G.gfx[key] || {})[k] = now; };
+  for (const sl of res.added) {
+    fx(sl, 'pop');
+    burst(sl.col + 0.5, sl.row + 0.5, res.kind === 'double' ? ['#7ff7ec', '#ffffff', T.light] : ['#fff', '#e8dcc0', T.light], 14, 2.4);
+    ring(sl.col + 0.5, sl.row + 0.5, res.kind === 'double' ? '#7ff7ec' : T.main, 0.8);
+  }
+  if (res.kind === 'upgrade') {
+    for (const sl of g.slots) { fx(sl, 'up'); burst(sl.col + 0.5, sl.row + 0.5, ['#ffd34d', '#fff2a8', '#ffffff'], 12, 3, 'star'); ring(sl.col + 0.5, sl.row + 0.5, '#ffd34d', 1.0); }
+    floatText(col + 0.5, row + 0.1, 'LV ' + g.level, '#ffd34d');
+  }
+  if (res.merged) {
+    for (const sl of g.slots) fx(sl, 'up');
+    const cx = g.slots.reduce((n, sl) => n + sl.col, 0) / g.slots.length + 0.5, cy = g.slots.reduce((n, sl) => n + sl.row, 0) / g.slots.length + 0.5;
+    ring(cx, cy, '#ffffff', 0.6 + g.slots.length * 0.35);
+    floatText(cx, cy - 0.45, 'MERGED ×' + S.groupCount(g), '#ffffff');
+  } else if (res.kind === 'double') {
+    const sl = res.added[0]; floatText(sl.col + 0.5, sl.row + 0.05, '×2!', '#7ff7ec');
+  }
+  G.lastMove = { team, slots: res.kind === 'upgrade' ? g.slots.slice() : res.added.slice(), t: now };
+  return res;
 }
 
 // ======================================================================= battle
@@ -840,7 +895,7 @@ function drawGrid(c, now) {
     for (const s of tg) {
       const X = wx(s.col), Y = wy(s.row);
       if (card.kind === 'unit') { c.fillStyle = `rgba(120,190,255,${0.22 + 0.18 * pulse})`; c.fillRect(X + 2, Y + 2, F.cw - 4, F.ch - 4); }
-      else { c.strokeStyle = `rgba(255,211,77,${0.6 + 0.4 * pulse})`; c.lineWidth = 3; c.beginPath(); c.roundRect(X + 2, Y + 2, F.cw - 4, F.ch - 4, 6); c.stroke(); }
+      else { c.strokeStyle = card.kind === 'double' ? `rgba(127,247,236,${0.6 + 0.4 * pulse})` : `rgba(255,211,77,${0.6 + 0.4 * pulse})`; c.lineWidth = 3; c.beginPath(); c.roundRect(X + 2, Y + 2, F.cw - 4, F.ch - 4, 6); c.stroke(); }
     }
     if (d && d.hover && d.moved) {
       const h = d.hover, ok = S.checkPlacement(G.P.blue, card, h.col, h.row).ok, X = wx(h.col), Y = wy(h.row);
@@ -849,7 +904,18 @@ function drawGrid(c, now) {
       c.strokeStyle = ok ? '#fff' : '#ff5050'; c.lineWidth = 2.5; c.stroke();
       if (ok && card.kind === 'upgrade') {
         const g = S.groupAt(G.P.blue, h.col, h.row);
-        label(c, wx(h.col + 0.5), Y - 6, '★' + g.level + ' → ★' + (g.level + 1), '#ffd34d');
+        label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, '★' + g.level + ' → ★' + (g.level + 1), '#ffd34d');
+      } else if (ok && card.kind === 'unit') {
+        const m = S.mergePreview(G.P.blue, card.type, h.col, h.row);
+        if (m.length) label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, 'MERGE → ×' + (UNITS[card.type].count + m.reduce((n, g) => n + S.groupCount(g), 0)), '#ffffff');
+      } else if (ok && card.kind === 'double') {
+        const g = S.groupAt(G.P.blue, h.col, h.row), add = S.doubleSlots(G.P.blue, g, h.col, h.row);
+        for (const sl of add) {
+          const AX = wx(sl.col), AY = wy(sl.row);
+          c.fillStyle = `rgba(127,247,236,${0.25 + 0.2 * pulse})`; c.fillRect(AX + 2, AY + 2, F.cw - 4, F.ch - 4);
+          c.setLineDash([5, 4]); c.strokeStyle = '#7ff7ec'; c.lineWidth = 2; c.strokeRect(AX + 3, AY + 3, F.cw - 6, F.ch - 6); c.setLineDash([]);
+        }
+        label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, '×2 → ' + (S.groupCount(g) + UNITS[g.type].count) + ' ' + UNITS[g.type].name + 's', '#7ff7ec');
       }
     }
   }
@@ -879,29 +945,47 @@ function drawMarkers(c, now) {
   const list = [];
   for (const team of ['red', 'blue']) for (const g of G.P[team].groups) list.push({ team, g });
   list.sort((p, q) => p.g.row - q.g.row);
+  const pad = 2;
   for (const { team, g } of list) {
-    const U = UNITS[g.type], X = wx(g.col), Y = wy(g.row), cx = X + F.cw / 2, cy = Y + F.ch / 2, fx = G.gfx[g.id] || {};
-    const pt = fx.pop ? (now - fx.pop) / 1000 : 9, ut = fx.up ? (now - fx.up) / 1000 : 9;
-    const sc = pt < 0.5 ? easeOutBack(pt / 0.5) : 1;
-    const us = ut < 0.6 ? 1 + Math.sin(ut / 0.6 * Math.PI) * 0.18 : 1;
-    c.save(); c.globalAlpha = a; c.translate(cx, cy); c.scale(sc * us, sc * us); c.translate(-cx, -cy);
-    // slot base
-    c.fillStyle = team === 'blue' ? 'rgba(30,80,180,.38)' : 'rgba(170,30,40,.38)';
-    c.strokeStyle = g.level > 1 ? '#ffd34d' : TEAM[team].main; c.lineWidth = g.level > 1 ? 2.5 : 2;
-    c.beginPath(); c.roundRect(X + 2, Y + 2, F.cw - 4, F.ch - 4, 7); c.fill(); c.stroke();
-    // miniature formation
+    const U = UNITS[g.type], inG = (cc, rr) => g.slots.some(sl => sl.col === cc && sl.row === rr);
+    c.save(); c.globalAlpha = a;
+    // 1) one connected base: each slot is extended toward neighbouring slots of the same group
+    for (const sl of g.slots) {
+      const X = wx(sl.col), Y = wy(sl.row), f = G.gfx[skey(sl.col, sl.row)] || {};
+      const sc = scaleFor(f, now), cx = X + F.cw / 2, cy = Y + F.ch / 2;
+      const l = inG(sl.col - 1, sl.row) ? 0 : pad, r = inG(sl.col + 1, sl.row) ? 0 : pad, t = inG(sl.col, sl.row - 1) ? 0 : pad, b = inG(sl.col, sl.row + 1) ? 0 : pad;
+      c.save(); c.translate(cx, cy); c.scale(sc, sc); c.translate(-cx, -cy);
+      c.fillStyle = team === 'blue' ? 'rgba(30,80,180,.38)' : 'rgba(170,30,40,.38)';
+      c.fillRect(X + l, Y + t, F.cw - l - r, F.ch - t - b);
+      // outline only on the outer edges of the group
+      c.strokeStyle = g.level > 1 ? '#ffd34d' : TEAM[team].main; c.lineWidth = g.level > 1 ? 2.5 : 2;
+      c.beginPath();
+      if (t) { c.moveTo(X + l, Y + t); c.lineTo(X + F.cw - r, Y + t); }
+      if (b) { c.moveTo(X + l, Y + F.ch - b); c.lineTo(X + F.cw - r, Y + F.ch - b); }
+      if (l) { c.moveTo(X + l, Y + t); c.lineTo(X + l, Y + F.ch - b); }
+      if (r) { c.moveTo(X + F.cw - r, Y + t); c.lineTo(X + F.cw - r, Y + F.ch - b); }
+      c.stroke();
+      c.restore();
+    }
+    // 2) miniature figures in every slot
     const form = S.FORMATIONS[U.count], flip = team === 'red' ? -1 : 1, size = F.cw * 0.5 * U.scale;
-    const pts = form.map(([ox, oy]) => [cx + ox * F.cw * 0.95, cy + (oy * flip) * F.ch * 0.8 + F.ch * 0.2]).sort((p, q) => p[1] - q[1]);
-    for (const [px, py] of pts) drawUnit(c, g.type, team, px, py, size, { face: g.col < 5 ? 1 : -1, noRing: true, aim: 0.5, level: 1 });
-    // count badge
-    const br = F.cw * 0.17;
-    c.fillStyle = TEAM[team].dark; c.beginPath(); c.arc(X + F.cw - br - 1, Y + F.ch - br - 1, br, 0, 6.283); c.fill();
-    c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.stroke();
-    c.fillStyle = '#fff'; c.font = '900 ' + Math.round(br * 1.25) + 'px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(U.count, X + F.cw - br - 1, Y + F.ch - br);
-    // level stars
-    c.fillStyle = '#ffd34d'; c.strokeStyle = '#6b4300';
-    for (let i = 0; i < g.level; i++) { star(c, X + F.cw * 0.16 + i * F.cw * 0.2, Y + F.ch * 0.15, F.cw * 0.1); }
+    for (const sl of g.slots) {
+      const X = wx(sl.col), Y = wy(sl.row), cx = X + F.cw / 2, cy = Y + F.ch / 2, sc = scaleFor(G.gfx[skey(sl.col, sl.row)] || {}, now);
+      c.save(); c.translate(cx, cy); c.scale(sc, sc); c.translate(-cx, -cy);
+      const pts = form.map(([ox, oy]) => [cx + ox * F.cw * 0.95, cy + (oy * flip) * F.ch * 0.8 + F.ch * 0.2]).sort((p, q) => p[1] - q[1]);
+      for (const [px, py] of pts) drawUnit(c, g.type, team, px, py, size, { face: sl.col < 5 ? 1 : -1, noRing: true, aim: 0.5, level: 1 });
+      c.restore();
+    }
+    // 3) one count badge (total characters) on the last slot, level stars on the first
+    const last = g.slots[g.slots.length - 1], first = g.slots[0];
+    const LX = wx(last.col), LY = wy(last.row), br = F.cw * (g.slots.length > 1 ? 0.2 : 0.17);
+    c.fillStyle = TEAM[team].dark; c.beginPath(); c.arc(LX + F.cw - br - 1, LY + F.ch - br - 1, br, 0, 6.283); c.fill();
+    c.strokeStyle = g.slots.length > 1 ? '#ffffff' : '#fff'; c.lineWidth = g.slots.length > 1 ? 2.2 : 1.5; c.stroke();
+    const n = S.groupCount(g);
+    c.fillStyle = '#fff'; c.font = '900 ' + Math.round(br * (n >= 10 ? 1.0 : 1.25)) + 'px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(n, LX + F.cw - br - 1, LY + F.ch - br);
+    c.fillStyle = '#ffd34d';
+    for (let i = 0; i < g.level; i++) star(c, wx(first.col) + F.cw * 0.16 + i * F.cw * 0.2, wy(first.row) + F.ch * 0.15, F.cw * 0.1);
     c.textBaseline = 'alphabetic';
     c.restore();
   }
@@ -913,12 +997,16 @@ function drawMarkers(c, now) {
       const p = 0.5 + 0.5 * Math.sin(t * 10);
       c.save(); c.globalAlpha = a * (1 - Math.max(0, t - 1.6) / 0.6);
       c.strokeStyle = lm.team === 'red' ? '#ffb0b5' : '#cfe1ff'; c.lineWidth = 2 + p * 2;
-      c.beginPath(); c.roundRect(wx(lm.col) - 2, wy(lm.row) - 2, F.cw + 4, F.ch + 4, 9); c.stroke();
+      for (const sl of lm.slots) { c.beginPath(); c.roundRect(wx(sl.col) - 2, wy(sl.row) - 2, F.cw + 4, F.ch + 4, 9); c.stroke(); }
       c.restore();
     }
   }
 }
 
+function scaleFor(f, now) {
+  const pt = f.pop ? (now - f.pop) / 1000 : 9, ut = f.up ? (now - f.up) / 1000 : 9;
+  return (pt < 0.5 ? easeOutBack(pt / 0.5) : 1) * (ut < 0.6 ? 1 + Math.sin(ut / 0.6 * Math.PI) * 0.15 : 1);
+}
 function charPos(ch) {
   // world -> screen position, with the spawn pop-in during the intro
   if (G.phase === 'toBattle') {
@@ -1026,6 +1114,7 @@ layout(); updateHud(); updateTurnbar('', null);
 showDeckScreen();
 requestAnimationFrame(frame);
 window.__G = G; // debug handle
+window.__rerender = () => renderCards('blue');
 window.__cellPos = (col, row) => ({ x: wx(col + 0.5), y: wy(row + 0.5) });
 })();
 </script>
