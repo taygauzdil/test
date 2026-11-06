@@ -1,7 +1,8 @@
 // Stylised cartoon gladiator + equipment meshes, built from primitives.
 // The visual is driven by 15 joint positions (from the ragdoll or a static pose).
 import * as THREE from '../../vendor/three.module.js';
-import { J } from '../physics/ragdoll.js';
+import { J, ARM_J } from '../physics/ragdoll.js';
+import { ARMS, ARM_INFO } from '../body.js';
 import { footprint } from '../items.js';
 
 const geoCache = new Map();
@@ -168,13 +169,16 @@ export function buildItemMesh(id, level) {
   return fn ? fn(level) : new THREE.Group();
 }
 
-// ---------- Gladiator ----------
-const SKIN = [0xf2c29b, 0xd9a074, 0xb87b4f, 0x8d5a3b];
-const TEAM = { p: { tunic: 0x2f7fe0, trim: 0xffd34d, hair: 0x5a3416 }, e: { tunic: 0xd8413a, trim: 0x2b2b2b, hair: 0x2a1a10 } };
+// ---------- Six-armed arena monster ----------
+const SKINS = {
+  p: [0x6fcf6a, 0x5cc2a0, 0x8bd45a, 0x4fb3c9],
+  e: [0xb06ad8, 0xd8616a, 0x9a7be0, 0xe08a4a],
+};
+const TEAM = { p: { cloth: 0x2f7fe0, trim: 0xffd34d, horn: 0xfff2d6 }, e: { cloth: 0xd8413a, trim: 0x2b2b2b, horn: 0xf3e2c4 } };
 
-function limb(len, r1, r2, mat) {
+function limb(len, r, mat) {
   const g = new THREE.Group();
-  const m = mesh(G(`limb${len}${r1}${r2}`, () => { const geo = new THREE.CapsuleGeometry((r1 + r2) / 2, len, 4, 10); return geo; }), mat);
+  const m = mesh(G(`limb${len}${r}`, () => new THREE.CapsuleGeometry(r, len, 4, 10)), mat);
   m.position.y = len / 2;
   g.add(m);
   return g;
@@ -185,79 +189,94 @@ export class GladiatorView {
     const T = TEAM[team];
     this.team = team;
     this.root = new THREE.Group();
-    const skin = M(SKIN[skinIdx % SKIN.length], { roughness: 0.75 });
-    const tunic = M(T.tunic, { roughness: 0.85 });
+    const skinCol = new THREE.Color(SKINS[team][skinIdx % 4]);
+    const skin = M(skinCol.getHex(), { roughness: 0.7 });
+    const belly = M(skinCol.clone().lerp(new THREE.Color(0xfff3d0), 0.55).getHex(), { roughness: 0.8 });
+    const dark = M(skinCol.clone().multiplyScalar(0.6).getHex(), { roughness: 0.8 });
+    const cloth = M(T.cloth, { roughness: 0.85 });
     const trim = M(T.trim, { roughness: 0.6, metalness: 0.2 });
-    this.mats = { skin, tunic, trim };
+    const horn = M(T.horn, { roughness: 0.5 });
+    this.mats = { skin, cloth, trim };
     this.highlightMats = {};
 
-    // torso
+    // torso: barrel chest + belly plate + loincloth, spikes down the back
     this.torso = new THREE.Group();
-    const chestMesh = mesh(G('torso', () => { const g = new THREE.CapsuleGeometry(0.26, 0.28, 6, 14); return g; }), tunic, 0, 0.27, 0);
-    chestMesh.scale.set(1.18, 1, 0.82);
+    const chestMesh = mesh(G('mtorso', () => new THREE.CapsuleGeometry(0.3, 0.32, 6, 16)), skin, 0, 0.3, 0);
+    chestMesh.scale.set(1.15, 1, 0.85);
     this.torso.add(chestMesh);
-    const belt = mesh(G('belt', () => new THREE.CylinderGeometry(0.27, 0.29, 0.08, 16)), trim, 0, 0.03, 0); belt.scale.z = 0.8; this.torso.add(belt);
-    const skirt = mesh(G('skirt', () => new THREE.CylinderGeometry(0.27, 0.36, 0.26, 12, 1, true)), M(0x8a5a32, { roughness: 0.9, side: THREE.DoubleSide }), 0, -0.1, 0); skirt.scale.z = 0.8; this.torso.add(skirt);
-    // shoulders bulk (broad)
-    const shoulders = mesh(G('shoulders', () => new THREE.CapsuleGeometry(0.15, 0.5, 4, 10)), tunic, 0, 0.47, 0); shoulders.rotation.z = Math.PI / 2; this.torso.add(shoulders);
+    const bellyMesh = mesh(G('mbelly', () => new THREE.SphereGeometry(0.24, 16, 12)), belly, 0, 0.24, 0.12);
+    bellyMesh.scale.set(1, 1.25, 0.6); this.torso.add(bellyMesh);
+    const belt = mesh(G('belt', () => new THREE.CylinderGeometry(0.31, 0.33, 0.08, 16)), trim, 0, 0.03, 0); belt.scale.z = 0.82; this.torso.add(belt);
+    const skirt = mesh(G('mskirt', () => new THREE.CylinderGeometry(0.31, 0.38, 0.26, 12, 1, true)), M(T.cloth, { roughness: 0.9, side: THREE.DoubleSide }), 0, -0.1, 0); skirt.scale.z = 0.82; this.torso.add(skirt);
+    for (let i = 0; i < 4; i++) {
+      const sp = mesh(G('spike', () => new THREE.ConeGeometry(0.06, 0.16, 6)), horn, 0, 0.18 + i * 0.13, -0.27);
+      sp.rotation.x = -1.2; this.torso.add(sp);
+    }
     this.root.add(this.torso);
-    this.bodyParts = { body: [chestMesh, shoulders] };
+    this.bodyParts = { body: [chestMesh, bellyMesh] };
 
-    // head
+    // head: big round head, horns, tusks, heavy brows
     this.head = new THREE.Group();
     const headMesh = mesh(G('head', () => new THREE.SphereGeometry(0.33, 24, 18)), skin);
-    headMesh.scale.set(1, 1.02, 0.96);
+    headMesh.scale.set(1.05, 1, 0.96);
     this.head.add(headMesh);
-    const hair = mesh(G('hair', () => new THREE.SphereGeometry(0.34, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.42)), M(T.hair, { roughness: 0.95 }), 0, 0.04, -0.03);
-    hair.rotation.x = -0.35; this.head.add(hair);
-    this.hair = hair;
+    const jaw = mesh(G('jaw', () => new THREE.SphereGeometry(0.24, 16, 10)), belly, 0, -0.14, 0.12);
+    jaw.scale.set(1.15, 0.6, 0.8); this.head.add(jaw);
+    for (const s of [-1, 1]) {
+      const h = mesh(G('mhorn', () => new THREE.ConeGeometry(0.075, 0.32, 8)), horn, s * 0.25, 0.27, -0.02);
+      h.rotation.z = -s * 0.65; this.head.add(h);
+      const tusk = mesh(G('tusk', () => new THREE.ConeGeometry(0.03, 0.1, 6)), horn, s * 0.11, -0.12, 0.31);
+      this.head.add(tusk);
+    }
+    this.horns = true;
     const white = M(0xffffff, { roughness: 0.3 }), black = M(0x1b1b1b, { roughness: 0.3 });
     this.eyes = [];
     for (const s of [-1, 1]) {
-      const eye = mesh(G('eye', () => new THREE.SphereGeometry(0.075, 12, 10)), white, s * 0.12, 0.05, 0.27); eye.scale.z = 0.6;
-      const pup = mesh(G('pupil', () => new THREE.SphereGeometry(0.038, 10, 8)), black, 0, 0, 0.055);
+      const eye = mesh(G('meye', () => new THREE.SphereGeometry(0.085, 12, 10)), white, s * 0.13, 0.07, 0.26); eye.scale.z = 0.6;
+      const pup = mesh(G('mpupil', () => new THREE.SphereGeometry(0.042, 10, 8)), black, 0, 0, 0.06);
       eye.add(pup); this.head.add(eye); this.eyes.push(eye);
     }
     this.brows = [];
     for (const s of [-1, 1]) {
-      const b = mesh(G('brow', () => new THREE.BoxGeometry(0.13, 0.035, 0.04)), M(T.hair), s * 0.12, 0.15, 0.29);
-      b.rotation.z = -s * 0.25; this.head.add(b); this.brows.push(b);
+      const b = mesh(G('mbrow', () => new THREE.BoxGeometry(0.15, 0.045, 0.05)), dark, s * 0.13, 0.18, 0.28);
+      b.rotation.z = -s * 0.3; this.head.add(b); this.brows.push(b);
     }
-    this.nose = mesh(G('nose', () => new THREE.SphereGeometry(0.06, 10, 8)), M(SKIN[skinIdx % SKIN.length] - 0x101010, { roughness: 0.7 }), 0, -0.04, 0.32); this.head.add(this.nose);
-    this.mouth = mesh(G('mouth', () => new THREE.TorusGeometry(0.06, 0.018, 6, 12, Math.PI)), M(0x5a1a1a), 0, -0.15, 0.29);
+    this.nose = mesh(G('mnose', () => new THREE.SphereGeometry(0.055, 10, 8)), dark, 0, -0.01, 0.32); this.nose.scale.x = 1.3; this.head.add(this.nose);
+    this.mouth = mesh(G('mouth', () => new THREE.TorusGeometry(0.07, 0.018, 6, 12, Math.PI)), M(0x3a0a0a), 0, -0.12, 0.3);
     this.mouth.rotation.z = Math.PI; this.head.add(this.mouth);
-    this.mouthO = mesh(G('mouthO', () => new THREE.SphereGeometry(0.05, 10, 8)), M(0x3a0a0a), 0, -0.15, 0.29); this.mouthO.scale.z = 0.4; this.mouthO.visible = false; this.head.add(this.mouthO);
-    this.ears = [];
-    for (const s of [-1, 1]) this.head.add(mesh(G('ear', () => new THREE.SphereGeometry(0.06, 8, 6)), skin, s * 0.32, 0, 0));
+    this.mouthO = mesh(G('mouthO', () => new THREE.SphereGeometry(0.06, 10, 8)), M(0x3a0a0a), 0, -0.13, 0.29); this.mouthO.scale.z = 0.4; this.mouthO.visible = false; this.head.add(this.mouthO);
+    for (const s of [-1, 1]) { const e = mesh(G('mear', () => new THREE.ConeGeometry(0.07, 0.16, 6)), skin, s * 0.33, 0.04, -0.02); e.rotation.z = -s * 1.4; this.head.add(e); }
     this.root.add(this.head);
     this.bodyParts.head = [headMesh];
 
-    // limbs
-    this.upper = {}; this.fore = {}; this.handG = {}; this.thigh = {}; this.shin = {}; this.foot = {};
-    for (const a of ['armL', 'armR']) {
-      this.upper[a] = limb(0.3, 0.1, 0.1, skin); this.fore[a] = limb(0.28, 0.085, 0.085, skin);
-      const bracer = mesh(G('bracer', () => new THREE.CylinderGeometry(0.095, 0.095, 0.14, 10)), M(0x6b3f24), 0, 0.17, 0); this.fore[a].add(bracer);
+    // six arms
+    this.upper = {}; this.fore = {}; this.handG = {}; this.shoulderBall = {}; this.thigh = {}; this.shin = {}; this.foot = {};
+    for (const a of ARMS) {
+      const tier = ARM_INFO[a].tier;
+      const r = [0.1, 0.095, 0.09][tier];
+      this.upper[a] = limb(0.3, r, skin); this.fore[a] = limb(0.28, r * 0.88, skin);
+      const bracer = mesh(G('bracer' + tier, () => new THREE.CylinderGeometry(r * 0.98, r * 0.98, 0.13, 10)), M(0x6b3f24), 0, 0.17, 0); this.fore[a].add(bracer);
       this.handG[a] = new THREE.Group();
-      const fist = mesh(G('fist', () => new THREE.SphereGeometry(0.1, 12, 10)), skin); this.handG[a].add(fist);
-      this.root.add(this.upper[a], this.fore[a], this.handG[a]);
-      this.bodyParts[a] = [this.upper[a].children[0], this.fore[a].children[0], fist];
+      const fist = mesh(G('mfist', () => new THREE.SphereGeometry(0.1, 12, 10)), skin); this.handG[a].add(fist);
+      for (let c = -1; c <= 1; c++) { const cl = mesh(G('claw', () => new THREE.ConeGeometry(0.018, 0.07, 5)), horn, c * 0.045, 0.09, 0.05); this.handG[a].add(cl); }
+      this.shoulderBall[a] = mesh(G('mshoulder', () => new THREE.SphereGeometry(0.12, 12, 10)), skin);
+      this.root.add(this.upper[a], this.fore[a], this.handG[a], this.shoulderBall[a]);
+      this.bodyParts[a] = [this.upper[a].children[0], this.fore[a].children[0], fist, this.shoulderBall[a]];
     }
     for (const l of ['legL', 'legR']) {
-      this.thigh[l] = limb(0.32, 0.12, 0.12, skin); this.shin[l] = limb(0.33, 0.1, 0.1, skin);
-      const sandal = mesh(G('sandal', () => new THREE.CylinderGeometry(0.105, 0.1, 0.12, 10)), M(0x6b3f24), 0, 0.08, 0); this.shin[l].add(sandal);
+      this.thigh[l] = limb(0.32, 0.13, skin); this.shin[l] = limb(0.33, 0.11, skin);
       this.foot[l] = new THREE.Group();
-      const ft = mesh(G('foot', () => new THREE.BoxGeometry(0.17, 0.1, 0.3)), M(0x6b3f24, { roughness: 0.9 }), 0, -0.03, 0.06); this.foot[l].add(ft);
+      const ft = mesh(G('mfoot', () => new THREE.SphereGeometry(0.13, 12, 8)), dark, 0, -0.02, 0.06); ft.scale.set(1, 0.6, 1.5); this.foot[l].add(ft);
+      for (let c = -1; c <= 1; c++) { const cl = mesh(G('toe', () => new THREE.ConeGeometry(0.025, 0.08, 5)), horn, c * 0.05, -0.03, 0.25); cl.rotation.x = Math.PI / 2; this.foot[l].add(cl); }
       this.root.add(this.thigh[l], this.shin[l], this.foot[l]);
       this.bodyParts[l] = [this.thigh[l].children[0], this.shin[l].children[0]];
     }
 
-    this.equip = new THREE.Group(); this.root.add(this.equip);
-    this.weaponG = { armL: new THREE.Group(), armR: new THREE.Group() };
-    this.root.add(this.weaponG.armL, this.weaponG.armR);
+    this.weaponG = {};
+    for (const a of ARMS) { this.weaponG[a] = new THREE.Group(); this.root.add(this.weaponG[a]); }
     this.attached = [];
     this.spinners = [];
-    this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3(); this._m = new THREE.Matrix4();
-    this.up = new THREE.Vector3(0, 1, 0);
+    this._v = new THREE.Vector3(); this._v2 = new THREE.Vector3(); this._m = new THREE.Matrix4();
     this.frames = {};
     this.root.traverse(o => { if (o.isMesh) o.userData.baseMat = o.material; });
   }
@@ -266,7 +285,7 @@ export class GladiatorView {
   setLoadout(lo, inv) {
     for (const a of this.attached) a.parent && a.parent.remove(a);
     this.attached = []; this.spinners = [];
-    this.weapons = { armL: null, armR: null };
+    this.weapons = {};
     const add = (parent, obj) => { parent.add(obj); this.attached.push(obj); obj.traverse(o => { if (o.isMesh) { o.castShadow = true; } }); return obj; };
     for (const it of inv.items) {
       const s = lo.status[it.uid]; if (!s || !s.active) continue;
@@ -274,25 +293,23 @@ export class GladiatorView {
       switch (it.id) {
         case 'helmet': { const h = add(this.head, buildItemMesh('helmet', lv)); h.position.y = 0.06; break; }
         case 'chest': {
-          if (s.regions.includes('body')) { const c = add(this.torso, buildItemMesh('chest', lv)); c.scale.set(1.12, 1, 1.05); }
-          for (const a of ['armL', 'armR']) if (s.regions.includes(a)) { const p = add(this.upper[a], buildItemMesh('pauldron', lv)); p.position.y = 0.3; p.rotation.z = a === 'armL' ? 0.5 : -0.5; }
+          if (s.regions.includes('body')) { const c = add(this.torso, buildItemMesh('chest', lv)); c.scale.set(1.25, 1.05, 1.15); }
+          for (const a of ARMS) if (s.regions.includes(a)) { const p = add(this.upper[a], buildItemMesh('pauldron', lv)); p.position.y = 0.3; p.rotation.z = -ARM_INFO[a].side * 0.5; }
           break;
         }
-        case 'legs': for (const l of ['legL', 'legR']) if (s.regions.includes(l)) { const g = add(this.shin[l], buildItemMesh('greave', lv)); g.position.y = 0.26; } break;
+        case 'legs': for (const l of ['legL', 'legR']) if (s.regions.includes(l)) { const g = add(this.shin[l], buildItemMesh('greave', lv)); g.position.y = 0.26; g.scale.setScalar(1.12); } break;
         case 'lightning': {
-          const g = add(this.root, buildItemMesh('lightning', lv)); g.userData.follow = s.regions.includes('head') ? 'head' : 'body'; this.spinners.push(g); break;
+          const g = add(this.root, buildItemMesh('lightning', lv)); g.userData.follow = s.regions.includes('head') ? 'head' : 'body'; g.userData.phase = this.spinners.length * 2.1; this.spinners.push(g); break;
         }
         case 'coinsteal': {
-          const g = add(this.torso, buildItemMesh('coinsteal', lv)); g.position.set(s.regions.includes('legR') && !s.regions.includes('legL') ? 0.25 : -0.25, -0.02, 0.12); break;
+          const g = add(this.torso, buildItemMesh('coinsteal', lv)); g.position.set(s.regions.includes('legR') && !s.regions.includes('legL') ? 0.28 : -0.28, -0.02, 0.14); break;
         }
         case 'shield': {
           const g = add(this.fore[s.arm], buildItemMesh('shield', lv)); g.position.set(0, 0.18, 0); g.userData.shield = true; this.weapons[s.arm] = { id: 'shield', obj: g };
           break;
         }
         default: {
-          // weapons in hand
-          const arms = s.arm === 'both' ? [lo.twoHanded.primary] : [s.arm];
-          for (const a of arms) { const w = add(this.weaponG[a], buildItemMesh(it.id, lv)); this.weapons[a] = { id: it.id, obj: w, level: lv }; }
+          const w = add(this.weaponG[s.arm], buildItemMesh(it.id, lv)); this.weapons[s.arm] = { id: it.id, obj: w, level: lv };
         }
       }
     }
@@ -300,17 +317,16 @@ export class GladiatorView {
 
   // Place limbs from joint positions. dirs: optional world weapon directions per arm.
   update(p, opts = {}) {
-    const v = this._v, v2 = this._v2;
-    // torso basis
-    const up = v.subVectors(p[J.chest], p[J.pelvis]).normalize();
-    const right = new THREE.Vector3().subVectors(p[J.shR], p[J.shL]);
+    const v2 = this._v2;
+    // torso basis from the top shoulder pair
+    const up = new THREE.Vector3().subVectors(p[J.chest], p[J.pelvis]).normalize();
+    const right = new THREE.Vector3().subVectors(p[ARM_J.armR1.sh], p[ARM_J.armL1.sh]);
     right.addScaledVector(up, -right.dot(up)).normalize();
     const fwd = new THREE.Vector3().crossVectors(right, up).normalize();
     this._m.makeBasis(right, up, fwd);
     this.torso.quaternion.setFromRotationMatrix(this._m);
     this.torso.position.copy(p[J.pelvis]);
     this.frames.fwd = fwd; this.frames.right = right;
-    // head basis
     const hu = v2.subVectors(p[J.head], p[J.chest]).normalize();
     const hr = right.clone().addScaledVector(hu, -right.dot(hu)).normalize();
     const hf = new THREE.Vector3().crossVectors(hr, hu);
@@ -318,10 +334,9 @@ export class GladiatorView {
     this.head.quaternion.setFromRotationMatrix(this._m);
     this.head.position.copy(p[J.head]);
 
-    const seg = (obj, a, b, side) => {
+    const seg = (obj, a, b) => {
       obj.position.copy(a);
       const d = this._v.subVectors(b, a).normalize();
-      // build basis with stable roll using torso forward
       const x = new THREE.Vector3().crossVectors(d, fwd);
       if (x.lengthSq() < 1e-4) x.copy(right);
       x.normalize();
@@ -329,42 +344,42 @@ export class GladiatorView {
       this._m.makeBasis(x, d, z);
       obj.quaternion.setFromRotationMatrix(this._m);
     };
-    seg(this.upper.armL, p[J.shL], p[J.elL]); seg(this.fore.armL, p[J.elL], p[J.haL]);
-    seg(this.upper.armR, p[J.shR], p[J.elR]); seg(this.fore.armR, p[J.elR], p[J.haR]);
+    for (const a of ARMS) {
+      const j = ARM_J[a];
+      seg(this.upper[a], p[j.sh], p[j.el]); seg(this.fore[a], p[j.el], p[j.ha]);
+      this.handG[a].position.copy(p[j.ha]);
+      this.handG[a].quaternion.copy(this.fore[a].quaternion);
+      this.shoulderBall[a].position.copy(p[j.sh]);
+    }
     seg(this.thigh.legL, p[J.hipL], p[J.knL]); seg(this.shin.legL, p[J.knL], p[J.ftL]);
     seg(this.thigh.legR, p[J.hipR], p[J.knR]); seg(this.shin.legR, p[J.knR], p[J.ftR]);
-    this.handG.armL.position.copy(p[J.haL]); this.handG.armR.position.copy(p[J.haR]);
-    for (const [l, j] of [['legL', J.ftL], ['legR', J.ftR]]) {
-      this.foot[l].position.copy(p[j]);
-      this._m.makeBasis(right, new THREE.Vector3(0, 1, 0), new THREE.Vector3().crossVectors(right, new THREE.Vector3(0, 1, 0)));
+    const yUp = new THREE.Vector3(0, 1, 0);
+    for (const [l, jj] of [['legL', J.ftL], ['legR', J.ftR]]) {
+      this.foot[l].position.copy(p[jj]);
+      this._m.makeBasis(right, yUp, new THREE.Vector3().crossVectors(right, yUp));
       this.foot[l].quaternion.setFromRotationMatrix(this._m);
     }
-    // shields face forward-out on the forearm
-    for (const a of ['armL', 'armR']) {
+    for (const a of ARMS) {
       const w = this.weapons && this.weapons[a];
+      const j = ARM_J[a];
       if (w && w.id === 'shield') {
         // orient shield disc normal along torso forward in forearm-local space
         const inv = this.fore[a].quaternion.clone().invert();
         const n = fwd.clone().applyQuaternion(inv);
-        const yAxis = new THREE.Vector3(0, 1, 0);
-        const xAx = new THREE.Vector3().crossVectors(yAxis, n).normalize();
-        const zAx = n.clone().addScaledVector(yAxis, -n.dot(yAxis)).normalize();
+        const xAx = new THREE.Vector3().crossVectors(yUp, n).normalize();
+        const zAx = n.clone().addScaledVector(yUp, -n.dot(yUp)).normalize();
         this._m.makeBasis(xAx, new THREE.Vector3().crossVectors(zAx, xAx), zAx);
         w.obj.quaternion.setFromRotationMatrix(this._m);
         w.obj.position.set(0, 0.17, 0).addScaledVector(zAx, 0.1);
+        continue;
       }
-    }
-    // weapons
-    for (const [a, hj] of [['armL', J.haL], ['armR', J.haR]]) {
       const g = this.weaponG[a];
-      g.position.copy(p[hj]);
+      g.position.copy(p[j.ha]);
       let d = opts.dirs && opts.dirs[a];
-      if (!d) d = this._v.subVectors(p[hj], p[a === 'armL' ? J.elL : J.elR]).normalize();
-      const w = this.weapons && this.weapons[a];
+      if (!d) d = this._v.subVectors(p[j.ha], p[j.el]).normalize();
       if (w && w.id === 'bow') {
-        // bow: stave vertical-ish in front, string toward body
         const yb = new THREE.Vector3(0, 1, 0).addScaledVector(fwd, 0.15).normalize();
-        const zb = fwd.clone(); const xb = new THREE.Vector3().crossVectors(yb, zb).normalize();
+        const xb = new THREE.Vector3().crossVectors(yb, fwd).normalize();
         this._m.makeBasis(xb, yb, new THREE.Vector3().crossVectors(xb, yb));
         g.quaternion.setFromRotationMatrix(this._m);
         const inner = w.obj.children[0];
@@ -381,16 +396,17 @@ export class GladiatorView {
     const t = opts.time || 0;
     for (const s of this.spinners) {
       const base = s.userData.follow === 'head' ? p[J.head] : p[J.chest];
-      s.position.set(base.x + Math.cos(t * 3) * 0.45, base.y + 0.25 + Math.sin(t * 5) * 0.05, base.z + Math.sin(t * 3) * 0.45);
+      const ph = t * 3 + s.userData.phase;
+      s.position.set(base.x + Math.cos(ph) * 0.5, base.y + 0.3 + Math.sin(t * 5) * 0.05, base.z + Math.sin(ph) * 0.5);
       s.rotation.y = t * 4;
     }
     // face
     const hurt = opts.hurt || 0;
     this.mouth.visible = hurt < 0.3; this.mouthO.visible = hurt >= 0.3;
     for (let i = 0; i < 2; i++) {
-      const s = i ? 1 : -1;
-      this.brows[i].rotation.z = -s * (0.25 - hurt * 0.7) + (opts.victory ? s * 0.2 : 0);
-      this.brows[i].position.y = 0.15 + hurt * 0.03;
+      const sd = i ? 1 : -1;
+      this.brows[i].rotation.z = -sd * (0.3 - hurt * 0.8) + (opts.victory ? sd * 0.25 : 0);
+      this.brows[i].position.y = 0.18 + hurt * 0.03;
       this.eyes[i].scale.y = hurt > 0.5 ? 0.35 : (Math.sin(t * 1.3 + i * 0.01) > 0.985 ? 0.15 : 1);
     }
   }
@@ -404,8 +420,6 @@ export class GladiatorView {
       m.material = this.highlightMats[k];
     }
   }
-
-  dim(on) { this.root.traverse(o => { if (o.isMesh && o.material) o.material.transparent = false; }); }
 }
 
 export { footprint };

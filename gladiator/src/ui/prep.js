@@ -5,10 +5,10 @@ import { ITEMS, REGION_LABEL, footprint, stats, sellPrice, MAX_LEVEL } from '../
 import { resolveLoadout, statSummary } from '../loadout.js';
 import { iconUrl } from '../render/icons.js';
 import { CONFIG } from '../config.js';
+import { REGION_SHORT, isArm } from '../body.js';
 import { SFX } from '../audio.js';
 
 const $ = s => document.querySelector(s);
-const REGION_SHORT = { head: 'HEAD', body: 'BODY', armL: 'L ARM', armR: 'R ARM', legL: 'L LEG', legR: 'R LEG' };
 const STAT_LABEL = {
   dmg: ['Damage', v => v], cooldown: ['Attack', v => `every ${v}s`], reach: ['Reach', v => v.toFixed(1) + 'm'], kb: ['Knockback', v => v.toFixed(1)],
   armor: ['Armor', v => '+' + v], hp: ['Max HP', v => '+' + v], stability: ['Stability', v => '+' + v], block: ['Block', v => Math.round(v * 100) + '%'],
@@ -388,8 +388,8 @@ export class PrepUI {
 
   _regionsLine(id) {
     const def = ITEMS[id];
-    let s = 'Activates via: ' + def.regions.map(r => REGION_LABEL[r]).join(' / ');
-    if (def.hands === 2) s += ' · Two-handed (needs both arms free)';
+    let s = 'Activates via: ' + regionList(def.regions);
+    if (def.hands === 2) s += ' · Two-handed (its arm + the opposite arm at the same height)';
     else if (def.kind === 'weapon' || def.kind === 'shield') s += ' · One per arm';
     return s;
   }
@@ -400,7 +400,7 @@ export class PrepUI {
     const placed = this.m.inv.isPlaced(uid);
     const s = placed ? this.lo.status[uid] : null;
     const act = !placed ? '<div class="act no">On bench - drag it into the backpack</div>'
-      : s.active ? `<div class="act ok">✔ Active: ${s.arm === 'both' ? 'Both arms' : s.regions.map(r => REGION_LABEL[r]).join(', ')}</div>`
+      : s.active ? `<div class="act ok">✔ Active: ${s.regions.map(r => REGION_LABEL[r]).join(', ')}</div>`
         : `<div class="act no">✖ Inactive: ${s.reason}</div>`;
     const info = $('#info');
     info.innerHTML = `<button class="x">×</button><h3>${def.name} <span class="lv">Lv.${it.level}</span></h3><div class="desc">${def.desc}<br><small>${this._regionsLine(it.id)}</small></div>
@@ -436,6 +436,13 @@ export class PrepUI {
       else { SFX.bad(); this.toast(r.why); }
     };
   }
+}
+
+// "Body / any arm" instead of listing all six arms
+export function regionList(regs) {
+  const arms = regs.filter(isArm), rest = regs.filter(r => !isArm(r)).map(r => REGION_LABEL[r]);
+  if (arms.length === 6) rest.push('any arm'); else rest.push(...arms.map(r => REGION_LABEL[r]));
+  return rest.join(' / ');
 }
 
 function pointIn(el, x, y) { const r = el.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }

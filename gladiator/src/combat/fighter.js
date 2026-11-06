@@ -1,14 +1,18 @@
 // A gladiator in combat: active ragdoll body + animation state + AI brain.
 import { Vector3 } from '../../vendor/three.module.js';
-import { Ragdoll, J, JOINT_COUNT } from '../physics/ragdoll.js';
+import { Ragdoll, J, ARM_J, JOINT_COUNT } from '../physics/ragdoll.js';
+import { ARMS, ARM_INFO, TIER } from '../body.js';
 import { ATTACKS, SHIELD_GUARD, BOW, sampleAttack, buildPose, makePose } from './animation.js';
 import { CONFIG } from '../config.js';
 import { ITEMS } from '../items.js';
 
-const ARM_KEYS = ['armL', 'armR'];
-const HAND = { armL: J.haL, armR: J.haR };
-const ELBOW = { armL: J.elL, armR: J.elR };
-const SIDE = { armL: -1, armR: 1 };
+const ARM_KEYS = ARMS;
+const HAND = Object.fromEntries(ARMS.map(a => [a, ARM_J[a].ha]));
+const ELBOW = Object.fromEntries(ARMS.map(a => [a, ARM_J[a].el]));
+const SIDE = Object.fromEntries(ARMS.map(a => [a, ARM_INFO[a].side]));
+const UPPER_JOINTS = [J.chest, J.head, ...ARMS.flatMap(a => [ARM_J[a].sh, ARM_J[a].el, ARM_J[a].ha])];
+// shift a root-local hand target into this arm's tier so the three arm pairs fan out
+const tierShift = (v, arm) => { const T = TIER[arm.tier]; v.x += arm.side * T.dx; v.y += T.dy; v.z += T.dz; return v; };
 
 export class Fighter {
   constructor({ team, loadout, x, z = 0.3, yaw, name, purse = 0, rng = Math.random }) {
@@ -31,15 +35,12 @@ export class Fighter {
     for (const a of ARM_KEYS) {
       const src = loadout.arms[a];
       this.arms[a] = {
-        key: a, side: SIDE[a], type: src.type, st: src.st, item: src.item, twoHanded: src.twoHanded,
+        key: a, side: SIDE[a], tier: ARM_INFO[a].tier, type: src.type, st: src.st, item: src.item, twoHanded: src.twoHanded,
+        drawArm: src.drawArm, bowArm: src.bowArm,
         cd: 0.3 + rng() * 0.5, anim: null, wdir: new Vector3(0, 1, 0), bladeLocal: new Vector3(0, 1, 0),
       };
     }
-    // two-handed bow: the primary arm shoots, the other arm draws
-    if (loadout.twoHanded) {
-      this.bowArm = loadout.twoHanded.primary || 'armL';
-      this.arms[this.bowArm === 'armL' ? 'armR' : 'armL'].type = 'draw';
-    }
+    this.hasWeapons = ARMS.some(a => this.arms[a].item && this.arms[a].type !== 'shield');
     this.perks = loadout.perks.map(p => ({ ...p, t: p.st.cooldown * (0.5 + rng() * 0.3) }));
     this.pose = makePose();
     this.prevTarget = makePose();
@@ -67,7 +68,7 @@ export class Fighter {
     for (const a of ARM_KEYS) { const arm = this.arms[a]; if (arm.type !== 'shield' && arm.type !== 'draw' && arm.type !== 'shoot') r = Math.max(r, arm.st.reach); }
     return r || 1.1;
   }
-  isRanged() { return !!this.bowArm; }
+  isRanged() { return ARMS.some(a => this.arms[a].type === 'shoot') && this.meleeReach() < 1.2; }
 
   // ---------- AI ----------
   think(dt, foe, t) {
@@ -118,6 +119,7 @@ export class Fighter {
         else options.push({ arm, kind: 'fist', st: { dmg: 6, cooldown: 0.9, reach: 1.15, kb: 0.9 } });
         continue;
       }
+      if (arm.type === 'fist' && this.hasWeapons && this.rng() < 0.6) continue;   // weapons first
       const reach = arm.st.reach + 0.25;
       if (dist <= reach) options.push({ arm, kind: arm.type });
     }
@@ -142,7 +144,7 @@ export class Fighter {
     const speedMul = kind === 'shoot' ? 1 : Math.max(0.75, Math.min(1.2, st.cooldown / (prof.dur * 1.6)));
     this.attacking = { arm, kind, st, t: 0, dur: prof.dur * speedMul, hit: false, fired: false, prof, guarded: this.rng() < 0.5 };
     arm.cd = st.cooldown;
-    this.globalCd = kind === 'fist' ? 0.25 : 0.35;
+    this.globalCd = kind === 'fist' ? 0.22 : 0.28;
     this.events?.push({ type: 'swing', f: this, kind });
   }
 
@@ -161,42 +163,49 @@ export class Fighter {
     const dirx = spd > 0.01 ? lx / spd : 0, dirz = spd > 0.01 ? lz / spd : 1;
 
     let lean = 0.06 + lz * 0.05, twist = 0, lunge = 0, pelvisY = 0.9 - Math.abs(Math.sin(ph)) * 0.03 * (spd > 0.15 ? 1 : 0.3);
-    const hands = [new Vector3(), new Vector3()];
-    const blades = [new Vector3(), new Vector3()];
+    const hands = this._hands || (this._hands = Object.fromEntries(ARMS.map(a => [a, new Vector3()])));
+    const blade = new Vector3();
     let headTilt = 0;
+    const A = this.attacking;
+    const bowAttack = A && A.kind === 'shoot' ? A.arm : null;
 
-    for (const [i, key] of [[0, 'armL'], [1, 'armR']]) {
+    for (const key of ARMS) {
       const arm = this.arms[key];
-      const sd = arm.side;
-      const A = this.attacking;
+      const sd = arm.side, h = hands[key];
       if (A && A.arm === arm && A.kind !== 'shoot') {
-        const r = sampleAttack(A.prof, Math.min(1, A.t / A.dur), sd, hands[i], blades[i]);
+        const r = sampleAttack(A.prof, Math.min(1, A.t / A.dur), sd, h, blade);
+        tierShift(h, arm);
         twist += r.twist; lean += r.lean; lunge = Math.max(lunge, r.lunge);
-      } else if (A && A.kind === 'shoot' && (arm.key === this.bowArm || arm.type === 'draw')) {
+      } else if (bowAttack && (arm === bowAttack || key === bowAttack.drawArm)) {
         const u = A.t / A.dur;
-        if (arm.key === this.bowArm) { hands[i].copy(BOW.bowHand); hands[i].x *= sd; blades[i].set(0, 1, 0.15).normalize(); }
+        if (arm === bowAttack) { h.copy(BOW.bowHand); h.x *= sd; blade.set(0, 1, 0.15).normalize(); }
         else {
           const f = u < BOW.release ? u / BOW.release : Math.max(0, 1 - (u - BOW.release) * 4);
-          hands[i].lerpVectors(BOW.drawFrom, BOW.drawTo, f); hands[i].x *= -sd; hands[i].x += sd * 0.02;
-          blades[i].set(0, 0, 1);
+          h.lerpVectors(BOW.drawFrom, BOW.drawTo, f); h.x *= -sd; h.x += sd * 0.02;
+          blade.set(0, 0, 1);
         }
-        twist += -this.arms[this.bowArm].side * 0.25;
+        tierShift(h, this.arms[bowAttack.key]);
+        twist += -bowAttack.side * 0.2;
       } else if (arm.type === 'shield') {
-        const raise = this.foeAttacking ? 1 : 0;
-        hands[i].lerpVectors(SHIELD_GUARD.h, SHIELD_GUARD.raise, raise); hands[i].x *= sd;
-        blades[i].set(0, 1, 0);
+        // raise the shield on the same tier as the incoming swing
+        const raise = this.foeAttacking && this.foe?.attacking && Math.abs(this.foe.attacking.arm.tier - arm.tier) <= 1 ? 1 : 0;
+        h.lerpVectors(SHIELD_GUARD.h, SHIELD_GUARD.raise, raise); h.x *= sd;
+        tierShift(h, arm);
+        blade.set(0, 1, 0);
       } else if (arm.type === 'shoot' || arm.type === 'draw') {
         // idle bow: held low-forward
-        if (arm.key === this.bowArm) { hands[i].set(0.24 * sd, 1.15, 0.38); blades[i].set(0, 1, 0.3).normalize(); }
-        else { hands[i].set(0.1 * sd, 1.2, 0.3); blades[i].set(0, 0, 1); }
+        if (arm.type === 'shoot') { h.set(0.24 * sd, 1.15, 0.38); blade.set(0, 1, 0.3).normalize(); }
+        else { h.set(0.1 * sd, 1.2, 0.3); blade.set(0, 0, 1); }
+        tierShift(h, arm);
       } else {
         const prof = ATTACKS[arm.type] || ATTACKS.fist;
-        hands[i].copy(prof.guard.h); hands[i].x *= sd; blades[i].copy(prof.guard.b); blades[i].x *= sd; blades[i].normalize();
-        // idle sway
-        hands[i].y += Math.sin(ph * 0.5 + i) * 0.02;
-        hands[i].z += Math.sin(ph + i * Math.PI) * stride * 0.4;
+        h.copy(prof.guard.h); h.x *= sd; blade.copy(prof.guard.b); blade.x *= sd; blade.normalize();
+        tierShift(h, arm);
+        // idle sway, each arm on its own rhythm so the monster looks alive
+        h.y += Math.sin(ph * 0.5 + arm.tier * 2.1 + sd) * 0.03;
+        h.z += Math.sin(ph + arm.tier + (sd > 0 ? Math.PI : 0)) * (stride * 0.4 + 0.02);
       }
-      arm.bladeLocal.copy(blades[i]);
+      arm.bladeLocal.copy(blade);
     }
 
     // feet (fighting stance, staggered) + walk cycle
@@ -210,9 +219,12 @@ export class Fighter {
 
     if (this.state === 'victory') {
       const b = Math.abs(Math.sin(this.stateT * 6));
-      hands[0].set(-0.35, 2.15 + b * 0.1, 0.1); hands[1].set(0.35, 2.15 + b * 0.1, 0.1);
+      for (const key of ARMS) {
+        const arm = this.arms[key];
+        hands[key].set(arm.side * (0.35 + arm.tier * 0.3), 2.15 - arm.tier * 0.35 + b * 0.1 * (arm.tier % 2 ? -1 : 1), 0.1);
+        arm.bladeLocal.set(arm.side * (0.2 + arm.tier * 0.4), 1, 0).normalize();
+      }
       pelvisY = 0.9 + b * 0.12; lean = -0.1; twist = 0;
-      this.arms.armL.bladeLocal.set(-0.2, 1, 0).normalize(); this.arms.armR.bladeLocal.set(0.2, 1, 0).normalize();
       feet[0].set(-0.2, 0.09 + b * 0.1, 0); feet[1].set(0.2, 0.09 + b * 0.1, 0);
     }
     if (this.state === 'getup') {
@@ -228,7 +240,7 @@ export class Fighter {
 
     buildPose({ pelvisY, lean: this.lean, twist: this.twist, pz: this.lunge * 0.35, hands, feet, headTilt }, out);
     // apply lunge to upper body + hands
-    for (const j of [J.chest, J.head, J.shL, J.shR, J.elL, J.elR, J.haL, J.haR]) out[j].z += this.lunge * 0.2;
+    for (const j of UPPER_JOINTS) out[j].z += this.lunge * 0.2;
 
     // local -> world
     for (let i = 0; i < JOINT_COUNT; i++) {

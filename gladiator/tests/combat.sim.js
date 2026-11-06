@@ -19,8 +19,8 @@ export function run(pInv, eInv, { maxT = 70, log = false } = {}) {
   return { winner: b.winner?.team, reason: b.reason, t: b.t, hits, kd, blocks, arrows, light, pd: b.P.damageDealt, ed: b.E.damageDealt, php: b.P.hp, ehp: b.E.hp };
 }
 const builds = {
-  swordHelm: [['sword', 0, 1], ['helmet', 2, 0]],
-  sword2Helm: [['sword', 0, 1, 2], ['helmet', 2, 0]],
+  swordHelm: [['sword', 0, 2], ['helmet', 2, 0]],
+  sword2Helm: [['sword', 0, 2, 2], ['helmet', 2, 0]],
   naked: [],
 };
 if (process.argv[2] === 'log') { console.log(run(inv(builds.swordHelm), inv(builds.swordHelm), { log: true })); process.exit(0); }
@@ -63,7 +63,7 @@ if (process.argv[2] === 'match') {
   for (let k = 0; k < N; k++) {
     const m = new Match();
     // acceptance opening: sword + helmet
-    m.buyAndPlace(m.shop.findIndex(o => o.id === 'sword'), 0, 1); m.buyAndPlace(m.shop.findIndex(o => o.id === 'helmet'), 2, 0);
+    m.buyAndPlace(m.shop.findIndex(o => o.id === 'sword'), 0, 2); m.buyAndPlace(m.shop.findIndex(o => o.id === 'helmet'), 2, 0);
     while (!m.over) {
       if (m.round > 1) playerTurn(m);
       const o = m.makeOpponent();

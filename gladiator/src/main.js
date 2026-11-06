@@ -12,6 +12,7 @@ import { resolveLoadout } from './loadout.js';
 import { J } from './physics/ragdoll.js';
 import { ITEMS } from './items.js';
 import { CONFIG } from './config.js';
+import { ARMS, ARM_INFO, REGIONS } from './body.js';
 import { SFX } from './audio.js';
 
 const $ = s => document.querySelector(s);
@@ -61,7 +62,11 @@ const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24), new THREE.
 shadowDisc.rotation.x = -Math.PI / 2; shadowDisc.scale.y = 0.5; shadowDisc.position.y = 0.01; prepScene.add(shadowDisc);
 const prepPose = makePose();
 const CELL_WORLD = 1.88 / 6.5;
-const PREP_DIRS = { armL: new THREE.Vector3(-0.3, -1, 0.35).normalize(), armR: new THREE.Vector3(0.3, -1, 0.35).normalize() };      // head centre at row 1.5, feet at row 8
+// prep-screen weapon directions: top arms brandish upward, middle arms point out, bottom arms point down
+const PREP_DIRS = Object.fromEntries(ARMS.map(a => {
+  const { side, tier } = ARM_INFO[a];
+  return [a, [new THREE.Vector3(side * 0.35, 1, 0.3), new THREE.Vector3(side * 0.9, -0.25, 0.35), new THREE.Vector3(side * 0.3, -1, 0.35)][tier].normalize()];
+}));      // head centre at row 1.5, feet at row 8
 
 // ---------------- combat scene ----------------
 const combatScene = new THREE.Scene();
@@ -289,8 +294,8 @@ function showMatchEnd(w) {
 function showTitle() {
   mode = 'title';
   show('#prep');
-  $('#modal').innerHTML = `<div class="mcard"><div class="title-logo">GLADIATOR<small>BACKPACK</small></div>
-    <ol class="howto"><li>Buy gear in the shop and drag it into the backpack grid.</li><li>Gear only works if its cells <b>touch the right body part</b> - weapons need an arm, helmets the head.</li><li>One active weapon per arm. Drop identical items on each other to <b>merge</b>.</li><li>Press FIGHT and watch the brawl. Knock foes off the cliff or KO them.</li><li>First to <b>3 round wins</b> takes the match.</li></ol>
+  $('#modal').innerHTML = `<div class="mcard"><div class="title-logo">ARENA BEAST<small>BACKPACK</small></div>
+    <ol class="howto"><li>Your monster has <b>six arms</b>, a head, a body and two legs.</li><li>Buy gear and drag it into the backpack grid. Gear only works if its cells <b>touch the right body part</b> - the coloured dots show which.</li><li>Every arm holds one weapon or shield: run six swords, three shields, or any mix. Bows use an arm plus its mirror arm.</li><li>Drop identical items on each other to <b>merge</b>. Press FIGHT, knock foes off the cliff or KO them.</li><li>First to <b>3 round wins</b> takes the match.</li></ol>
     <button id="startBtn">PLAY</button></div>`;
   $('#modal').classList.remove('hidden');
   prep.layout();
@@ -326,7 +331,7 @@ function renderPrep(dt, w, h) {
   aPose(t, prepPose);
   prepHero.update(prepPose, { time: t, dirs: PREP_DIRS });
   // region highlight while dragging
-  for (const reg of ['head', 'body', 'armL', 'armR', 'legL', 'legR']) {
+  for (const reg of REGIONS) {
     const on = hoverRegions.includes(reg);
     prepHero.highlight(reg, on ? (hoverMode === 'bad' ? 0xff3b3b : hoverMode === 'merge' ? 0xffc800 : 0x29ff8a) : null, 0.35 + 0.25 * Math.sin(t * 10));
   }
@@ -355,8 +360,10 @@ function renderCombat(dt, w, h) {
   if (battle) {
     battle.fighters.forEach((f, i) => {
       const draws = {};
-      if (f.attacking && f.attacking.kind === 'shoot') draws[f.bowArm] = Math.min(1, f.attacking.t / f.attacking.dur / 0.7) * (f.attacking.fired ? 0 : 1);
-      views[i].update(f.rd.p, { dirs: { armL: f.arms.armL.wdir, armR: f.arms.armR.wdir }, hurt: f.state === 'ko' || f.state === 'falling' || f.state === 'fallen' ? 1 : f.face.hurt, time: t + i, draws, victory: f.state === 'victory' });
+      if (f.attacking && f.attacking.kind === 'shoot') draws[f.attacking.arm.key] = Math.min(1, f.attacking.t / f.attacking.dur / 0.7) * (f.attacking.fired ? 0 : 1);
+      const dirs = {};
+      for (const a of ARMS) dirs[a] = f.arms[a].wdir;
+      views[i].update(f.rd.p, { dirs, hurt: f.state === 'ko' || f.state === 'falling' || f.state === 'fallen' ? 1 : f.face.hurt, time: t + i, draws, victory: f.state === 'victory' });
     });
     fx.syncArrows(battle.arrows, buildArrow);
     updateCamera(dt);

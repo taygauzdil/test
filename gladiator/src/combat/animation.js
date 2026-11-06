@@ -1,7 +1,8 @@
 // Procedural animation: produces local-space target poses that the active ragdoll muscles chase.
 // Attack profiles are keyframed hand positions + blade directions; x values are mirrored per arm.
 import { Vector3 } from '../../vendor/three.module.js';
-import { J, BONE, JOINT_COUNT } from '../physics/ragdoll.js';
+import { J, ARM_J, BONE, JOINT_COUNT } from '../physics/ragdoll.js';
+import { ARMS, ARM_INFO, TIER } from '../body.js';
 
 const V = (x, y, z) => new Vector3(x, y, z);
 
@@ -64,26 +65,30 @@ export function ik2(a, c, l1, l2, pole, outMid, outEnd) {
 }
 
 // Build a full local-space pose from high level parameters.
-// p: { pelvisY, lean, twist, side lean, hands:[L,R] local, feet:[L,R] local, headTilt }
-const pole = new Vector3();
+// p: { pelvisY, lean, twist, roll, hands: { [armKey]: local Vector3 }, feet:[L,R] local, headTilt }
+const pole = new Vector3(), sh = new Vector3();
 export function buildPose(p, out) {
   const pel = out[J.pelvis].set(p.px || 0, p.pelvisY, p.pz || 0);
   const cl = Math.cos(p.lean), sl = Math.sin(p.lean);
   out[J.chest].set(pel.x + (p.roll || 0) * 0.5, pel.y + 0.5 * cl, pel.z + 0.5 * sl);
   const ch = out[J.chest];
   const ct = Math.cos(p.twist), st = Math.sin(p.twist);
-  // rotY(twist) applied to (+-0.34,0,0): x' = x cos, z' = -x sin
-  out[J.shL].set(ch.x - 0.34 * ct, ch.y - 0.0, ch.z + 0.34 * st);
-  out[J.shR].set(ch.x + 0.34 * ct, ch.y, ch.z - 0.34 * st);
   const hl = 0.43, hlean = p.lean * 0.6 + (p.headTilt || 0);
   out[J.head].set(ch.x + (p.roll || 0) * 0.3, ch.y + hl * Math.cos(hlean), ch.z + hl * Math.sin(hlean));
   const ht = p.twist * 0.3, hc = Math.cos(ht), hs = Math.sin(ht);
   out[J.hipL].set(pel.x - 0.15 * hc, pel.y - 0.05, pel.z + 0.15 * hs);
   out[J.hipR].set(pel.x + 0.15 * hc, pel.y - 0.05, pel.z - 0.15 * hs);
-  // arms
-  for (const [sh, el, ha, s, hand] of [[J.shL, J.elL, J.haL, -1, p.hands[0]], [J.shR, J.elR, J.haR, 1, p.hands[1]]]) {
-    pole.copy(out[sh]).add(tmp.set(s * 0.55, -0.55, -0.35));
-    ik2(out[sh], hand, BONE.upperArm, BONE.foreArm, pole, out[el], out[ha]);
+  // six arms: shoulders hang off the chest along the leaning, twisting torso
+  for (const a of ARMS) {
+    const { side, tier } = ARM_INFO[a], T = TIER[tier], j = ARM_J[a];
+    const tw = p.twist * (1 - tier * 0.25);
+    const ox = side * T.shoulder[0], oy = T.shoulder[1], oz = T.shoulder[2];
+    // lean (rotate about x) then twist (rotate about y)
+    const ly = oy * cl - oz * sl, lz = oy * sl + oz * cl;
+    sh.set(ch.x + ox * Math.cos(tw) + lz * Math.sin(tw), ch.y + ly, ch.z - ox * Math.sin(tw) + lz * Math.cos(tw));
+    out[j.sh].copy(sh);
+    pole.copy(sh).add(tmp.set(side * 0.55, -0.55 + tier * 0.25, -0.35));
+    ik2(out[j.sh], p.hands[a], BONE.upperArm, BONE.foreArm, pole, out[j.el], out[j.ha]);
   }
   for (const [hip, kn, ft, s, foot] of [[J.hipL, J.knL, J.ftL, -1, p.feet[0]], [J.hipR, J.knR, J.ftR, 1, p.feet[1]]]) {
     pole.copy(out[hip]).add(tmp.set(s * 0.12, -0.2, 0.9));
@@ -94,12 +99,18 @@ export function buildPose(p, out) {
 
 export const makePose = () => Array.from({ length: JOINT_COUNT }, () => new Vector3());
 
-// Prep-screen A-pose with gentle breathing.
+// Prep-screen pose: six arms fanned out (top raised, middle level, bottom lowered), gentle breathing.
+const aHands = {};
+for (const a of ARMS) aHands[a] = new Vector3();
 export function aPose(t, out) {
   const b = Math.sin(t * 2) * 0.012;
+  for (const a of ARMS) {
+    const { side, tier } = ARM_INFO[a], h = TIER[tier].aHand;
+    aHands[a].set(side * h[0], h[1] + b + Math.sin(t * 1.6 + tier * 1.3 + side) * 0.015, h[2]);
+  }
   return buildPose({
     pelvisY: 0.95 + b * 0.5, lean: 0, twist: Math.sin(t * 0.7) * 0.03,
-    hands: [V(-0.84, 1.0 + b, 0.06), V(0.84, 1.0 + b, 0.06)],
+    hands: aHands,
     feet: [V(-0.3, 0.09, 0.02), V(0.3, 0.09, 0.02)], headTilt: Math.sin(t * 0.9) * 0.03,
   }, out);
 }

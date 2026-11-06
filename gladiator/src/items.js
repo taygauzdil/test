@@ -7,14 +7,13 @@
 // w,h:       footprint in grid cells before rotation
 // attack:    animation / collision profile used by the combat system
 
-export const REGIONS = ['head', 'body', 'armL', 'armR', 'legL', 'legR'];
-export const REGION_LABEL = { head: 'Head', body: 'Body', armL: 'Left Arm', armR: 'Right Arm', legL: 'Left Leg', legR: 'Right Leg' };
-export const ARMS = ['armL', 'armR'];
+import { ARMS, REGIONS, REGION_LABEL } from './body.js';
+export { ARMS, REGIONS, REGION_LABEL };
 
 export const ITEMS = {
   sword: {
     name: 'Sword', kind: 'weapon', hands: 1, price: 4, w: 1, h: 2, model: 'sword',
-    regions: ['armL', 'armR'], attack: 'slash',
+    regions: ARMS, attack: 'slash',
     desc: 'Fast slashes, medium damage, short reach.',
     levels: [
       { dmg: 15, cooldown: 1.0, reach: 1.30, kb: 1.0, length: 0.95 },
@@ -24,7 +23,7 @@ export const ITEMS = {
   },
   axe: {
     name: 'Axe', kind: 'weapon', hands: 1, price: 5, w: 1, h: 2, model: 'axe',
-    regions: ['armL', 'armR'], attack: 'chop',
+    regions: ARMS, attack: 'chop',
     desc: 'Slow, heavy chops with strong knockback.',
     levels: [
       { dmg: 22, cooldown: 1.45, reach: 1.25, kb: 2.0, length: 0.9 },
@@ -34,7 +33,7 @@ export const ITEMS = {
   },
   spear: {
     name: 'Spear', kind: 'weapon', hands: 1, price: 5, w: 1, h: 2, model: 'spear',
-    regions: ['armL', 'armR'], attack: 'thrust',
+    regions: ARMS, attack: 'thrust',
     desc: 'Long-reach forward thrusts.',
     levels: [
       { dmg: 18, cooldown: 1.15, reach: 1.85, kb: 0.9, length: 1.75 },
@@ -44,7 +43,7 @@ export const ITEMS = {
   },
   hammer: {
     name: 'Hammer', kind: 'weapon', hands: 1, price: 6, w: 2, h: 2, model: 'hammer',
-    regions: ['armL', 'armR'], attack: 'slam',
+    regions: ARMS, attack: 'slam',
     desc: 'Very slow, massive knockback. Sends foes flying.',
     levels: [
       { dmg: 26, cooldown: 2.3, reach: 1.3, kb: 3.1, length: 0.95, move: -0.1 },
@@ -54,8 +53,8 @@ export const ITEMS = {
   },
   bow: {
     name: 'Bow', kind: 'weapon', hands: 2, price: 6, w: 1, h: 2, model: 'bow',
-    regions: ['armL', 'armR'], attack: 'shoot',
-    desc: 'Two-handed. Fires physical arrows from range.',
+    regions: ARMS, attack: 'shoot',
+    desc: 'Two-handed: uses its arm plus the opposite arm at the same height. Fires physical arrows.',
     levels: [
       { dmg: 14, cooldown: 1.45, reach: 6.0, kb: 0.8, speed: 15 },
       { dmg: 23, cooldown: 1.35, reach: 6.0, kb: 0.9, speed: 16 },
@@ -64,7 +63,7 @@ export const ITEMS = {
   },
   shield: {
     name: 'Shield', kind: 'shield', price: 4, w: 1, h: 2, model: 'shield',
-    regions: ['armL', 'armR'],
+    regions: ARMS,
     desc: 'Blocks hits that physically strike it. Uses an arm.',
     levels: [
       { block: 0.45, armor: 4, radius: 0.28 },
@@ -79,9 +78,9 @@ export const ITEMS = {
     levels: [{ armor: 12 }, { armor: 22 }, { armor: 36 }],
   },
   chest: {
-    name: 'Chest Armor', kind: 'armor', price: 6, w: 2, h: 2, model: 'chest',
-    regions: ['body', 'armL', 'armR'],
-    desc: 'Protects body and any arm it touches. +Max HP.',
+    name: 'Chest Armor', kind: 'armor', price: 6, w: 1, h: 2, model: 'chest',
+    regions: ['body', ...ARMS],
+    desc: 'Protects the body and any arm it touches. +Max HP.',
     levels: [
       { armor: 10, hp: 20, move: -0.05 },
       { armor: 17, hp: 35, move: -0.05 },

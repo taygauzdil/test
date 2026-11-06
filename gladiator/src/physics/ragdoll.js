@@ -3,41 +3,56 @@
 // over (stagger, knockdown, falling off the cliff); raising it lets animation take back control.
 import { Vector3 } from '../../vendor/three.module.js';
 import { CONFIG } from '../config.js';
+import { ARMS, ARM_INFO, TIER } from '../body.js';
 
-export const J = {
-  pelvis: 0, chest: 1, head: 2,
-  shL: 3, elL: 4, haL: 5, shR: 6, elR: 7, haR: 8,
-  hipL: 9, knL: 10, ftL: 11, hipR: 12, knR: 13, ftR: 14,
-};
-export const JOINT_COUNT = 15;
-
-// Rest pose, local space: facing +z, game "Left" side = -x.
-export const REST = [
-  [0, 0.95, 0], [0, 1.45, 0], [0, 1.88, 0],
-  [-0.34, 1.45, 0], [-0.55, 1.2, 0], [-0.72, 0.95, 0],
-  [0.34, 1.45, 0], [0.55, 1.2, 0], [0.72, 0.95, 0],
-  [-0.15, 0.9, 0], [-0.17, 0.5, 0], [-0.18, 0.09, 0],
-  [0.15, 0.9, 0], [0.17, 0.5, 0], [0.18, 0.09, 0],
-].map(a => new Vector3(...a));
+// Joint layout: pelvis, chest, head, then (shoulder, elbow, hand) for each of the six arms, then legs.
+export const J = { pelvis: 0, chest: 1, head: 2 };
+export const ARM_J = {};
+ARMS.forEach((a, i) => { ARM_J[a] = { sh: 3 + i * 3, el: 4 + i * 3, ha: 5 + i * 3 }; });
+const LEG0 = 3 + ARMS.length * 3;
+Object.assign(J, { hipL: LEG0, knL: LEG0 + 1, ftL: LEG0 + 2, hipR: LEG0 + 3, knR: LEG0 + 4, ftR: LEG0 + 5 });
+export const JOINT_COUNT = LEG0 + 6;
 
 export const BONE = { upperArm: 0.32, foreArm: 0.31, thigh: 0.4, shin: 0.41 };
 
-const MASS = [3, 3, 1.4, 1, 0.6, 0.5, 1, 0.6, 0.5, 1.2, 0.8, 0.7, 1.2, 0.8, 0.7];
-export const RADIUS = [0.2, 0.25, 0.33, 0.12, 0.09, 0.1, 0.12, 0.09, 0.1, 0.12, 0.1, 0.08, 0.12, 0.1, 0.08];
-// Per-joint muscle gain multipliers: core/legs stronger so the fighter stays upright under hits.
-const GAIN = [1.6, 1.3, 0.7, 1, 0.8, 1.15, 1, 0.8, 1.15, 1.2, 1.2, 1.5, 1.2, 1.2, 1.5];
+// Rest pose, local space: facing +z, game "Left" side = -x.
+export const REST = Array.from({ length: JOINT_COUNT }, () => new Vector3());
+REST[J.pelvis].set(0, 0.95, 0); REST[J.chest].set(0, 1.45, 0); REST[J.head].set(0, 1.88, 0);
+for (const a of ARMS) {
+  const { side, tier } = ARM_INFO[a], T = TIER[tier], j = ARM_J[a];
+  const sh = REST[j.sh].set(side * T.shoulder[0], 1.45 + T.shoulder[1], T.shoulder[2]);
+  const hand = new Vector3(side * T.aHand[0], T.aHand[1], 0);
+  const dir = hand.clone().sub(sh).normalize();
+  REST[j.el].copy(sh).addScaledVector(dir, BONE.upperArm);
+  REST[j.ha].copy(sh).addScaledVector(dir, BONE.upperArm + BONE.foreArm);
+}
+REST[J.hipL].set(-0.15, 0.9, 0); REST[J.knL].set(-0.17, 0.5, 0); REST[J.ftL].set(-0.18, 0.09, 0);
+REST[J.hipR].set(0.15, 0.9, 0); REST[J.knR].set(0.17, 0.5, 0); REST[J.ftR].set(0.18, 0.09, 0);
+
+const MASS = [], GAIN = [];
+export const RADIUS = [];
+const set = (i, m, r, g) => { MASS[i] = m; RADIUS[i] = r; GAIN[i] = g; };
+set(J.pelvis, 4, 0.2, 1.6); set(J.chest, 4, 0.25, 1.3); set(J.head, 1.4, 0.33, 0.7);
+for (const a of ARMS) { const j = ARM_J[a]; set(j.sh, 1, 0.12, 1); set(j.el, 0.6, 0.09, 0.8); set(j.ha, 0.5, 0.1, 1.15); }
+for (const [h, k, f] of [[J.hipL, J.knL, J.ftL], [J.hipR, J.knR, J.ftR]]) { set(h, 1.2, 0.12, 1.2); set(k, 0.8, 0.1, 1.2); set(f, 0.7, 0.08, 1.5); }
+export const isLegJoint = i => i >= LEG0;
 
 const PAIRS = [
-  // bones
-  [J.pelvis, J.chest], [J.chest, J.head], [J.chest, J.shL], [J.chest, J.shR],
-  [J.shL, J.elL], [J.elL, J.haL], [J.shR, J.elR], [J.elR, J.haR],
+  [J.pelvis, J.chest], [J.chest, J.head],
   [J.pelvis, J.hipL], [J.pelvis, J.hipR], [J.hipL, J.knL], [J.knL, J.ftL], [J.hipR, J.knR], [J.knR, J.ftR],
-  // stiffeners keep torso / hips / neck rigid
-  [J.shL, J.shR], [J.hipL, J.hipR], [J.shL, J.pelvis], [J.shR, J.pelvis], [J.hipL, J.chest], [J.hipR, J.chest],
-  [J.head, J.shL], [J.head, J.shR], [J.shL, J.hipR], [J.shR, J.hipL],
+  [J.hipL, J.hipR], [J.hipL, J.chest], [J.hipR, J.chest],
 ];
-// Soft min-distance limits stop limbs folding through themselves when fully limp.
-const MIN_DIST = [[J.shL, J.haL, 0.22], [J.shR, J.haR, 0.22], [J.hipL, J.ftL, 0.35], [J.hipR, J.ftR, 0.35], [J.head, J.pelvis, 0.8]];
+const MIN_DIST = [[J.hipL, J.ftL, 0.35], [J.hipR, J.ftR, 0.35], [J.head, J.pelvis, 0.8]];
+for (const a of ARMS) {
+  const j = ARM_J[a];
+  // arm bones + rigid attachment of each shoulder to the torso (chest, pelvis, head)
+  PAIRS.push([J.chest, j.sh], [j.sh, j.el], [j.el, j.ha], [j.sh, J.pelvis], [j.sh, J.head]);
+  MIN_DIST.push([j.sh, j.ha, 0.22]);
+}
+// shoulders braced across and along each side so the six-armed torso stays rigid
+for (const t of [1, 2, 3]) PAIRS.push([ARM_J[`armL${t}`].sh, ARM_J[`armR${t}`].sh]);
+for (const s of ['L', 'R']) PAIRS.push([ARM_J[`arm${s}1`].sh, ARM_J[`arm${s}2`].sh], [ARM_J[`arm${s}2`].sh, ARM_J[`arm${s}3`].sh]);
+PAIRS.push([ARM_J.armL1.sh, J.hipR], [ARM_J.armR1.sh, J.hipL]);
 
 export class Ragdoll {
   constructor() {
@@ -70,8 +85,7 @@ export class Ragdoll {
     for (let i = 0; i < JOINT_COUNT; i++) {
       const p = this.p[i], pr = this.prev[i];
       v.subVectors(p, pr).divideScalar(dt);
-      const isLeg = i >= J.hipL;
-      const m = (isLeg ? Math.max(this.muscle, this.legMuscle) : this.muscle) * GAIN[i];
+      const m = (isLegJoint(i) ? Math.max(this.muscle, this.legMuscle) : this.muscle) * GAIN[i];
       a.set(0, gravity, 0);
       if (m > 0.001) {
         // PD muscle toward animated target (mass-normalised so light limbs do not overshoot)

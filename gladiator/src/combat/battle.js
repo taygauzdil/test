@@ -3,7 +3,8 @@
 // (runs headless in Node for balance tests).
 import { Vector3 } from '../../vendor/three.module.js';
 import { Fighter, ARM_KEYS } from './fighter.js';
-import { J } from '../physics/ragdoll.js';
+import { J, ARM_J } from '../physics/ragdoll.js';
+import { ARMS, isArm } from '../body.js';
 import { segSegDist, segPointDist } from '../physics/collide.js';
 import { CONFIG } from '../config.js';
 
@@ -11,12 +12,10 @@ import { CONFIG } from '../config.js';
 const BODY_PARTS = [
   [J.head, J.head, 0.33, 'head'],
   [J.pelvis, J.chest, 0.27, 'body'],
-  [J.shL, J.elL, 0.1, 'armL'], [J.elL, J.haL, 0.09, 'armL'],
-  [J.shR, J.elR, 0.1, 'armR'], [J.elR, J.haR, 0.09, 'armR'],
+  ...ARMS.flatMap(a => [[ARM_J[a].sh, ARM_J[a].el, 0.1, a], [ARM_J[a].el, ARM_J[a].ha, 0.09, a]]),
   [J.hipL, J.knL, 0.12, 'legL'], [J.knL, J.ftL, 0.1, 'legL'],
   [J.hipR, J.knR, 0.12, 'legR'], [J.knR, J.ftR, 0.1, 'legR'],
 ];
-const PART_JOINTS = BODY_PARTS.map(p => [p[0], p[1]]);
 
 export function groundFn(p, prev, r) {
   const A = CONFIG.arena;
@@ -121,11 +120,12 @@ export class Battle {
     const wr = att.weaponSegment(A.arm, A.kind, a, b);
     const ca = new Vector3(), cb = new Vector3();
     // shield first: a physical block if the weapon strikes the shield disc
-    const sh = this._shieldOf(def);
-    if (sh && segPointDist(a, b, sh.center, ca) < sh.radius + wr) {
-      A.hit = true;
-      this._applyHit(att, def, { region: sh.arm, point: ca.clone(), joint: sh.joint, blocked: sh.block, kind: A.kind, st: A.st });
-      return;
+    for (const sh of this._shieldsOf(def)) {
+      if (segPointDist(a, b, sh.center, ca) < sh.radius + wr) {
+        A.hit = true;
+        this._applyHit(att, def, { region: sh.arm, point: ca.clone(), joint: sh.joint, blocked: sh.block, kind: A.kind, st: A.st });
+        return;
+      }
     }
     let best = null;
     for (let k = 0; k < BODY_PARTS.length; k++) {
@@ -140,15 +140,17 @@ export class Battle {
     }
   }
 
-  _shieldOf(f) {
+  // every shield-carrying arm is its own physical blocker
+  _shieldsOf(f) {
+    const out = [];
     for (const key of ARM_KEYS) {
       const arm = f.arms[key];
       if (arm.type !== 'shield') continue;
-      const el = f.rd.p[key === 'armL' ? J.elL : J.elR], ha = f.rd.p[key === 'armL' ? J.haL : J.haR];
-      const center = new Vector3().lerpVectors(el, ha, 0.6).addScaledVector(f.forward(), 0.12);
-      return { center, radius: arm.st.radius, block: arm.st.block, arm: key, joint: key === 'armL' ? J.haL : J.haR };
+      const j = ARM_J[key];
+      const center = new Vector3().lerpVectors(f.rd.p[j.el], f.rd.p[j.ha], 0.6).addScaledVector(f.forward(), 0.12);
+      out.push({ center, radius: arm.st.radius, block: arm.st.block, arm: key, joint: j.ha });
     }
-    return null;
+    return out;
   }
 
   _applyHit(att, def, h) {
@@ -157,7 +159,8 @@ export class Battle {
     const armor = def.lo.armor[h.region] || 0;
     const red = armor / (armor + C.armorK);
     const crit = !h.magic && !h.blocked && this.rng() < 0.1;
-    let dmg = h.st.dmg * (C.regionDamageMult[h.region] || 1) * (1 - red) * (0.8 + this.rng() * 0.4) * (crit ? 1.6 : 1);
+    const mult = C.regionDamageMult[h.region] ?? (isArm(h.region) ? C.regionDamageMult.arm : 1);
+    let dmg = h.st.dmg * mult * (1 - red) * (0.8 + this.rng() * 0.4) * (crit ? 1.6 : 1);
     if (h.magic) dmg = h.st.dmg * (0.85 + this.rng() * 0.3);
     let kb = (h.st.kb || 0.5) * (crit ? 1.5 : 1);
     if (h.blocked) { dmg *= 1 - h.blocked; kb *= 0.4; }
@@ -182,8 +185,8 @@ export class Battle {
     if (h.region === 'head') def.rd.addVelocity(J.head, new Vector3(0, 1.5, 0).addScaledVector(dir, 2.5));
     // recoil on the attacker's weapon hand
     if (h.kind && h.kind !== 'arrow' && h.kind !== 'lightning') {
-      const hand = att.rd.p[h.kind ? (att.attacking?.arm.key === 'armR' ? J.haR : J.haL) : J.haL];
-      att.rd.addVelocity(hand === att.rd.p[J.haR] ? J.haR : J.haL, dir.clone().multiplyScalar(-2.5 * (h.blocked ? 2 : 1)));
+      const armKey = att.attacking?.arm.key;
+      if (armKey) att.rd.addVelocity(ARM_J[armKey].ha, dir.clone().multiplyScalar(-2.5 * (h.blocked ? 2 : 1)));
     }
     def.flinch = Math.min(1, def.flinch + 0.35 + kbEff * 0.15);
     def.face.hurt = 1;
@@ -212,7 +215,7 @@ export class Battle {
     if (!A || A.kind !== 'shoot' || A.fired) return;
     if (A.t / A.dur < 0.7) return;
     A.fired = true;
-    const bowHand = att.rd.p[att.bowArm === 'armL' ? J.haL : J.haR];
+    const bowHand = att.rd.p[ARM_J[A.arm.key].ha];
     const from = bowHand.clone().addScaledVector(att.forward(), 0.25); from.y += 0.05;
     const target = def.rd.p[J.chest].clone().addScaledVector(def.vel, 0.25);
     target.x += (this.rng() - 0.5) * 0.3; target.y += (this.rng() - 0.5) * 0.5;
@@ -240,8 +243,8 @@ export class Battle {
       ar.pos.addScaledVector(ar.vel, dt);
       const def = ar.owner.foe;
       if (!this.winner && def.hp > 0) {
-        const sh = this._shieldOf(def);
-        if (sh && segPointDist(ar.prev, ar.pos, sh.center, ca) < sh.radius) {
+        const sh = this._shieldsOf(def).find(sh => segPointDist(ar.prev, ar.pos, sh.center, ca) < sh.radius);
+        if (sh) {
           this._applyHit(ar.owner, def, { region: sh.arm, point: ca.clone(), joint: sh.joint, blocked: sh.block, kind: 'arrow', st: ar.st });
           ar.alive = false; ar.stuck = { f: def, j: sh.joint, off: ca.clone().sub(def.rd.p[sh.joint]) };
           continue;

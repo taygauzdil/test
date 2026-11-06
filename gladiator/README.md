@@ -1,7 +1,7 @@
-# Gladiator Backpack
+# Arena Beast Backpack
 
 A 3D, portrait (9:16) PvP auto-battler prototype. You arrange equipment on a backpack grid
-around your gladiator, then watch two physics-driven gladiators fight it out. First to 3 round wins takes the match.
+around a **six-armed arena monster** (head, body, six arms, two legs), then watch two physics-driven monsters fight it out. First to 3 round wins takes the match.
 
 ## Run
 
@@ -12,18 +12,20 @@ an HTTP server, so serve the folder:
 cd gladiator && python3 -m http.server 8000
 ```
 
-Then open <http://localhost:8000/>. It works with mouse or touch and is designed for a phone-sized portrait window.
+Then open <http://localhost:8000/>. Or open `gladiator-backpack.html`, a single self-contained file that needs no server (rebuild it with `node build-standalone.mjs`). It works with mouse or touch and is designed for a phone-sized portrait window.
 
 ## How to play
 
 1. **Shop:** you get 3 offers each round, and Round 1 starts with 10 coins. Drag an offer straight into the grid to buy and place it,
    or tap it and press **Buy** to send it to the bench. Bench items must be placed or sold before you can fight.
 2. **Body contact:** every grid cell touches one or more body regions (the coloured dots in each cell).
+   The monster has six arms in three tiers per side (top, middle, bottom). Each arm reaches two cells in the
+   outer column plus one inner cell, so every arm can carry its own 1x2 weapon or shield.
    An item only works if its cells touch a region it can use: weapons and shields need an arm, a helmet needs the head,
    chest armor the body (it also protects any arm it touches), leg armor the legs, and perks their listed regions.
    While you drag, the regions an item would touch light up on the gladiator and the cells glow green (valid) or red (invalid).
-3. **One weapon per arm:** the weapon you placed first keeps the arm. Later weapons or shields on the same arm are dimmed and marked **INACTIVE**.
-   The two-handed bow needs both arms free.
+3. **One item per arm:** each arm holds one weapon or shield (six swords, three shields, any mix). The item you placed first keeps the arm;
+   later weapons or shields on the same arm are dimmed and marked **INACTIVE**. The two-handed bow uses its arm plus the opposite arm at the same height.
 4. **Rotate:** tap an item and press **Rotate**, or while dragging press **R**, right-click, or tap with a second finger.
 5. **Merge:** drop an identical item of the same level onto another (from the grid, bench or shop) to make Lv.2, then Lv.3.
    The merged item stays where the target was.
@@ -35,6 +37,7 @@ Then open <http://localhost:8000/>. It works with mouse or touch and is designed
 
 | Module | Responsibility |
 |---|---|
+| `src/body.js` | Body plan: the six arms (side, tier, labels) and per-tier geometry; everything else loops over it |
 | `src/items.js` | Data-driven item definitions (per-level stats, footprint, regions, attack profile) |
 | `src/grid.js` | Fixed grid layout and the cell → body-region map |
 | `src/inventory.js` | Placement, overlap, rotation, merge and sell rules (deterministic) |

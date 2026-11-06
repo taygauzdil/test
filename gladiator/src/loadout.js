@@ -4,14 +4,15 @@
 import { ITEMS, ARMS, REGION_LABEL, footprint, stats, UNARMED } from './items.js';
 import { regionsTouched, regionWeights } from './grid.js';
 import { CONFIG } from './config.js';
+import { REGIONS, ARM_INFO } from './body.js';
 
 export function resolveLoadout(inv) {
   const status = {};
-  const hands = { armL: null, armR: null };
-  const armor = { head: 0, body: 0, armL: 0, armR: 0, legL: 0, legR: 0 };
+  const hands = Object.fromEntries(ARMS.map(a => [a, null]));
+  const armor = Object.fromEntries(REGIONS.map(r => [r, 0]));
   const perks = [];
   let hpBonus = 0, stability = CONFIG.combat.baseStability, moveMult = 1;
-  let twoHanded = null;
+  const twoHanded = [];
 
   const ordered = [...inv.items].sort((a, b) => a.seq - b.seq);
   for (const it of ordered) {
@@ -27,12 +28,17 @@ export function resolveLoadout(inv) {
       const armsTouched = ARMS.filter(a => touched.includes(a));
       if (!armsTouched.length) { s.reason = 'Must touch an arm'; continue; }
       if (def.hands === 2) {
-        const blocker = ARMS.map(a => hands[a]).find(Boolean);
-        if (blocker) { s.reason = `Needs both arms (${ITEMS[blocker.item.id].name} in use)`; continue; }
-        const primary = [...armsTouched].sort((a, b) => (weights[b] || 0) - (weights[a] || 0))[0];
-        const entry = { item: it, def, st, twoHanded: true, primary };
-        hands.armL = entry; hands.armR = entry; twoHanded = entry;
-        s.active = true; s.arm = 'both'; s.regions = ['armL', 'armR'];
+        // two-handed: its own arm plus the opposite arm at the same height must both be free
+        const ok = armsTouched.filter(a => !hands[a] && !hands[ARM_INFO[a].mirror]).sort((a, b) => (weights[b] || 0) - (weights[a] || 0));
+        if (!ok.length) {
+          const a = armsTouched[0], m = ARM_INFO[a].mirror, blocker = hands[a] || hands[m];
+          s.reason = `Needs ${REGION_LABEL[a]} + ${REGION_LABEL[m]} free (${ITEMS[blocker.item.id].name} in use)`;
+          continue;
+        }
+        const primary = ok[0], other = ARM_INFO[primary].mirror;
+        const entry = { item: it, def, st, twoHanded: true, primary, other };
+        hands[primary] = entry; hands[other] = entry; twoHanded.push(entry);
+        s.active = true; s.arm = primary; s.arms = [primary, other]; s.regions = [primary, other];
       } else {
         const free = armsTouched.filter(a => !hands[a]).sort((a, b) => (weights[b] || 0) - (weights[a] || 0));
         if (!free.length) {
@@ -50,7 +56,7 @@ export function resolveLoadout(inv) {
     }
 
     const active = touched.filter(r => def.regions.includes(r));
-    if (!active.length) { s.reason = 'Must touch ' + def.regions.map(r => REGION_LABEL[r]).join(' / '); continue; }
+    if (!active.length) { s.reason = 'Must touch ' + def.regions.filter(r => !r.startsWith('arm') || r === 'armL1').map(r => r === 'armL1' ? 'an arm' : REGION_LABEL[r]).join(' / '); continue; }
     s.active = true; s.regions = active;
     if (def.kind === 'armor') {
       for (const r of active) armor[r] += st.armor;
@@ -66,22 +72,26 @@ export function resolveLoadout(inv) {
     const h = hands[a];
     if (!h) return { type: 'fist', st: UNARMED, item: null };
     if (h.def.kind === 'shield') return { type: 'shield', st: h.st, item: h.item };
-    return { type: h.def.attack, st: h.st, item: h.item, twoHanded: !!h.twoHanded };
+    if (h.twoHanded && h.other === a) return { type: 'draw', st: h.st, item: h.item, bowArm: h.primary };
+    if (h.twoHanded) return { type: h.def.attack, st: h.st, item: h.item, twoHanded: true, drawArm: h.other };
+    return { type: h.def.attack, st: h.st, item: h.item };
   };
 
-  const L = arm('armL'), R = arm('armR');
-  const kbPower = Math.max(L.st.kb || 0, R.st.kb || 0, UNARMED.kb);
+  const arms = Object.fromEntries(ARMS.map(a => [a, arm(a)]));
+  const attackers = Object.values(arms).filter(a => a.type !== 'shield' && a.type !== 'draw');
+  const weapons = attackers.filter(a => a.item);
   return {
     status, hands, armor, perks, twoHanded,
-    arms: { armL: L, armR: R },
+    arms,
     stats: {
       maxHp: CONFIG.combat.baseHp + hpBonus,
       stability,
       moveSpeed: CONFIG.combat.baseMoveSpeed * Math.max(0.6, moveMult),
-      knockback: kbPower,
-      damage: Math.max(L.st.dmg || 0, R.st.dmg || 0),
+      knockback: Math.max(UNARMED.kb, ...attackers.map(a => a.st.kb || 0)),
+      damage: weapons.reduce((t, a) => t + a.st.dmg, 0),
       defense: Object.values(armor).reduce((a, b) => a + b, 0),
-      attackSpeed: 1 / Math.min(L.st.cooldown || 9, R.st.cooldown || 9),
+      // attacks per second across all arms (one swing at a time, so it saturates)
+      attackSpeed: Math.min(3, attackers.reduce((t, a) => t + 1 / a.st.cooldown, 0)),
     },
   };
 }

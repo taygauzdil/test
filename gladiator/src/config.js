@@ -17,7 +17,7 @@ export const CONFIG = {
   combat: {
     baseHp: 100,
     roundTimeLimit: 60,   // seconds; on timeout the higher HP% wins
-    regionDamageMult: { head: 1.5, body: 1.0, armL: 0.75, armR: 0.75, legL: 0.8, legR: 0.8 },
+    regionDamageMult: { head: 1.5, body: 1.0, arm: 0.75, legL: 0.8, legR: 0.8 },
     armorK: 20,           // reduction = armor / (armor + armorK)
     baseStability: 1.0,
     baseMoveSpeed: 2.2,
