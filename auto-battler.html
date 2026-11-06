@@ -199,7 +199,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <div class="rules">
       • Each turn pick <b>1 of 3 cards</b> and <b>drag</b> it onto your blue half of the grid.<br>
       • <b>Upgrade</b> cards go onto one of your existing groups (that group only).<br>
-      • <b>Double</b> card: drop it on a unit and a copy (same level) appears in the slot next to it.<br>
+      • <b>Double</b> card: drop it on a unit and it doubles, growing into the slot next to it (one unit, two slots).<br>
       • Your army <b>stays</b> between rounds and returns at full strength.<br>
       • Lose a round → <b>Comeback Bonus</b>: one extra card next round.<br>
       • Battles are automatic. Wipe out every enemy to win the round.
@@ -413,7 +413,7 @@ function layout() {
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   const top = $('#turnbar').getBoundingClientRect().bottom - r.top + 6;
   const trayH = $('#tray').offsetHeight;
-  const bottom = H - trayH - 4;
+  const bottom = H - trayH - 30; // leave room for the "PICK 1 CARD" label that sits on top of the tray
   const avail = Math.max(100, bottom - top);
   let cw = (W - 12) / 10, ch = avail / 10;
   if (ch > cw * 1.25) ch = cw * 1.25;
@@ -615,7 +615,7 @@ function cardEl(card, team, i) {
     el.className = 'card dbl';
     el.innerHTML = `<div class="shine"></div><div class="ribbon">SPECIAL</div><div class="ctop">DOUBLE</div><img class="art" src="${doubleArt(team)}" alt="">
       <div class="lvl">×2 Your Unit</div>
-      <div class="bonus">Drop on a unit: a copy appears in the slot next to it</div>`;
+      <div class="bonus">Doubles a unit: it grows into the next slot</div>`;
   } else if (card.kind === 'unit') {
     el.className = 'card unit';
     el.innerHTML = `<div class="ribbon">NEW</div><div class="ctop">${U.name.toUpperCase()}</div><img class="art" src="${unitArt(card.type, team)}" alt="">
@@ -652,26 +652,29 @@ function onCardDown(e, idx, el) {
   ghost.style.display = 'none';
   app.appendChild(ghost);
   const p = appPoint(e);
-  G.drag = { idx, card, el, ghost, sx: p.x, sy: p.y, x: p.x, y: p.y, moved: false, touch: e.pointerType !== 'mouse', hover: null, targets: S.validTargets(G.P.blue, card) };
+  G.drag = { pid: e.pointerId, idx, card, el, ghost, sx: p.x, sy: p.y, x: p.x, y: p.y, moved: false, touch: e.pointerType !== 'mouse', hover: null, targets: S.validTargets(G.P.blue, card) };
   const move = ev => {
-    const d = G.drag; if (!d) return;
+    const d = G.drag; if (!d || ev.pointerId !== d.pid) return;
     const q = appPoint(ev); d.x = q.x; d.y = q.y;
     if (!d.moved && Math.hypot(q.x - d.sx, q.y - d.sy) > 8) { d.moved = true; el.classList.add('lifted'); ghost.style.display = 'flex'; }
     if (d.moved) {
-      const off = d.touch ? 44 : 0; // touch: drop point sits above the finger so the slot stays visible
-      ghost.style.transform = `translate(${q.x}px,${q.y - off - 44}px)`; // the token floats above the drop point
-      d.hover = cellAt(q.x, q.y - off);
+      // the card token floats above the finger so it never hides the slot; the drop point is exactly under the finger
+      ghost.style.transform = `translate(${q.x}px,${q.y - (d.touch ? 70 : 50)}px)`;
+      d.hover = dropCell(card, q.x, q.y);
+      const gl = ghost.querySelector('.gl'), txt = previewText(card, d.hover);
+      if (gl.textContent !== txt) gl.textContent = txt;
     }
   };
   const up = ev => {
-    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
-    const d = G.drag; if (!d) return;
+    const d = G.drag; if (!d || ev.pointerId !== d.pid) return;
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+    if (ev.type === 'pointerup' && d.moved) d.hover = dropCell(card, d.x, d.y);
     if (!d.moved) { // a tap: explain and flash the valid slots
       ghost.remove(); G.drag = null;
       G.hintUntil = performance.now() + 1300; G.hintCard = card;
       el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint');
       toast(card.kind === 'unit' ? 'Drag this card onto an empty slot in your blue zone'
-        : card.kind === 'double' ? 'Drag onto one of your units: a copy appears in the slot next to it'
+        : card.kind === 'double' ? 'Drag onto one of your units: it doubles and covers the slot next to it'
         : 'Drag onto a glowing ' + UNITS[card.type].name + ' group to upgrade it');
       return;
     }
@@ -687,7 +690,30 @@ function onCardDown(e, idx, el) {
       el.classList.remove('lifted'); G.drag = null;
     }
   };
-  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+}
+// Text on the floating card: what will happen if it is dropped here
+function previewText(card, h) {
+  const U = UNITS[card.type];
+  const base = card.kind === 'double' ? '×2 Double' : card.kind === 'upgrade' ? '▲ ' + U.name : U.name + ' x' + U.count;
+  if (!h || !S.checkPlacement(G.P.blue, card, h.col, h.row).ok) return base;
+  const g = S.groupAt(G.P.blue, h.col, h.row);
+  if (card.kind === 'upgrade') return U.name + ' ★' + g.level + ' → ★' + (g.level + 1);
+  if (card.kind === 'double') return '×2 → ' + S.groupCount(g) * 2 + ' ' + UNITS[g.type].name + 's';
+  return base;
+}
+// Drop target for a pointer position: the slot under the pointer if it is valid, otherwise the nearest valid
+// slot within ~0.8 of a cell (a "magnet", so slightly-off drops still land where the player meant).
+function dropCell(card, x, y) {
+  const under = cellAt(x, y);
+  if (under && S.checkPlacement(G.P.blue, card, under.col, under.row).ok) return under;
+  const px = (x - F.x) / F.cw, py = (y - F.y) / F.ch;
+  let best = null, bd = 0.8;
+  for (const t of S.validTargets(G.P.blue, card)) {
+    const d = Math.hypot(t.col + 0.5 - px, t.row + 0.5 - py);
+    if (d < bd) { bd = d; best = { col: t.col, row: t.row }; }
+  }
+  return best || under;
 }
 
 async function commitHuman(d, cell) {
@@ -727,7 +753,7 @@ async function aiTurn() {
   if (res && res.ok) {
     const g = res.group, nm = UNITS[g.type].name + 's', tot = S.groupCount(g);
     const msg = res.kind === 'unit' ? 'Red deployed ' + UNITS[g.type].count + ' ' + nm
-      : res.kind === 'double' ? 'Red doubled its ' + nm + ' (+' + tot + ' next to them)'
+      : res.kind === 'double' ? 'Red doubled its ' + nm + ' → ×' + tot
       : 'Red upgraded ' + nm + ' to Level ' + g.level;
     toast(msg + (res.merged ? ' → ×' + tot + ' ' + nm : ''), false, 1500);
   }
@@ -756,9 +782,11 @@ function applyAndAnimate(team, card, col, row) {
     ring(cx, cy, '#ffffff', 0.6 + g.slots.length * 0.35);
     floatText(cx, cy - 0.45, 'MERGED ×' + S.groupCount(g), '#ffffff');
   } else if (res.kind === 'double') {
-    const sl = res.added[0]; floatText(sl.col + 0.5, sl.row + 0.05, '×2!', '#7ff7ec');
+    for (const sl of g.slots) fx(sl, 'up');
+    const cx = g.slots.reduce((n, sl) => n + sl.col, 0) / g.slots.length + 0.5;
+    floatText(cx, g.row + 0.05, '×2 → ' + S.groupCount(g), '#7ff7ec');
   }
-  G.lastMove = { team, slots: res.kind === 'upgrade' ? g.slots.slice() : res.added.slice(), t: now };
+  G.lastMove = { team, slots: res.kind === 'unit' ? res.added.slice() : g.slots.slice(), t: now };
   return res;
 }
 
@@ -903,10 +931,8 @@ function drawGrid(c, now) {
       c.strokeStyle = ok ? '#fff' : '#ff5050'; c.lineWidth = 2.5; c.stroke();
       if (ok && card.kind === 'upgrade') {
         const g = S.groupAt(G.P.blue, h.col, h.row);
-        label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, '★' + g.level + ' → ★' + (g.level + 1), '#ffd34d');
       } else if (ok && card.kind === 'unit') {
         const m = S.mergePreview(G.P.blue, card.type, h.col, h.row);
-        if (m.length) label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, 'MERGE → ×' + (UNITS[card.type].count + m.reduce((n, g) => n + S.groupCount(g), 0)), '#ffffff');
       } else if (ok && card.kind === 'double') {
         const g = S.groupAt(G.P.blue, h.col, h.row), add = S.doubleSlots(G.P.blue, g, h.col, h.row);
         for (const sl of add) {
@@ -914,7 +940,6 @@ function drawGrid(c, now) {
           c.fillStyle = `rgba(127,247,236,${0.25 + 0.2 * pulse})`; c.fillRect(AX + 2, AY + 2, F.cw - 4, F.ch - 4);
           c.setLineDash([5, 4]); c.strokeStyle = '#7ff7ec'; c.lineWidth = 2; c.strokeRect(AX + 3, AY + 3, F.cw - 6, F.ch - 6); c.setLineDash([]);
         }
-        label(c, wx(h.col + 0.5), Y + F.ch + F.cw * 0.42 + 4, '×2 → +' + S.groupCount(g) + ' ' + UNITS[g.type].name + 's', '#7ff7ec');
       }
     }
   }

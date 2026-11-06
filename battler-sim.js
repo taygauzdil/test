@@ -9,7 +9,8 @@
     CARD_OPTIONS: 3,                            // cards offered per action
     UPGRADE_CHANCE: 0.33,                       // chance each offered card is an upgrade (when one is possible)
     DOUBLE_CHANCE: 0.08,                        // chance each offered card is a Double card (when a group has room)
-    MERGE_ADJACENT: false,                      // true = same unit + same level side by side merge into one multi-slot group
+    MERGE_ADJACENT: false,
+    DOUBLE_MAX_SLOTS: 2,                        // a doubled unit covers 2 slots; it cannot be doubled again                      // true = same unit + same level side by side merge into one multi-slot group
     UNIT_WEIGHTS: { archer: 1, knight: 1, cavalry: 1, bomber: 1, dwarf: 1 }, // relative card frequency
     ACTIONS_PER_ROUND: 3,
     COMEBACK_ACTIONS: 1,                        // extra action for the previous round's loser
@@ -113,6 +114,7 @@
   // slot it was dropped on (or next to any slot of that group if that one is boxed in). Preference: side by side,
   // then toward the front, then toward the centre. Returns [{col,row}] or null if there is no room.
   function doubleSlots(player, g, col, row) {
+    if (g.slots.length >= CONFIG.DOUBLE_MAX_SLOTS) return null;
     const free = (c, r) => inTerritory(player.team, c, r) && !groupAt(player, c, r);
     const from = col != null ? [{ col, row }].concat(g.slots) : g.slots;
     for (let pass = 0; pass < 2; pass++) {
@@ -172,7 +174,8 @@
     if (card.kind === 'unit') return g ? { ok: false, reason: 'That slot is already occupied' } : { ok: true };
     if (card.kind === 'double') {
       if (!g) return { ok: false, reason: 'Drop the Double card on one of your groups' };
-      if (!doubleSlots(player, g, col, row)) return { ok: false, reason: 'No free slot next to that group for the copy' };
+      if (g.slots.length >= CONFIG.DOUBLE_MAX_SLOTS) return { ok: false, reason: 'That unit is already doubled' };
+      if (!doubleSlots(player, g, col, row)) return { ok: false, reason: 'Needs a free slot next to that unit' };
       return { ok: true };
     }
     if (!g) return { ok: false, reason: 'Drop the upgrade on an existing ' + UNITS[card.type].name + ' group' };
@@ -196,13 +199,11 @@
     }
     const g = groupAt(player, col, row);
     if (card.kind === 'double') {
-      // the copy is its own group (same unit, same level) in the neighbouring slot
+      // the same group grows into the neighbouring slot: one unit card covering two slots with twice the characters
       const added = doubleSlots(player, g, col, row);
-      const copy = { id: player.team[0] + (player.nextId++), type: g.type, level: g.level, slots: added.map(sl => ({ col: sl.col, row: sl.row })) };
-      sortSlots(copy);
-      player.groups.push(copy);
-      const absorbed = mergeAround(player, copy);
-      return { ok: true, group: copy, source: g, kind: 'double', added, merged: absorbed.length > 0 };
+      g.slots.push(...added);
+      sortSlots(g);
+      return { ok: true, group: g, kind: 'double', added, merged: false };
     }
     g.level++;
     const absorbed = mergeAround(player, g); // reaching a neighbour's level makes them merge

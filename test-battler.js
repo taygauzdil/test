@@ -26,7 +26,7 @@ function playMatch(seed, deckB, deckR) {
       const all = P[t].groups.flatMap(g => g.slots.map(sl => sl.col + ',' + sl.row));
       assert(new Set(all).size === all.length, 'no overlapping slots');
       assert(P[t].groups.every(g => g.level <= CONFIG.MAX_LEVEL && g.slots.every(sl => S.inTerritory(t, sl.col, sl.row))), 'levels/territory');
-      assert(P[t].groups.every(g => g.slots.length === 1), 'every group occupies exactly one slot (no merging)');
+      assert(P[t].groups.every(g => g.slots.length <= CONFIG.DOUBLE_MAX_SLOTS), 'groups cover 1 slot, or 2 when doubled');
     }
     const st = S.simulate(P.blue.groups, P.red.groups, seed * 31 + round);
     assert(st.winner, 'battle must end by elimination');
@@ -57,15 +57,18 @@ assert(JSON.stringify(a.times) === JSON.stringify(b.times) && a.winner === b.win
   assert(m.groups.length === 2 && m.groups.every(g => g.slots.length === 1), 'adjacent archers stay separate');
   S.applyCard(m, { kind: 'upgrade', type: 'archer' }, 4, 8);
   assert(S.groupAt(m, 4, 8).level === 2 && S.groupAt(m, 5, 8).level === 1, 'upgrade stays slot-specific');
-  // double: a separate copy (same type and level) appears in the neighbouring slot
+  // double: the unit grows into the neighbouring slot -> one group, two slots, twice the characters, same level
   const d = S.createPlayer('blue', ['archer', 'knight', 'bomber', 'dwarf']);
   S.applyCard(d, { kind: 'unit', type: 'knight' }, 3, 6); S.applyCard(d, { kind: 'upgrade', type: 'knight' }, 3, 6);
   const r1 = S.applyCard(d, { kind: 'double' }, 3, 6);
-  assert(r1.ok && d.groups.length === 2 && r1.group.slots.length === 1 && r1.group.slots[0].row === 6 && r1.group.level === 2, 'double adds a separate side copy');
-  S.applyCard(d, { kind: 'double' }, 3, 6);
-  assert(d.groups.length === 3 && d.groups.every(g => g.slots.length === 1 && g.type === 'knight'), 'double again adds another copy');
+  assert(r1.ok && d.groups.length === 1 && d.groups[0].slots.length === 2 && d.groups[0].slots.every(sl => sl.row === 6) && d.groups[0].level === 2 && S.groupCount(d.groups[0]) === 6, 'double covers two slots');
+  assert(!S.checkPlacement(d, { kind: 'double' }, 3, 6).ok && S.validTargets(d, { kind: 'double' }).length === 0, 'cannot double twice');
+  S.applyCard(d, { kind: 'upgrade', type: 'knight' }, d.groups[0].slots[1].col, 6);
+  assert(d.groups[0].level === 3, 'upgrade via either slot upgrades the doubled unit');
+  S.applyCard(d, { kind: 'unit', type: 'knight' }, 1, 6);
+  assert(d.groups.length === 2, 'units next to a doubled unit stay separate');
   const bt = S.createBattle(d.groups, [], 2);
-  assert(bt.chars.length === 9, 'every group spawns characters');
+  assert(bt.chars.length === 9, 'every slot spawns characters');
   const full = S.createPlayer('blue', ['knight', 'archer', 'bomber', 'dwarf']);
   for (let c = 0; c < 10; c++) for (let r = 5; r < 10; r++) full.groups.push({ id: 'x' + c + r, type: (c + r) % 2 ? 'knight' : 'archer', level: 1, slots: [{ col: c, row: r }], col: c, row: r });
   assert(!S.checkPlacement(full, { kind: 'double' }, 0, 5).ok, 'double needs room');
