@@ -1,0 +1,1670 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#16181e">
+<title>Corridor War</title>
+<style>
+:root{
+  --bg:#16181e; --panel:#252933; --panel2:#2f3440; --ink:#eef1f7; --mute:#9aa3b5;
+  --blue:#58a8ff; --blue2:#1f6fd1; --red:#ff5d5d; --gold:#ffcc4d; --gem:#7fe3ff; --good:#4cd964;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;background:#0b0c10;color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none;overflow:hidden}
+#app{position:relative;max-width:480px;height:100vh;height:100dvh;margin:0 auto;background:var(--bg);overflow:hidden}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.on{display:flex}
+button{font:inherit;color:var(--ink);border:0;border-radius:14px;padding:12px 16px;background:var(--panel2);font-weight:800;cursor:pointer;box-shadow:0 4px 0 #0007;touch-action:manipulation}
+button:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 #0007}
+button:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.6)}
+.up:disabled{opacity:.62;filter:grayscale(.45)}
+.primary{background:linear-gradient(#6cb6ff,#2b7fe0);box-shadow:0 4px 0 #164a8a}
+.gold{background:linear-gradient(#ffd866,#e8a514);color:#3a2600;box-shadow:0 4px 0 #8a5a00}
+.gem{color:var(--gem);font-weight:800}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:max(12px,env(safe-area-inset-top)) 14px 8px}
+.topbar h2{margin:0;font-size:20px;letter-spacing:.5px}
+.back{padding:8px 14px;font-size:15px}
+.scroll{flex:1;overflow-y:auto;padding:4px 14px 16px;-webkit-overflow-scrolling:touch}
+
+/* ---------- menu ---------- */
+#menu{align-items:center;justify-content:center;gap:14px;padding:24px;background:radial-gradient(circle at 50% 30%,#2b3346,#121419 70%)}
+#menu h1{font-size:42px;margin:0;letter-spacing:2px;text-shadow:0 4px 0 #000a}
+#menu h1 b{color:var(--blue)} #menu h1 i{color:var(--red);font-style:normal}
+#menu .tag{color:var(--mute);margin:-6px 0 8px;font-size:14px;text-align:center}
+#menu button{width:240px;font-size:20px;padding:15px}
+#menu .wallet{font-size:18px;background:#0006;border-radius:12px;padding:8px 16px}
+#menu .record{color:var(--mute);font-size:13px}
+#menuArt{width:220px;height:120px}
+
+/* ---------- deck & unit cards ---------- */
+.slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 14px 10px}
+.slot{background:var(--panel);border:2px dashed #fff3;border-radius:12px;height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.slot.sel{border:2px solid var(--gold);background:#3a3420;box-shadow:0 0 0 3px #ffcc4d33}
+.slot.glow{border-color:var(--blue);border-style:solid}
+.slot .ic{font-size:26px;line-height:1}
+.slot .nm{font-size:10px;font-weight:800;margin-top:4px}
+.slot .lv{position:absolute;top:3px;right:5px;font-size:9px;color:var(--gold);font-weight:800}
+.hint{color:var(--mute);font-size:12px;text-align:center;padding:0 14px 8px;min-height:20px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ucard{background:var(--panel);border-radius:14px;padding:9px 10px;cursor:pointer;border:2px solid transparent;position:relative}
+.ucard.indeck{border-color:#58a8ff88}
+.ucard.pending{border-color:var(--gold)}
+.ucard .hd{display:flex;align-items:center;gap:8px}
+.ucard .ic{font-size:26px;width:34px;text-align:center}
+.ucard .nm{font-weight:800;font-size:14px}
+.ucard .rl{font-size:11px;color:var(--mute)}
+.ucard .lv{margin-left:auto;color:var(--gold);font-weight:800;font-size:12px}
+.ucard .badge{position:absolute;top:-7px;right:8px;background:var(--blue2);font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;margin-top:6px;font-size:10.5px;color:#cfd5e2}
+.stats span b{color:#fff}
+.desc{font-size:11px;color:var(--mute);margin-top:5px}
+.footer{padding:10px 14px max(14px,env(safe-area-inset-bottom))}
+.footer button{width:100%;font-size:18px;padding:14px}
+
+/* unit upgrade rows */
+.urow{display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:14px;padding:10px;margin-bottom:8px}
+.urow .ic{font-size:30px;width:40px;text-align:center}
+.urow .info{flex:1;min-width:0}
+.urow .nm{font-weight:800}
+.urow .nm small{color:var(--gold);margin-left:6px}
+.urow .delta{font-size:12px;color:#cfd5e2;margin-top:3px}
+.urow .delta b{color:var(--good)}
+.urow button{padding:10px 12px;font-size:14px;min-width:92px}
+.urow.pop{animation:pop .35s}
+
+/* ---------- battle ---------- */
+#battle{background:#0d0e12}
+#field{position:relative;flex:2 1 0;min-height:0;overflow:hidden}
+#cv{position:absolute;left:0;top:0;display:block}
+.hud{position:absolute;pointer-events:none;text-shadow:0 2px 0 #000,0 0 6px #000}
+#hudMoney{left:10px;top:max(8px,env(safe-area-inset-top))}
+#hudMoney .m{font-size:30px;font-weight:900;letter-spacing:.5px;line-height:1}
+#hudMoney .inc{font-size:13px;color:var(--good);font-weight:800;margin-top:2px}
+#hudMoney.bump .m{animation:bump .3s}
+#hudRight{right:10px;top:max(8px,env(safe-area-inset-top));text-align:right;font-weight:800}
+.bhp{width:118px;margin-left:auto}
+.bhp .lbl{font-size:11px;display:flex;justify-content:space-between;gap:6px}
+.bar{height:8px;background:#000a;border-radius:5px;overflow:hidden;margin-top:2px;border:1px solid #0008}
+.bar i{display:block;height:100%;width:100%;transition:width .2s}
+#redBar i{background:linear-gradient(90deg,#ff7a7a,#d93030)}
+#blueBar i{background:linear-gradient(90deg,#7ec0ff,#2b7fe0)}
+#hudRight .sub{font-size:11px;color:#ddd;margin-top:5px}
+#aiLv{font-size:10px;color:#ffb3b3;margin-top:3px;letter-spacing:.3px}
+#hudBottom{left:10px;bottom:6px;font-weight:800}
+#hudBottom .bhp{margin-left:0}
+#hudTime{left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));font-weight:800;font-size:13px;color:#ddd}
+#pauseBtn{position:absolute;right:10px;bottom:8px;width:40px;height:40px;padding:0;border-radius:12px;font-size:18px;background:#3a3f4dcc}
+#panel{flex:1 1 0;min-height:0;background:linear-gradient(#262a35,#1b1e26);border-top:3px solid #0008;display:flex;flex-direction:column;padding:8px 8px max(8px,env(safe-area-inset-bottom))}
+#panelInfo{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mute);font-weight:700;padding:0 4px 6px}
+#panelInfo b{color:#fff}
+#ups{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:6px;min-height:0}
+.up{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:7px 3px 6px;border-radius:14px;background:linear-gradient(#3b4252,#2c313d);box-shadow:0 4px 0 #0009;min-height:0;overflow:hidden}
+.up .uic{font-size:clamp(22px,7vw,32px);line-height:1;margin-top:2px}
+.up .unm{font-size:12px;font-weight:900;letter-spacing:.3px}
+.up .ulv{font-size:11px;font-weight:800;color:var(--gold)}
+.up .uds{font-size:9.5px;color:#c8cedb;text-align:center;line-height:1.15;font-weight:600;padding:0 1px}
+.up .uct{width:100%;font-size:13px;font-weight:900;border-radius:9px;padding:5px 0;text-align:center;background:linear-gradient(#5fd67f,#2aa34c);color:#fff;text-shadow:0 1px 0 #0006}
+.up:disabled .uct{background:#555b68}
+.up.bought{animation:pop .35s}
+.up.bought::after{content:"";position:absolute;inset:0;border-radius:14px;background:#fff;animation:flash .35s forwards;pointer-events:none}
+.up .plus{position:absolute;top:30%;left:0;right:0;text-align:center;font-weight:900;color:var(--good);font-size:16px;animation:rise .8s forwards;pointer-events:none;text-shadow:0 2px 0 #000}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes flash{from{opacity:.55}to{opacity:0}}
+@keyframes rise{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-34px)}}
+
+/* overlays */
+.overlay{position:absolute;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:10;padding:20px}
+.overlay.on{display:flex}
+.card{background:linear-gradient(#2d3240,#1d2029);border-radius:20px;padding:22px 20px;width:100%;max-width:340px;text-align:center;box-shadow:0 10px 40px #000a}
+.card h2{margin:0 0 6px;font-size:40px;letter-spacing:2px}
+.card h2.win{color:var(--gold);text-shadow:0 3px 0 #7a5300}
+.card h2.lose{color:var(--red);text-shadow:0 3px 0 #5a0d0d}
+.card .rows{margin:12px 0 16px;text-align:left}
+.card .r{display:flex;justify-content:space-between;padding:7px 4px;border-bottom:1px solid #ffffff12;font-size:15px}
+.card .r b{font-weight:800}
+.card .reward{font-size:22px;margin:8px 0 14px}
+.card button{width:100%;margin-top:8px;font-size:17px}
+.card.appear{animation:pop .4s}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- MAIN MENU -->
+  <section id="menu" class="screen on">
+    <canvas id="menuArt" width="440" height="240"></canvas>
+    <h1><b>CORRIDOR</b> <i>WAR</i></h1>
+    <div class="tag">Real-time army auto-battler</div>
+    <div class="wallet">💎 <span class="gem" id="menuGems">0</span></div>
+    <button class="primary" id="btnPlay">▶ PLAY</button>
+    <button id="btnDeck">🃏 Deck</button>
+    <button id="btnUnits">⬆️ Unit Upgrades</button>
+    <div class="record" id="menuRecord"></div>
+  </section>
+
+  <!-- DECK -->
+  <section id="deck" class="screen">
+    <div class="topbar"><button class="back" data-go="menu">‹ Back</button><h2>Deck</h2><span style="width:70px"></span></div>
+    <div class="slots" id="deckSlots"></div>
+    <div class="hint" id="deckHint">Tap a slot, then tap a unit to put it there.</div>
+    <div class="scroll"><div class="cards" id="deckCards"></div></div>
+    <div class="footer"><button class="primary" id="deckPlay">▶ Battle with this deck</button></div>
+  </section>
+
+  <!-- UNIT UPGRADES -->
+  <section id="units" class="screen">
+    <div class="topbar"><button class="back" data-go="menu">‹ Back</button><h2>Unit Upgrades</h2><span class="gem">💎 <span id="unitsGems">0</span></span></div>
+    <div class="hint">Permanent: +10% HP and +10% damage per level. Win battles to earn 💎.</div>
+    <div class="scroll" id="unitList"></div>
+  </section>
+
+  <!-- BATTLE -->
+  <section id="battle" class="screen">
+    <div id="field">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hudMoney"><div class="m" id="money">$100</div><div class="inc" id="income">+$10/s</div></div>
+      <div class="hud" id="hudTime">0:00</div>
+      <div class="hud" id="hudRight">
+        <div class="bhp" id="redHp"><div class="lbl"><span style="color:#ff8a8a">RED BASE</span><span id="redHpTxt">5000</span></div><div class="bar" id="redBar"><i></i></div></div>
+        <div class="sub">💀 <span id="kills">0</span> &nbsp; 👥 <span id="armies">0 v 0</span></div>
+        <div id="aiLv"></div>
+      </div>
+      <div class="hud" id="hudBottom">
+        <div class="bhp" id="blueHp"><div class="lbl"><span style="color:#8cc6ff">BLUE BASE</span><span id="blueHpTxt">5000</span></div><div class="bar" id="blueBar"><i></i></div></div>
+      </div>
+      <button id="pauseBtn" aria-label="Pause">⏸</button>
+    </div>
+    <div id="panel">
+      <div id="panelInfo"><span>Units/spawn <b id="squadInfo">+0</b></span><span>Army <b id="armyInfo">0</b></span><span>Next spawn <b id="spawnInfo">-</b></span></div>
+      <div id="ups"></div>
+    </div>
+
+    <div class="overlay" id="pauseOv">
+      <div class="card">
+        <h2 style="font-size:30px">Paused</h2>
+        <button class="primary" id="resumeBtn">Resume</button>
+        <button id="quitBtn">Surrender</button>
+      </div>
+    </div>
+    <div class="overlay" id="resultOv">
+      <div class="card" id="resultCard">
+        <h2 id="resTitle">VICTORY</h2>
+        <div class="rows">
+          <div class="r"><span>Total kills</span><b id="resKills">0</b></div>
+          <div class="r"><span>Units spawned</span><b id="resSpawned">0</b></div>
+          <div class="r"><span>Units lost</span><b id="resLost">0</b></div>
+          <div class="r"><span>Battle duration</span><b id="resTime">0:00</b></div>
+        </div>
+        <div class="reward">Reward: <span class="gem">💎 <span id="resGems">0</span></span></div>
+        <button class="primary" id="againBtn">▶ Play Again</button>
+        <button class="gold" id="resUnitsBtn">⬆️ Unit Upgrades</button>
+        <button id="menuBtn">Main Menu</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Corridor War — all balancing values live here.
+(function (CC) {
+  'use strict';
+
+  CC.CONFIG = {
+    sim: {
+      dt: 1 / 30,               // fixed simulation timestep (seconds)
+      maxUnitsPerSide: 650,     // hard cap to protect performance
+      retargetInterval: 0.25,   // how often a unit re-scans for the nearest enemy
+      detectRange: 9,           // cells; units notice enemies / the enemy base within this
+      bucketSize: 2,            // spatial hash cell size (in map cells)
+      separationStrength: 0.55, // 0..1 positional correction per tick for overlapping units
+      steerResponse: 9,         // how quickly velocity follows the desired direction
+    },
+
+    economy: {
+      startMoney: 100,
+      baseIncome: 10,           // $ per second at Income level 0
+      payoutInterval: 1,        // seconds between payouts
+    },
+
+    // Upgrade Cost = baseCost * growth ^ level  (rounded)
+    upgrades: {
+      power:   { name: 'Power',   icon: '⚔️', baseCost: 50, growth: 1.25, perLevel: 0.10, desc: '+10% damage' },
+      defense: { name: 'Defense', icon: '🛡️', baseCost: 50, growth: 1.25, perLevel: 0.10, desc: '+10% max HP' },
+      tactic:  { name: 'Tactic',  icon: '👥', baseCost: 50, growth: 1.25, levelsPerExtraUnit: 3, desc: '+1 unit / spawn every 3 Lv' },
+      speed:   { name: 'Speed',   icon: '⚡', baseCost: 50, growth: 1.25, perLevel: 0.05, desc: '+5% move & attack speed' },
+      income:  { name: 'Income',  icon: '💰', baseCost: 50, growth: 1.25, perLevel: 0.20, desc: '+20% income' },
+    },
+    upgradeOrder: ['power', 'defense', 'tactic', 'speed', 'income'],
+
+    bases: { hp: 5000, radius: 3.6 },
+
+    // Permanent progression (between battles)
+    progression: {
+      unitUpgradeBaseCost: 100, // Unit Upgrade Cost = base * growth ^ level
+      unitUpgradeGrowth: 1.3,
+      hpPerLevel: 0.10,
+      dmgPerLevel: 0.10,
+      winReward: 100,           // gems for a win
+      killsPerGem: 8,           // + 1 gem per N kills (win only)
+      baseHpBonus: 60,          // + up to this many gems scaled by remaining base HP (win only)
+    },
+
+    // Units. Distances are in map cells, speeds in cells/second.
+    // squad = units produced per spawn cycle at Tactic 0 (Tactic adds +1 per 3 levels).
+    units: {
+      warrior:  { name: 'Warrior',  icon: '🗡️', role: 'Melee',      hp: 170, dmg: 8, atkSpeed: 1.0,  move: 3.0, range: 0.35, spawn: 3,  squad: 6, radius: 0.5,  mass: 1,   shape: 'warrior',  desc: 'Balanced frontline fighter.' },
+      tank:     { name: 'Tank',     icon: '🦏', role: 'Melee',      hp: 650, dmg: 9, atkSpeed: 0.7,  move: 1.9, range: 0.4,  spawn: 8,  squad: 2, radius: 0.75, mass: 3,   shape: 'tank',     desc: 'Huge HP, slow. Holds the line.' },
+      archer:   { name: 'Archer',   icon: '🏹', role: 'Ranged',     hp: 90,  dmg: 6, atkSpeed: 0.9,  move: 2.7, range: 6.5,  spawn: 5,  squad: 4, radius: 0.45, mass: 0.8, shape: 'archer',   desc: 'Fragile, long-range arrows.', projectile: 'arrow' },
+      assassin: { name: 'Assassin', icon: '🥷', role: 'Melee',      hp: 120,  dmg: 17, atkSpeed: 1.25, move: 4.8, range: 0.35, spawn: 6,  squad: 3, radius: 0.45, mass: 0.8, shape: 'assassin', desc: 'Very fast, hits very hard.' },
+      bomber:   { name: 'Bomber',   icon: '💣', role: 'Ranged AoE', hp: 130,  dmg: 15, atkSpeed: 0.4,  move: 2.4, range: 5.0,  spawn: 10, squad: 3, radius: 0.55, mass: 1,   shape: 'bomber',   desc: 'Slow lobbed bombs. Area damage.', projectile: 'bomb', aoe: 1.8 },
+      spearman: { name: 'Spearman', icon: '🔱', role: 'Melee',      hp: 200, dmg: 7, atkSpeed: 0.9,  move: 2.8, range: 1.3,  spawn: 4,  squad: 5, radius: 0.5,  mass: 1.2, shape: 'spearman', desc: 'Long reach; hits from the 2nd row.' },
+      sniper:   { name: 'Sniper',   icon: '🎯', role: 'Ranged',     hp: 75,  dmg: 22, atkSpeed: 0.35, move: 2.5, range: 9.0,  spawn: 7,  squad: 3, radius: 0.45, mass: 0.8, shape: 'sniper',   desc: 'Extreme range, slow heavy shots.', projectile: 'bullet' },
+      berserker:{ name: 'Berserker',icon: '🪓', role: 'Melee',      hp: 240, dmg: 6,  atkSpeed: 2.2,  move: 3.4, range: 0.35, spawn: 6,  squad: 3, radius: 0.55, mass: 1.3, shape: 'berserker',desc: 'Frenzied, very fast axe swings.' },
+    },
+    unitOrder: ['warrior', 'tank', 'archer', 'assassin', 'bomber', 'spearman', 'sniper', 'berserker'],
+
+    defaultDeck: ['warrior', 'tank', 'archer', 'assassin', 'bomber'],
+    aiDeck: ['warrior', 'tank', 'archer', 'assassin', 'bomber'],
+    deckSize: 5,
+
+    ai: {
+      thinkInterval: 1.0,       // seconds between AI decisions
+      saveWindow: 9,            // AI waits for its preferred upgrade if affordable within N seconds
+    },
+  };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — battlefield geometry, collision grid and flow-field navigation.
+// The map is built from convex polygons (corridor quads, bevel wedges, octagon rooms).
+// The same polygons are used to draw the map and to rasterise the collision grid,
+// so what you see is exactly what units collide with.
+(function (CC) {
+  'use strict';
+
+  const W = 60, H = 96;      // world size in "cells" (world units)
+  const RES = 2;             // nav-grid sub-cells per world unit
+  const HW = 5;            // corridor half width
+  const SQ2 = Math.SQRT2;
+
+  // ---- Layout (point-symmetric around the centre so both sides are fair) ----
+  const CENTER = { x: 30, y: 48 };
+  const reflect = p => [W - p[0], H - p[1]];
+
+  const topPaths = [
+    [[33, 10], [33, 17]],
+    [[33, 17], [15, 26], [15, 36], [30, 48]],
+    [[33, 17], [49, 28], [49, 37], [30, 48]],
+  ];
+  const topRooms = [
+    { c: [33, 10], r: 8.6, base: 'red' },
+    { c: [33, 17], r: HW / Math.cos(Math.PI / 8) },
+  ];
+
+  function buildLayout() {
+    const paths = topPaths.concat(topPaths.map(p => p.map(reflect)));
+    const rooms = topRooms.map(r => Object.assign({}, r))
+      .concat(topRooms.map(r => ({ c: reflect(r.c), r: r.r, base: r.base ? 'blue' : undefined })));
+    rooms.push({ c: [CENTER.x, CENTER.y], r: 7.2 });
+    return { paths, rooms };
+  }
+
+  function octagon(cx, cy, r) {
+    const pts = [];
+    for (let k = 0; k < 8; k++) {
+      const a = Math.PI / 8 + k * Math.PI / 4;
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    return pts;
+  }
+
+  function buildPolys(layout) {
+    const polys = [];
+    for (const path of layout.paths) {
+      const normals = [];
+      for (let i = 0; i < path.length - 1; i++) {
+        const [ax, ay] = path[i], [bx, by] = path[i + 1];
+        const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+        const nx = -dy / L * HW, ny = dx / L * HW;
+        normals.push([nx, ny]);
+        polys.push([[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]]);
+      }
+      for (let i = 1; i < path.length - 1; i++) {
+        const [px, py] = path[i], n1 = normals[i - 1], n2 = normals[i];
+        polys.push([[px, py], [px + n1[0], py + n1[1]], [px + n2[0], py + n2[1]]]);
+        polys.push([[px, py], [px - n1[0], py - n1[1]], [px - n2[0], py - n2[1]]]);
+      }
+    }
+    for (const r of layout.rooms) polys.push(octagon(r.c[0], r.c[1], r.r));
+    // same winding for every polygon, so overlapping fills/clips never cancel out
+    for (const p of polys) {
+      let a = 0; for (let i = 0; i < p.length; i++) { const q = p[i], w = p[(i + 1) % p.length]; a += q[0] * w[1] - w[0] * q[1]; }
+      if (a < 0) p.reverse();
+    }
+    return polys;
+  }
+
+  function inConvex(poly, x, y) {
+    let sign = 0;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const c = (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]);
+      if (Math.abs(c) < 1e-9) continue;
+      const s = c > 0 ? 1 : -1;
+      if (sign === 0) sign = s; else if (s !== sign) return false;
+    }
+    return true;
+  }
+
+  // ---- tiny binary heap for Dijkstra ----
+  function Heap(n) { this.k = new Float64Array(n + 16); this.v = new Int32Array(n + 16); this.n = 0; }
+  Heap.prototype.push = function (key, val) {
+    if (this.n >= this.k.length) {
+      const k2 = new Float64Array(this.k.length * 2); k2.set(this.k); this.k = k2;
+      const v2 = new Int32Array(this.v.length * 2); v2.set(this.v); this.v = v2;
+    }
+    let i = this.n++; const k = this.k, v = this.v;
+    while (i > 0) { const p = (i - 1) >> 1; if (k[p] <= key) break; k[i] = k[p]; v[i] = v[p]; i = p; }
+    k[i] = key; v[i] = val;
+  };
+  Heap.prototype.pop = function () {
+    const k = this.k, v = this.v, top = v[0], topK = k[0]; this.lastKey = topK;
+    const n = --this.n; const key = k[n], val = v[n]; let i = 0;
+    while (true) {
+      let c = 2 * i + 1; if (c >= n) break;
+      if (c + 1 < n && k[c + 1] < k[c]) c++;
+      if (k[c] >= key) break;
+      k[i] = k[c]; v[i] = v[c]; i = c;
+    }
+    k[i] = key; v[i] = val; return top;
+  };
+
+  const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, SQ2], [1, -1, SQ2], [-1, 1, SQ2], [-1, -1, SQ2]];
+
+  function create() {
+    const layout = buildLayout();
+    const polys = buildPolys(layout);
+    const gw = W * RES, gh = H * RES, N = gw * gh;
+    const solid = new Uint8Array(N);
+    for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+      const x = (gx + 0.5) / RES, y = (gy + 0.5) / RES;
+      let floor = false;
+      for (let p = 0; p < polys.length && !floor; p++) floor = inConvex(polys[p], x, y);
+      solid[gy * gw + gx] = floor ? 0 : 1;
+    }
+
+    // distance to nearest wall (world units) — used to keep paths off the walls
+    const wallDist = new Float32Array(N);
+    for (let i = 0; i < N; i++) wallDist[i] = solid[i] ? 0 : 1e9;
+    const cO = 1 / RES, cD = SQ2 / RES; // two-pass chamfer distance transform
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      const i = y * gw + x; let d = wallDist[i];
+      if (x > 0) d = Math.min(d, wallDist[i - 1] + cO);
+      if (y > 0) { d = Math.min(d, wallDist[i - gw] + cO); if (x > 0) d = Math.min(d, wallDist[i - gw - 1] + cD); if (x < gw - 1) d = Math.min(d, wallDist[i - gw + 1] + cD); }
+      wallDist[i] = d;
+    }
+    for (let y = gh - 1; y >= 0; y--) for (let x = gw - 1; x >= 0; x--) {
+      const i = y * gw + x; let d = wallDist[i];
+      if (x < gw - 1) d = Math.min(d, wallDist[i + 1] + cO);
+      if (y < gh - 1) { d = Math.min(d, wallDist[i + gw] + cO); if (x < gw - 1) d = Math.min(d, wallDist[i + gw + 1] + cD); if (x > 0) d = Math.min(d, wallDist[i + gw - 1] + cD); }
+      wallDist[i] = d;
+    }
+
+    const bases = {};
+    for (const r of layout.rooms) if (r.base) bases[r.base] = { x: r.c[0], y: r.c[1] };
+
+    const map = { W, H, RES, gw, gh, solid, wallDist, polys, layout, bases, HW, center: CENTER };
+
+    // lane split lines for the two loops (top loop & bottom loop)
+    const lanes = [
+      { y0: 21, y1: 45, split: 32 },
+      { y0: 51, y1: 75, split: 28 },
+    ];
+    function laneCost(lane, x, y) {
+      if (lane < 0) return 0;
+      for (const L of lanes) if (y >= L.y0 && y <= L.y1) return (lane === 0 ? x > L.split : x < L.split) ? 1.6 : 0;
+      return 0;
+    }
+
+    function buildField(goal, lane) {
+      const dist = new Float64Array(N).fill(Infinity);
+      const heap = new Heap(N);
+      const gr = CC.CONFIG.bases.radius + 1.6;
+      for (let i = 0; i < N; i++) {
+        if (solid[i]) continue;
+        const x = (i % gw + 0.5) / RES, y = ((i / gw | 0) + 0.5) / RES;
+        if (Math.hypot(x - goal.x, y - goal.y) <= gr) { dist[i] = 0; heap.push(0, i); }
+      }
+      while (heap.n) {
+        const i = heap.pop(), dk = heap.lastKey;
+        if (dk > dist[i]) continue;
+        const x = i % gw, y = (i / gw) | 0;
+        for (const [dx, dy, c] of NB) {
+          const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+          const j = ny * gw + nx; if (solid[j]) continue;
+          if (dx && dy && (solid[y * gw + nx] || solid[ny * gw + x])) continue; // no corner cutting
+          const wd = wallDist[j];
+          const mult = 1 + (wd < 2.6 ? (2.6 - wd) * 0.7 : 0) + laneCost(lane, (nx + 0.5) / RES, (ny + 0.5) / RES);
+          const nd = dk + c / RES * mult;
+          if (nd < dist[j]) { dist[j] = nd; heap.push(nd, j); }
+        }
+      }
+      // direction = toward the lowest neighbour, then one smoothing pass
+      const fx = new Float32Array(N), fy = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        if (solid[i] || dist[i] === 0) continue;
+        const x = i % gw, y = (i / gw) | 0; let best = dist[i], bx = 0, by = 0;
+        for (const [dx, dy] of NB) {
+          const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+          const j = ny * gw + nx; if (solid[j]) continue;
+          if (dx && dy && (solid[y * gw + nx] || solid[ny * gw + x])) continue;
+          if (dist[j] < best) { best = dist[j]; bx = dx; by = dy; }
+        }
+        const L = Math.hypot(bx, by) || 1; fx[i] = bx / L; fy[i] = by / L;
+      }
+      // goal cells point straight at the base
+      for (let i = 0; i < N; i++) if (!solid[i] && dist[i] === 0) {
+        const x = (i % gw + 0.5) / RES, y = ((i / gw | 0) + 0.5) / RES;
+        const dx = goal.x - x, dy = goal.y - y, L = Math.hypot(dx, dy) || 1; fx[i] = dx / L; fy[i] = dy / L;
+      }
+      const sx = new Float32Array(N), sy = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        if (solid[i]) continue;
+        const x = i % gw, y = (i / gw) | 0; let ax = fx[i] * 2, ay = fy[i] * 2;
+        for (const [dx, dy] of NB) {
+          const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+          const j = ny * gw + nx; if (solid[j]) continue; ax += fx[j]; ay += fy[j];
+        }
+        const L = Math.hypot(ax, ay) || 1; sx[i] = ax / L; sy[i] = ay / L;
+      }
+      return { dist, fx: sx, fy: sy };
+    }
+
+    // fields[goalSide] = [lane0, lane1, neutral]
+    map.fields = {
+      red: [buildField(bases.red, 0), buildField(bases.red, 1), buildField(bases.red, -1)],
+      blue: [buildField(bases.blue, 0), buildField(bases.blue, 1), buildField(bases.blue, -1)],
+    };
+
+    map.idx = function (x, y) {
+      let gx = (x * RES) | 0, gy = (y * RES) | 0;
+      if (gx < 0) gx = 0; else if (gx >= gw) gx = gw - 1;
+      if (gy < 0) gy = 0; else if (gy >= gh) gy = gh - 1;
+      return gy * gw + gx;
+    };
+    map.isSolid = function (x, y) {
+      if (x < 0 || y < 0 || x >= W || y >= H) return true;
+      return solid[map.idx(x, y)] === 1;
+    };
+    map.los = function (x0, y0, x1, y1) {
+      const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy), steps = Math.ceil(L * RES * 1.5);
+      for (let s = 1; s < steps; s++) { const t = s / steps; if (map.isSolid(x0 + dx * t, y0 + dy * t)) return false; }
+      return true;
+    };
+    // push a circle out of solid nav cells
+    map.resolveCircle = function (u) {
+      const r = u.r, cs = 1 / RES;
+      const gx0 = Math.max(0, ((u.x - r) * RES) | 0), gx1 = Math.min(gw - 1, ((u.x + r) * RES) | 0);
+      const gy0 = Math.max(0, ((u.y - r) * RES) | 0), gy1 = Math.min(gh - 1, ((u.y + r) * RES) | 0);
+      for (let gy = gy0; gy <= gy1; gy++) for (let gx = gx0; gx <= gx1; gx++) {
+        if (!solid[gy * gw + gx]) continue;
+        const minx = gx * cs, miny = gy * cs;
+        const cx = u.x < minx ? minx : u.x > minx + cs ? minx + cs : u.x;
+        const cy = u.y < miny ? miny : u.y > miny + cs ? miny + cs : u.y;
+        const dx = u.x - cx, dy = u.y - cy, d2 = dx * dx + dy * dy;
+        if (d2 < r * r && d2 > 1e-8) { const d = Math.sqrt(d2), k = (r - d) / d; u.x += dx * k; u.y += dy * k; }
+      }
+    };
+
+    // decorative torches along the outer walls
+    map.torches = [];
+    for (const path of layout.paths) for (let i = 0; i < path.length - 1; i++) {
+      const [ax, ay] = path[i], [bx, by] = path[i + 1];
+      const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy); if (L < 8) continue;
+      const nx = -dy / L, ny = dx / L;
+      for (const side of [1, -1]) {
+        const t = 0.5, px = ax + dx * t + nx * (HW + 0.15) * side, py = ay + dy * t + ny * (HW + 0.15) * side;
+        // only keep torches that sit on a wall (solid just outside, floor just inside)
+        if (map.isSolid(px + nx * side * 0.6, py + ny * side * 0.6) && !map.isSolid(px - nx * side * 0.8, py - ny * side * 0.8))
+          map.torches.push({ x: px, y: py });
+      }
+    }
+    return map;
+  }
+
+  CC.Map = { create };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — battle economy & temporary upgrades (pure logic, no DOM).
+(function (CC) {
+  'use strict';
+
+  function createSide() {
+    const E = CC.CONFIG.economy;
+    const levels = {};
+    for (const id of CC.CONFIG.upgradeOrder) levels[id] = 0;
+    return { money: E.startMoney, payoutTimer: 0, totalEarned: 0, totalSpent: 0, levels };
+  }
+
+  function cost(eco, id) {
+    const U = CC.CONFIG.upgrades[id];
+    return Math.round(U.baseCost * Math.pow(U.growth, eco.levels[id]));
+  }
+
+  function incomePerSecond(eco) {
+    return CC.CONFIG.economy.baseIncome * (1 + CC.CONFIG.upgrades.income.perLevel * eco.levels.income);
+  }
+
+  // Combat multipliers derived from upgrade levels
+  function mods(eco) {
+    const U = CC.CONFIG.upgrades, L = eco.levels;
+    return {
+      dmg: 1 + U.power.perLevel * L.power,
+      hp: 1 + U.defense.perLevel * L.defense,
+      speed: 1 + U.speed.perLevel * L.speed,
+      atk: 1 + U.speed.perLevel * L.speed,
+      extraUnits: Math.floor(L.tactic / U.tactic.levelsPerExtraUnit),
+    };
+  }
+
+  function tick(eco, dt) {
+    const E = CC.CONFIG.economy;
+    eco.payoutTimer += dt;
+    let paid = 0;
+    while (eco.payoutTimer >= E.payoutInterval) {
+      eco.payoutTimer -= E.payoutInterval;
+      const inc = incomePerSecond(eco) * E.payoutInterval;
+      eco.money += inc; eco.totalEarned += inc; paid += inc;
+    }
+    return paid;
+  }
+
+  function canBuy(eco, id) { return eco.money >= cost(eco, id); }
+
+  function buy(eco, id) {
+    const c = cost(eco, id);
+    if (eco.money < c) return false;
+    eco.money -= c; eco.totalSpent += c; eco.levels[id]++;
+    return true;
+  }
+
+  CC.Economy = { createSide, cost, incomePerSecond, mods, tick, canBuy, buy };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — automatic unit production for both armies.
+(function (CC) {
+  'use strict';
+
+  function unitStats(side, type) {
+    const def = CC.CONFIG.units[type], P = CC.CONFIG.progression;
+    const lvl = side.unitLevels[type] || 0;
+    return {
+      maxHp: def.hp * (1 + P.hpPerLevel * lvl) * side.mods.hp,
+      dmg: def.dmg * (1 + P.dmgPerLevel * lvl) * side.mods.dmg,
+    };
+  }
+
+  function initDeck(side, deck) {
+    side.deck = deck.map((type, i) => ({ type, timer: 0.4 + i * 0.35 }));
+  }
+
+  function findSpawnPoint(b, side, i, n) {
+    const map = b.map, base = side.base, ex = side.exitDir.x, ey = side.exitDir.y;
+    const px = -ey, py = ex;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const lateral = (i - (n - 1) / 2) * 1.25 + (b.rng() - 0.5) * 6;
+      const along = base.r + 1.8 + b.rng() * 3.5;
+      const x = base.x + ex * along + px * lateral, y = base.y + ey * along + py * lateral;
+      if (!map.isSolid(x, y) && map.wallDist[map.idx(x, y)] > 0.7) return { x, y };
+    }
+    return { x: base.x + ex * (base.r + 2.5) + (b.rng() - 0.5), y: base.y + ey * (base.r + 2.5) + (b.rng() - 0.5) };
+  }
+
+  function spawnUnit(b, side, type, i, n) {
+    if (side.alive >= CC.CONFIG.sim.maxUnitsPerSide) return null;
+    const def = CC.CONFIG.units[type], st = unitStats(side, type);
+    const p = findSpawnPoint(b, side, i, n);
+    const u = {
+      id: b.nextId++, side: side.id, S: side, type, def,
+      x: p.x, y: p.y, px: p.x, py: p.y, lx: p.x, ly: p.y, vx: 0, vy: 0,
+      r: def.radius, mass: def.mass,
+      hp: st.maxHp, maxHp: st.maxHp,
+      cd: b.rng() * 0.3, target: null, retarget: b.rng() * CC.CONFIG.sim.retargetInterval, los: false, inRange: false,
+      lane: b.rng() < 0.5 ? 0 : 1, ang: Math.atan2(side.exitDir.y, side.exitDir.x),
+      flash: 0, swing: 0, dead: false, spawnT: 0,
+    };
+    b.units.push(u);
+    side.alive++; side.spawned++;
+    return u;
+  }
+
+  function update(b, side, dt) {
+    for (const slot of side.deck) {
+      slot.timer -= dt;
+      if (slot.timer <= 0) {
+        const def = CC.CONFIG.units[slot.type];
+        slot.timer += def.spawn;
+        const n = def.squad + side.mods.extraUnits;
+        for (let i = 0; i < n; i++) spawnUnit(b, side, slot.type, i, n);
+      }
+    }
+  }
+
+  CC.Spawning = { initDeck, update, spawnUnit, unitStats };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — targeting, crowd movement, attacks, projectiles and damage.
+// Crowd movement = flow-field steering + spatial-hash separation + grid wall collision
+// (cheap enough for well over a thousand simultaneous units).
+(function (CC) {
+  'use strict';
+
+  // ---------- spatial hash ----------
+  function createHash(map) {
+    const bs = CC.CONFIG.sim.bucketSize;
+    const bw = Math.ceil(map.W / bs), bh = Math.ceil(map.H / bs);
+    return { bs, bw, bh, head: new Int32Array(bw * bh), next: new Int32Array(4096) };
+  }
+  function rebuildHash(h, units) {
+    h.head.fill(-1);
+    if (h.next.length < units.length) h.next = new Int32Array(units.length * 2);
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      let bx = (u.x / h.bs) | 0, by = (u.y / h.bs) | 0;
+      if (bx < 0) bx = 0; else if (bx >= h.bw) bx = h.bw - 1;
+      if (by < 0) by = 0; else if (by >= h.bh) by = h.bh - 1;
+      const k = by * h.bw + bx; h.next[i] = h.head[k]; h.head[k] = i;
+    }
+  }
+
+  // ---------- damage ----------
+  function applyDamage(b, target, dmg, attackerSide) {
+    if (target.isBase) {
+      if (target.hp <= 0) return;
+      target.hp = Math.max(0, target.hp - dmg); target.flash = 0.15;
+      b.events.push({ t: 'baseHit', side: target.side, x: target.x, y: target.y, v: dmg });
+      return;
+    }
+    if (target.dead) return;
+    target.hp -= dmg; target.flash = 0.12;
+    b.events.push({ t: 'hit', x: target.x, y: target.y, v: dmg, side: target.side });
+    if (target.hp <= 0) {
+      target.dead = true;
+      b.sides[attackerSide].kills++;
+      b.events.push({ t: 'death', x: target.x, y: target.y, side: target.side, type: target.type });
+    }
+  }
+
+  // ---------- targeting ----------
+  function retarget(b, u) {
+    const h = b.hash, units = b.units, det = Math.max(CC.CONFIG.sim.detectRange, u.def.range + 2);
+    const br = Math.ceil(det / h.bs);
+    const cx = (u.x / h.bs) | 0, cy = (u.y / h.bs) | 0;
+    let best = null, bestD = det * det;
+    for (let by = Math.max(0, cy - br); by <= Math.min(h.bh - 1, cy + br); by++)
+      for (let bx = Math.max(0, cx - br); bx <= Math.min(h.bw - 1, cx + br); bx++) {
+        for (let j = h.head[by * h.bw + bx]; j !== -1; j = h.next[j]) {
+          const e = units[j]; if (e.side === u.side || e.dead) continue;
+          const dx = e.x - u.x, dy = e.y - u.y, d2 = dx * dx + dy * dy;
+          if (d2 < bestD) { bestD = d2; best = e; }
+        }
+      }
+    if (best) { u.target = best; u.los = b.map.los(u.x, u.y, best.x, best.y); return; }
+    const eb = b.sides[u.S.enemy].base;
+    const d = Math.hypot(eb.x - u.x, eb.y - u.y) - eb.r;
+    if (d < det) { u.target = eb; u.los = b.map.los(u.x, u.y, eb.x, eb.y); return; }
+    u.target = null;
+  }
+
+  // ---------- projectiles ----------
+  const PROJ_SPEED = { arrow: 24, bullet: 46, bomb: 13 };
+  function fire(b, u, target, dmg) {
+    const kind = u.def.projectile;
+    const dist = Math.hypot(target.x - u.x, target.y - u.y);
+    b.projectiles.push({
+      kind, side: u.side, x: u.x, y: u.y, sx: u.x, sy: u.y, tx: target.x, ty: target.y,
+      target, dmg, aoe: u.def.aoe || 0, t: 0, dur: Math.max(0.08, dist / PROJ_SPEED[kind] + (kind === 'bomb' ? 0.25 : 0)),
+    });
+  }
+
+  function updateProjectiles(b, dt) {
+    const ps = b.projectiles;
+    for (let i = ps.length - 1; i >= 0; i--) {
+      const p = ps[i];
+      if (p.kind !== 'bomb' && p.target && !p.target.dead && !p.target.isBase) { p.tx = p.target.x; p.ty = p.target.y; }
+      p.t += dt;
+      const k = Math.min(1, p.t / p.dur);
+      p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k;
+      if (k < 1) continue;
+      if (p.kind === 'bomb') explode(b, p);
+      else if (p.target && (p.target.isBase || !p.target.dead)) applyDamage(b, p.target, p.dmg, p.side);
+      ps[i] = ps[ps.length - 1]; ps.pop();
+    }
+  }
+
+  function explode(b, p) {
+    b.events.push({ t: 'boom', x: p.x, y: p.y, r: p.aoe, side: p.side });
+    const h = b.hash, units = b.units, r2 = p.aoe * p.aoe, br = Math.ceil(p.aoe / h.bs);
+    const cx = (p.x / h.bs) | 0, cy = (p.y / h.bs) | 0;
+    for (let by = Math.max(0, cy - br); by <= Math.min(h.bh - 1, cy + br); by++)
+      for (let bx = Math.max(0, cx - br); bx <= Math.min(h.bw - 1, cx + br); bx++)
+        for (let j = h.head[by * h.bw + bx]; j !== -1; j = h.next[j]) {
+          const e = units[j]; if (e.side === p.side || e.dead) continue;
+          const dx = e.x - p.x, dy = e.y - p.y;
+          if (dx * dx + dy * dy <= r2 + e.r * e.r) applyDamage(b, e, p.dmg, p.side);
+        }
+    const eb = b.sides[b.sides[p.side].enemy].base;
+    if (Math.hypot(eb.x - p.x, eb.y - p.y) <= p.aoe + eb.r) applyDamage(b, eb, p.dmg, p.side);
+  }
+
+  // ---------- units ----------
+  function updateUnits(b, dt) {
+    const S = CC.CONFIG.sim, map = b.map, units = b.units, h = b.hash;
+    rebuildHash(h, units);
+    const steer = Math.min(1, S.steerResponse * dt);
+
+    // 1) decide: target, desired velocity, attack
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i]; if (u.dead) continue;
+      const side = u.S, mods = side.mods, def = u.def;
+      u.px = u.x; u.py = u.y; u.spawnT += dt;
+      if (u.flash > 0) u.flash -= dt;
+      if (u.swing > 0) u.swing -= dt;
+
+      u.retarget -= dt;
+      if (u.retarget <= 0 || (u.target && (u.target.dead || (u.target.isBase && u.target.hp <= 0)))) {
+        u.retarget = S.retargetInterval; retarget(b, u);
+      }
+
+      let dx = 0, dy = 0; u.inRange = false;
+      const t = u.target;
+      if (t) {
+        const tx = t.x - u.x, ty = t.y - u.y, d = Math.hypot(tx, ty) || 1e-6;
+        const reach = def.range + u.r + t.r;
+        if (d <= reach && (u.los || d < u.r + t.r + 0.6)) {
+          u.inRange = true; u.ang = Math.atan2(ty, tx);
+          if (def.range < 1) { dx = tx / d * 0.15; dy = ty / d * 0.15; } // melee keeps leaning in
+        } else if (u.los) { dx = tx / d; dy = ty / d; }
+        else {
+          const ef = map.fields[side.enemy][u.lane], k = map.idx(u.x, u.y);
+          const goingForward = t.isBase || ef.dist[map.idx(t.x, t.y)] <= ef.dist[k];
+          const f = goingForward ? ef : map.fields[side.id][2];
+          dx = f.fx[k]; dy = f.fy[k];
+        }
+      } else {
+        const f = map.fields[side.enemy][u.lane], k = map.idx(u.x, u.y);
+        dx = f.fx[k]; dy = f.fy[k];
+      }
+
+      const sp = def.move * mods.speed;
+      u.vx += (dx * sp - u.vx) * steer; u.vy += (dy * sp - u.vy) * steer;
+      u.x += u.vx * dt; u.y += u.vy * dt;
+      if (!u.inRange && (u.vx * u.vx + u.vy * u.vy) > 0.05) u.ang = Math.atan2(u.vy, u.vx);
+
+      // attack
+      if (u.cd > 0) u.cd -= dt * mods.atk;
+      if (u.inRange && u.cd <= 0) {
+        u.cd += 1 / def.atkSpeed; if (u.cd < 0) u.cd = 0;
+        u.swing = 0.16;
+        const dmg = def.dmg * (1 + CC.CONFIG.progression.dmgPerLevel * (side.unitLevels[u.type] || 0)) * mods.dmg;
+        if (def.projectile) fire(b, u, t, dmg); else applyDamage(b, t, dmg, side.id);
+      }
+    }
+
+    // 2) separation (friend & foe) — positional, mass weighted
+    const sepK = S.separationStrength;
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i]; if (u.dead) continue;
+      const cx = (u.x / h.bs) | 0, cy = (u.y / h.bs) | 0;
+      for (let by = Math.max(0, cy - 1); by <= Math.min(h.bh - 1, cy + 1); by++)
+        for (let bx = Math.max(0, cx - 1); bx <= Math.min(h.bw - 1, cx + 1); bx++)
+          for (let j = h.head[by * h.bw + bx]; j !== -1; j = h.next[j]) {
+            if (j <= i) continue;
+            const o = units[j]; if (o.dead) continue;
+            let dx = o.x - u.x, dy = o.y - u.y; const rr = u.r + o.r, d2 = dx * dx + dy * dy;
+            if (d2 >= rr * rr) continue;
+            let d = Math.sqrt(d2);
+            if (d < 1e-4) { dx = (u.id % 7) - 3 + 0.5; dy = (o.id % 5) - 2 + 0.5; d = Math.hypot(dx, dy); }
+            const ov = (rr - d) * sepK, nx = dx / d, ny = dy / d, mt = u.mass + o.mass;
+            const ku = ov * (o.mass / mt), ko = ov * (u.mass / mt);
+            u.x -= nx * ku; u.y -= ny * ku; o.x += nx * ko; o.y += ny * ko;
+            // friendly sidestep: the moving unit slides around a friend in front of it
+            if (u.side === o.side) {
+              const tx = -ny, ty = nx;
+              const s = (u.vx * tx + u.vy * ty) >= 0 ? 1 : -1;
+              if (!u.inRange && u.vx * nx + u.vy * ny > 0) { u.x += tx * s * ov * 0.35; u.y += ty * s * ov * 0.35; }
+              if (!o.inRange && -(o.vx * nx + o.vy * ny) > 0) { o.x -= tx * s * ov * 0.35; o.y -= ty * s * ov * 0.35; }
+            }
+          }
+    }
+
+    // 3) bases are solid; walls are solid
+    const bases = [b.sides.blue.base, b.sides.red.base];
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i]; if (u.dead) continue;
+      for (const bs of bases) {
+        const dx = u.x - bs.x, dy = u.y - bs.y, rr = bs.r + u.r, d2 = dx * dx + dy * dy;
+        if (d2 < rr * rr) { const d = Math.sqrt(d2) || 1e-3; u.x = bs.x + dx / d * rr; u.y = bs.y + dy / d * rr; }
+      }
+      map.resolveCircle(u);
+      if (map.isSolid(u.x, u.y)) { u.x = u.lx; u.y = u.ly; u.vx *= -0.2; u.vy *= -0.2; }
+      else { u.lx = u.x; u.ly = u.y; }
+    }
+  }
+
+  CC.Combat = { createHash, updateUnits, updateProjectiles, applyDamage };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — battle simulation container. Deterministic, fixed timestep, no DOM.
+// All player intent enters through battle.command(), so a network layer could later
+// relay commands from a remote player instead of the local AI controller.
+(function (CC) {
+  'use strict';
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function createSide(map, id, enemy, deck, unitLevels) {
+    const B = CC.CONFIG.bases, pos = map.bases[id];
+    const ey = map.center.y - pos.y;
+    const side = {
+      id, enemy, eco: CC.Economy.createSide(), unitLevels: Object.assign({}, unitLevels),
+      base: { isBase: true, side: id, x: pos.x, y: pos.y, r: B.radius, hp: B.hp, maxHp: B.hp, flash: 0, dead: false },
+      exitDir: { x: 0, y: Math.sign(ey) }, // corridors leave the base rooms vertically
+      alive: 0, spawned: 0, kills: 0, lost: 0, deathLog: [], spawnLog: [],
+    };
+    side.mods = CC.Economy.mods(side.eco);
+    CC.Spawning.initDeck(side, deck);
+    return side;
+  }
+
+  /**
+   * opts: { map, blueDeck, redDeck, blueLevels, redLevels, seed }
+   */
+  function create(opts) {
+    const map = opts.map;
+    const b = {
+      map, time: 0, over: false, winner: null, nextId: 1,
+      rng: mulberry32(opts.seed || ((Math.random() * 1e9) | 0)),
+      units: [], projectiles: [], events: [], queue: [], controllers: [],
+      hash: CC.Combat.createHash(map),
+    };
+    b.sides = {
+      blue: createSide(map, 'blue', 'red', opts.blueDeck, opts.blueLevels || {}),
+      red: createSide(map, 'red', 'blue', opts.redDeck, opts.redLevels || {}),
+    };
+    b.command = function (cmd) { b.queue.push(cmd); };
+    return b;
+  }
+
+  function applyUpgrade(b, side, id) {
+    if (!CC.Economy.buy(side.eco, id)) { b.events.push({ t: 'upgradeFail', side: side.id, id }); return; }
+    const oldMods = side.mods;
+    side.mods = CC.Economy.mods(side.eco);
+    if (id === 'defense') {
+      // existing units gain the extra max HP (and the same amount of current HP), no full heal
+      const ratio = side.mods.hp / oldMods.hp;
+      for (const u of b.units) if (u.side === side.id && !u.dead) {
+        const nm = u.maxHp * ratio; u.hp += nm - u.maxHp; u.maxHp = nm;
+      }
+    }
+    b.events.push({ t: 'upgrade', side: side.id, id, level: side.eco.levels[id] });
+  }
+
+  function step(b, dt) {
+    if (b.over) return;
+    b.time += dt;
+
+    // commands (player UI, AI, or a future network peer)
+    while (b.queue.length) {
+      const c = b.queue.shift();
+      if (c.type === 'upgrade' && b.sides[c.side]) applyUpgrade(b, b.sides[c.side], c.id);
+    }
+
+    for (const id of ['blue', 'red']) {
+      const s = b.sides[id];
+      CC.Economy.tick(s.eco, dt);
+      const before = s.spawned;
+      CC.Spawning.update(b, s, dt);
+      if (s.spawned > before) s.spawnLog.push({ t: b.time, n: s.spawned - before });
+      if (s.base.flash > 0) s.base.flash -= dt;
+    }
+
+    CC.Combat.updateUnits(b, dt);
+    CC.Combat.updateProjectiles(b, dt);
+
+    // remove the dead
+    const units = b.units;
+    for (let i = units.length - 1; i >= 0; i--) {
+      const u = units[i];
+      if (!u.dead) continue;
+      const s = b.sides[u.side]; s.alive--; s.lost++; s.deathLog.push(b.time);
+      units[i] = units[units.length - 1]; units.pop();
+    }
+    for (const id of ['blue', 'red']) {
+      const s = b.sides[id];
+      while (s.deathLog.length && s.deathLog[0] < b.time - 15) s.deathLog.shift();
+      while (s.spawnLog.length && s.spawnLog[0].t < b.time - 15) s.spawnLog.shift();
+    }
+
+    for (const c of b.controllers) c.update(b, dt);
+
+    for (const id of ['blue', 'red']) {
+      if (b.sides[id].base.hp <= 0) { b.over = true; b.winner = b.sides[id].enemy; b.events.push({ t: 'over', winner: b.winner }); break; }
+    }
+  }
+
+  CC.Battle = { create, step };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — AI opponent. It only reads the battle state and issues the same
+// 'upgrade' commands a human would; it obeys the same economy and combat rules.
+(function (CC) {
+  'use strict';
+
+  function frontline(b, sideId) {
+    // how far (0 = own base, 1 = enemy base) the most advanced 10% of this army has pushed
+    const s = b.sides[sideId], f = b.map.fields[s.enemy][2], total = f.dist[b.map.idx(s.base.x, s.base.y)] || 1;
+    const arr = [];
+    for (const u of b.units) if (u.side === sideId && !u.dead) arr.push(1 - f.dist[b.map.idx(u.x, u.y)] / total);
+    if (!arr.length) return 0;
+    arr.sort((a, c) => c - a);
+    const n = Math.max(1, Math.ceil(arr.length * 0.1));
+    let sum = 0; for (let i = 0; i < n; i++) sum += arr[i];
+    return sum / n;
+  }
+
+  function create(sideId) {
+    const AI = CC.CONFIG.ai;
+    const ai = { side: sideId, timer: 0.5, plan: null, lastState: null, rand: Math.random };
+
+    ai.evaluate = function (b) {
+      const me = b.sides[sideId], foe = b.sides[me.enemy];
+      const myFront = frontline(b, sideId), foeFront = frontline(b, me.enemy);
+      const spawned = me.spawnLog.reduce((a, e) => a + e.n, 0);
+      return {
+        time: b.time,
+        losingGround: foeFront - myFront > 0.08 || foeFront > 0.62,
+        winningGround: myFront - foeFront > 0.15,
+        armyRatio: me.alive / Math.max(1, foe.alive),
+        deathRate: me.deathLog.length / Math.max(1, spawned),
+        baseRatio: me.base.hp / me.base.maxHp,
+        myFront, foeFront,
+      };
+    };
+
+    ai.scores = function (b, st) {
+      const L = b.sides[sideId].eco.levels, t = st.time;
+      const s = {};
+      s.income = 1.0;
+      if (t < 70) s.income = 3.2;                 // early game: build the economy
+      if (L.income > t / 22) s.income *= 0.5;     // don't over-invest
+      if (st.losingGround) s.income *= 0.35;
+
+      const pressure = (st.losingGround ? 1.6 : 0) + (st.armyRatio < 0.85 ? 0.9 : 0) + (st.baseRatio < 0.6 ? 0.8 : 0);
+      s.power = 1.0 + pressure;
+      s.tactic = (1.0 + pressure) * ((L.tactic + 1) % CC.CONFIG.upgrades.tactic.levelsPerExtraUnit === 0 ? 1.7 : 0.9);
+      s.defense = 0.8 + (st.deathRate > 0.85 ? 1.9 : st.deathRate > 0.65 ? 0.8 : 0);
+      s.speed = 0.45 + ai.rand() * 0.35;
+      if (st.winningGround) { s.power += 0.4; s.speed += 0.3; }
+      return s;
+    };
+
+    ai.think = function (b) {
+      const me = b.sides[sideId], eco = me.eco;
+      const st = ai.evaluate(b); ai.lastState = st;
+      const sc = ai.scores(b, st);
+      const opts = CC.CONFIG.upgradeOrder.map(id => {
+        const c = CC.Economy.cost(eco, id);
+        return { id, cost: c, score: sc[id], value: sc[id] / Math.sqrt(c) };
+      }).sort((a, c) => c.value - a.value);
+
+      const best = opts[0];
+      ai.plan = best.id;
+      if (eco.money >= best.cost) { b.command({ side: sideId, type: 'upgrade', id: best.id }); return; }
+      const wait = (best.cost - eco.money) / CC.Economy.incomePerSecond(eco);
+      if (wait <= AI.saveWindow) return; // saving up is worth it
+      const alt = opts.find(o => o.cost <= eco.money && o.score >= best.score * 0.6);
+      if (alt) b.command({ side: sideId, type: 'upgrade', id: alt.id });
+    };
+
+    ai.update = function (b, dt) {
+      ai.timer -= dt;
+      if (ai.timer <= 0) { ai.timer += AI.thinkInterval; ai.think(b); }
+    };
+    return ai;
+  }
+
+  CC.AI = { create, frontline };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — permanent progression (unit levels, deck, gems) saved to localStorage.
+(function (CC) {
+  'use strict';
+  const KEY = 'corridorWar.save.v1';
+
+  function defaults() {
+    const levels = {};
+    for (const id of CC.CONFIG.unitOrder) levels[id] = 0;
+    return { gems: 0, levels, deck: CC.CONFIG.defaultDeck.slice(), wins: 0, losses: 0 };
+  }
+
+  function validDeck(deck) {
+    return Array.isArray(deck) && deck.length === CC.CONFIG.deckSize &&
+      new Set(deck).size === deck.length && deck.every(id => CC.CONFIG.units[id]);
+  }
+
+  function load() {
+    const d = defaults();
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (typeof s.gems === 'number') d.gems = s.gems;
+        if (s.levels) for (const id in d.levels) if (typeof s.levels[id] === 'number') d.levels[id] = s.levels[id];
+        if (validDeck(s.deck)) d.deck = s.deck;
+        d.wins = s.wins | 0; d.losses = s.losses | 0;
+      }
+    } catch (e) { /* storage unavailable — play without saving */ }
+    return d;
+  }
+
+  function save(data) {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  function unitUpgradeCost(level) {
+    const P = CC.CONFIG.progression;
+    return Math.round(P.unitUpgradeBaseCost * Math.pow(P.unitUpgradeGrowth, level));
+  }
+
+  CC.Save = { load, save, defaults, validDeck, unitUpgradeCost };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — canvas renderer for the battlefield (visual only; never mutates the sim).
+(function (CC) {
+  'use strict';
+
+  const TEAM = {
+    blue: { body: '#58a8ff', dark: '#0f2c52', light: '#bfe0ff', blood: 'rgba(40,90,170,0.35)' },
+    red:  { body: '#ff5d5d', dark: '#4f1010', light: '#ffd0c8', blood: 'rgba(150,25,25,0.38)' },
+  };
+  const FLOOR = '#5a6074', WALL = '#0c0d12', BG = '#22252d';
+
+  function Renderer(canvas, map) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.map = map;
+    this.particles = []; this.rings = []; this.texts = []; this.flashes = [];
+    this.shake = 0; this.hitCounter = 0;
+    // map content bounds
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const p of map.polys) for (const [x, y] of p) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    this.bounds = { x0: x0 - 1.2, y0: y0 - 1.2, x1: x1 + 1.2, y1: y1 + 1.2 };
+  }
+
+  Renderer.prototype.resize = function (w, h, dpr) {
+    this.w = w; this.h = h; this.dpr = dpr;
+    this.canvas.width = Math.round(w * dpr); this.canvas.height = Math.round(h * dpr);
+    this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px';
+    const B = this.bounds, bw = B.x1 - B.x0, bh = B.y1 - B.y0;
+    this.s = Math.min(w / bw, h / bh);                       // css px per world unit
+    this.ox = (w - bw * this.s) / 2 - B.x0 * this.s;
+    this.oy = (h - bh * this.s) / 2 - B.y0 * this.s;
+    this.buildStatic(); this.buildSprites();
+    this.decal = document.createElement('canvas');
+    this.decal.width = this.canvas.width; this.decal.height = this.canvas.height;
+    this.dctx = this.decal.getContext('2d'); this.decalFade = 0;
+  };
+
+  Renderer.prototype.wx = function (x) { return this.ox + x * this.s; };
+  Renderer.prototype.wy = function (y) { return this.oy + y * this.s; };
+
+  Renderer.prototype.polyPath = function (ctx, poly) {
+    ctx.moveTo(this.wx(poly[0][0]), this.wy(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) ctx.lineTo(this.wx(poly[i][0]), this.wy(poly[i][1]));
+    ctx.closePath();
+  };
+
+  Renderer.prototype.buildStatic = function () {
+    const c = document.createElement('canvas'); c.width = this.canvas.width; c.height = this.canvas.height;
+    const ctx = c.getContext('2d'), s = this.s, map = this.map;
+    ctx.scale(this.dpr, this.dpr);
+    ctx.fillStyle = BG; ctx.fillRect(0, 0, this.w, this.h);
+    // faint rock noise in the background
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 260; i++) {
+      ctx.fillStyle = rnd() < 0.5 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.12)';
+      ctx.beginPath(); ctx.arc(rnd() * this.w, rnd() * this.h, 1 + rnd() * 6, 0, 7); ctx.fill();
+    }
+    // walls: thick dark outline = union of polygons stroked
+    ctx.lineJoin = 'miter';
+    ctx.beginPath(); for (const p of map.polys) this.polyPath(ctx, p);
+    ctx.strokeStyle = WALL; ctx.lineWidth = Math.max(3, s * 0.9); ctx.stroke();
+    ctx.fillStyle = WALL; ctx.fill();
+    // floor
+    ctx.beginPath(); for (const p of map.polys) this.polyPath(ctx, p);
+    ctx.fillStyle = FLOOR; ctx.fill();
+    // floor texture + inner wall shading (clip to floor)
+    ctx.save(); ctx.beginPath(); for (const p of map.polys) this.polyPath(ctx, p); ctx.clip();
+    for (let i = 0; i < 900; i++) {
+      ctx.fillStyle = rnd() < 0.6 ? 'rgba(20,22,35,0.10)' : 'rgba(255,255,255,0.05)';
+      ctx.fillRect(rnd() * this.w, rnd() * this.h, 1 + rnd() * 2, 1 + rnd() * 2);
+    }
+    // darken near walls using the nav wall-distance field
+    const step = 1 / map.RES;
+    for (let gy = 0; gy < map.gh; gy++) for (let gx = 0; gx < map.gw; gx++) {
+      const i = gy * map.gw + gx; if (map.solid[i]) continue;
+      const wd = map.wallDist[i]; if (wd > 1.6) continue;
+      ctx.fillStyle = `rgba(10,12,22,${(1.6 - wd) * 0.16})`;
+      ctx.fillRect(this.wx(gx * step) - 0.5, this.wy(gy * step) - 0.5, step * s + 1, step * s + 1);
+    }
+    ctx.restore();
+    // base rooms tinted by team
+    for (const id of ['blue', 'red']) {
+      const b = map.bases[id], g = ctx.createRadialGradient(this.wx(b.x), this.wy(b.y), 0, this.wx(b.x), this.wy(b.y), 10 * s);
+      g.addColorStop(0, id === 'blue' ? 'rgba(70,150,255,0.30)' : 'rgba(255,70,70,0.30)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, this.w, this.h);
+    }
+    // warm torch light
+    ctx.globalCompositeOperation = 'lighter';
+    for (const t of map.torches) {
+      const x = this.wx(t.x), y = this.wy(t.y), g = ctx.createRadialGradient(x, y, 0, x, y, 9 * s);
+      g.addColorStop(0, 'rgba(255,190,110,0.30)'); g.addColorStop(0.4, 'rgba(255,150,80,0.10)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 9 * s, 0, 7); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    for (const t of map.torches) {
+      ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(this.wx(t.x), this.wy(t.y), Math.max(1.6, s * 0.35), 0, 7); ctx.fill();
+    }
+    this.static = c;
+  };
+
+  // ---- unit sprites: drawn once per type/team/flash, facing +x ----
+  function drawUnitShape(ctx, shape, r, team, flash) {
+    const T = TEAM[team], body = flash ? '#ffffff' : T.body, dark = T.dark;
+    const lw = Math.max(1, r * 0.28);
+    ctx.lineCap = 'round';
+    // weapons behind / beside the body
+    ctx.strokeStyle = flash ? '#fff' : '#d9dde6'; ctx.lineWidth = lw;
+    if (shape === 'warrior') { ctx.beginPath(); ctx.moveTo(r * 0.3, r * 0.65); ctx.lineTo(r * 1.55, r * 0.65); ctx.stroke(); }
+    if (shape === 'spearman') { ctx.beginPath(); ctx.moveTo(-r * 0.4, r * 0.55); ctx.lineTo(r * 2.3, r * 0.55); ctx.stroke(); ctx.fillStyle = '#eee'; ctx.beginPath(); ctx.moveTo(r * 2.6, r * 0.55); ctx.lineTo(r * 2.1, r * 0.25); ctx.lineTo(r * 2.1, r * 0.85); ctx.fill(); }
+    if (shape === 'assassin') { ctx.beginPath(); ctx.moveTo(r * 0.4, r * 0.7); ctx.lineTo(r * 1.3, r * 0.7); ctx.moveTo(r * 0.4, -r * 0.7); ctx.lineTo(r * 1.3, -r * 0.7); ctx.stroke(); }
+    if (shape === 'sniper') { ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = lw * 0.9; ctx.beginPath(); ctx.moveTo(0, r * 0.35); ctx.lineTo(r * 2.2, r * 0.35); ctx.stroke(); }
+    if (shape === 'berserker') { ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.7); ctx.lineTo(r * 1.4, r * 0.7); ctx.stroke(); ctx.fillStyle = '#c8ccd6'; ctx.beginPath(); ctx.arc(r * 1.4, r * 0.7, r * 0.45, -1.4, 1.4); ctx.fill(); }
+    // body
+    ctx.fillStyle = body; ctx.strokeStyle = dark; ctx.lineWidth = Math.max(1, r * 0.22);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // little "ears/shoulders" like the reference blobs
+    ctx.beginPath(); ctx.arc(-r * 0.15, -r * 0.85, r * 0.38, 0, 7); ctx.arc(-r * 0.15, r * 0.85, r * 0.38, 0, 7); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : T.light; ctx.beginPath(); ctx.arc(r * 0.25, 0, r * 0.38, 0, 7); ctx.fill();
+    // front pieces
+    if (shape === 'tank') { ctx.fillStyle = flash ? '#fff' : '#8a93a6'; ctx.strokeStyle = dark; ctx.lineWidth = Math.max(1, r * 0.15); ctx.beginPath(); ctx.rect(r * 0.75, -r * 0.95, r * 0.42, r * 1.9); ctx.fill(); ctx.stroke(); }
+    if (shape === 'archer') { ctx.strokeStyle = flash ? '#fff' : '#a0703a'; ctx.lineWidth = lw; ctx.beginPath(); ctx.arc(r * 0.2, 0, r * 1.1, -1.05, 1.05); ctx.stroke(); }
+    if (shape === 'bomber') { ctx.fillStyle = '#16161a'; ctx.beginPath(); ctx.arc(r * 1.15, r * 0.35, r * 0.5, 0, 7); ctx.fill(); ctx.fillStyle = '#ffb030'; ctx.beginPath(); ctx.arc(r * 1.45, r * 0.0, r * 0.18, 0, 7); ctx.fill(); }
+  }
+
+  Renderer.prototype.buildSprites = function () {
+    this.sprites = {};
+    const px = this.s * this.dpr;
+    for (const type of CC.CONFIG.unitOrder) {
+      const def = CC.CONFIG.units[type], r = def.radius * px;
+      const size = Math.ceil(r * 6 + 4);
+      for (const team of ['blue', 'red']) for (const flash of [0, 1]) {
+        const c = document.createElement('canvas'); c.width = c.height = size;
+        const ctx = c.getContext('2d'); ctx.translate(size / 2, size / 2);
+        drawUnitShape(ctx, def.shape, r, team, flash);
+        this.sprites[type + team + flash] = c;
+      }
+    }
+  };
+
+  // ---- events from the sim -> particles / decals ----
+  Renderer.prototype.consume = function (events) {
+    const s = this.s, dctx = this.dctx, dpr = this.dpr;
+    for (const e of events) {
+      if (e.t === 'death') {
+        const T = TEAM[e.side];
+        for (let i = 0; i < 6; i++) this.addParticle(e.x, e.y, T.body, 2.2 + Math.random() * 3, 0.45 + Math.random() * 0.3, 0.22);
+        this.addParticle(e.x, e.y, '#ffffff', 1.5, 0.3, 0.18);
+        dctx.fillStyle = T.blood; dctx.beginPath();
+        dctx.arc(this.wx(e.x) * dpr, this.wy(e.y) * dpr, (0.35 + Math.random() * 0.45) * s * dpr, 0, 7); dctx.fill();
+      } else if (e.t === 'hit') {
+        if ((this.hitCounter++ & 3) === 0) this.addParticle(e.x, e.y, '#fff6d0', 3, 0.15, 0.12);
+        if (this.texts.length < 14 && (this.hitCounter % 23) === 0) this.texts.push({ x: e.x, y: e.y - 0.5, txt: Math.round(e.v), life: 0.6, max: 0.6, color: e.side === 'blue' ? '#ff9a9a' : '#fff' });
+      } else if (e.t === 'boom') {
+        this.rings.push({ x: e.x, y: e.y, r: e.r, life: 0.35, max: 0.35 });
+        for (let i = 0; i < 10; i++) this.addParticle(e.x, e.y, i & 1 ? '#ffb347' : '#ff6a2a', 4 + Math.random() * 5, 0.35 + Math.random() * 0.25, 0.25);
+        dctx.fillStyle = 'rgba(10,10,10,0.22)'; dctx.beginPath();
+        dctx.arc(this.wx(e.x) * dpr, this.wy(e.y) * dpr, e.r * 0.8 * s * dpr, 0, 7); dctx.fill();
+      } else if (e.t === 'baseHit') {
+        if (e.side === 'blue') this.shake = Math.min(6, this.shake + 0.6);
+        if (this.texts.length < 34 && Math.random() < 0.3) this.texts.push({ x: e.x + (Math.random() - 0.5) * 4, y: e.y - 2, txt: '-' + Math.round(e.v), life: 0.8, max: 0.8, color: '#ffd24d', big: true });
+      }
+    }
+  };
+
+  Renderer.prototype.addParticle = function (x, y, color, spd, life, size) {
+    if (this.particles.length > 700) return;
+    const a = Math.random() * Math.PI * 2, v = spd * (0.4 + Math.random() * 0.6);
+    this.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life, color, size });
+  };
+
+  // ---- frame ----
+  Renderer.prototype.draw = function (b, alpha, dt) {
+    const ctx = this.ctx, dpr = this.dpr, s = this.s;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    let sx = 0, sy = 0;
+    if (this.shake > 0) { sx = (Math.random() - 0.5) * this.shake; sy = (Math.random() - 0.5) * this.shake; this.shake = Math.max(0, this.shake - dt * 18); }
+    ctx.drawImage(this.static, sx * dpr, sy * dpr);
+    // slowly fade old decals
+    this.decalFade += dt;
+    if (this.decalFade > 1.5) { this.decalFade = 0; this.dctx.globalCompositeOperation = 'destination-out'; this.dctx.fillStyle = 'rgba(0,0,0,0.06)'; this.dctx.fillRect(0, 0, this.decal.width, this.decal.height); this.dctx.globalCompositeOperation = 'source-over'; }
+    ctx.drawImage(this.decal, sx * dpr, sy * dpr);
+
+    const OX = (this.ox + sx) * dpr, OY = (this.oy + sy) * dpr, K = s * dpr;
+
+    // bases
+    for (const id of ['blue', 'red']) this.drawBase(ctx, b.sides[id].base, id, OX, OY, K, b.time);
+
+    // units
+    const units = b.units, sprites = this.sprites;
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      let x = u.px + (u.x - u.px) * alpha, y = u.py + (u.y - u.py) * alpha;
+      const c = Math.cos(u.ang), sn = Math.sin(u.ang);
+      if (u.swing > 0) { const l = Math.sin(u.swing / 0.16 * Math.PI) * 0.22; x += c * l; y += sn * l; }
+      const spr = sprites[u.type + u.side + (u.flash > 0 ? 1 : 0)], hw = spr.width / 2;
+      ctx.setTransform(c, sn, -sn, c, OX + x * K, OY + y * K);
+      if (u.spawnT < 0.3) ctx.globalAlpha = u.spawnT / 0.3;
+      ctx.drawImage(spr, -hw, -hw);
+      if (u.spawnT < 0.3) ctx.globalAlpha = 1;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // projectiles
+    ctx.lineCap = 'round';
+    for (const p of b.projectiles) {
+      const x = OX + p.x * K, y = OY + p.y * K;
+      if (p.kind === 'bomb') {
+        const k = Math.min(1, p.t / p.dur), hgt = Math.sin(k * Math.PI) * 2.2 * K;
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(x, y, 0.3 * K, 0, 7); ctx.fill();
+        ctx.fillStyle = '#18181c'; ctx.beginPath(); ctx.arc(x, y - hgt, 0.38 * K, 0, 7); ctx.fill();
+        ctx.fillStyle = '#ffb030'; ctx.beginPath(); ctx.arc(x + 0.2 * K, y - hgt - 0.25 * K, 0.12 * K, 0, 7); ctx.fill();
+      } else {
+        const dx = p.tx - p.sx, dy = p.ty - p.sy, L = Math.hypot(dx, dy) || 1, len = (p.kind === 'bullet' ? 1.4 : 0.9) * K;
+        ctx.strokeStyle = p.kind === 'bullet' ? '#fff2a8' : (p.side === 'blue' ? '#d8ecff' : '#ffe0d8');
+        ctx.lineWidth = Math.max(1, 0.14 * K);
+        ctx.beginPath(); ctx.moveTo(x - dx / L * len, y - dy / L * len); ctx.lineTo(x, y); ctx.stroke();
+      }
+    }
+
+    // explosion rings
+    for (let i = this.rings.length - 1; i >= 0; i--) {
+      const r = this.rings[i]; r.life -= dt; if (r.life <= 0) { this.rings.splice(i, 1); continue; }
+      const k = 1 - r.life / r.max;
+      ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ffcf6a'; ctx.lineWidth = 2 * dpr;
+      ctx.beginPath(); ctx.arc(OX + r.x * K, OY + r.y * K, r.r * K * (0.4 + k * 0.8), 0, 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,170,60,0.25)'; ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // particles
+    const ps = this.particles;
+    for (let i = ps.length - 1; i >= 0; i--) {
+      const p = ps[i]; p.life -= dt;
+      if (p.life <= 0) { ps[i] = ps[ps.length - 1]; ps.pop(); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.9; p.vy *= 0.9;
+      ctx.globalAlpha = p.life / p.max; ctx.fillStyle = p.color;
+      const sz = p.size * K; ctx.fillRect(OX + p.x * K - sz / 2, OY + p.y * K - sz / 2, sz, sz);
+    }
+    ctx.globalAlpha = 1;
+
+    // floating numbers
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = this.texts.length - 1; i >= 0; i--) {
+      const t = this.texts[i]; t.life -= dt; if (t.life <= 0) { this.texts.splice(i, 1); continue; }
+      t.y -= dt * 2.2;
+      ctx.globalAlpha = Math.min(1, t.life / t.max * 1.5);
+      ctx.font = `800 ${(t.big ? 12 : 9) * dpr}px system-ui, sans-serif`;
+      ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.strokeText(t.txt, OX + t.x * K, OY + t.y * K); ctx.fillStyle = t.color; ctx.fillText(t.txt, OX + t.x * K, OY + t.y * K);
+    }
+    ctx.globalAlpha = 1;
+  };
+
+  Renderer.prototype.drawBase = function (ctx, base, id, OX, OY, K, time) {
+    const T = TEAM[id], x = OX + base.x * K, y = OY + base.y * K, r = base.r * K;
+    ctx.save(); ctx.translate(x, y);
+    // octagonal keep
+    ctx.beginPath();
+    for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + k * Math.PI / 4; ctx[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.closePath();
+    ctx.fillStyle = base.flash > 0 ? '#ffffff' : T.dark; ctx.fill();
+    ctx.lineWidth = Math.max(2, K * 0.35); ctx.strokeStyle = T.body; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, 7); ctx.fillStyle = T.body; ctx.fill();
+    const pulse = 0.5 + 0.5 * Math.sin(time * 3);
+    ctx.beginPath(); ctx.arc(0, 0, r * (0.22 + pulse * 0.06), 0, 7); ctx.fillStyle = T.light; ctx.fill();
+    // HP bar
+    const w = r * 2.6, h = Math.max(4, K * 0.6), k = base.hp / base.maxHp, by = id === 'red' ? -r - h * 2.2 : r + h * 1.2;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(-w / 2 - 1, by - 1, w + 2, h + 2);
+    ctx.fillStyle = k > 0.5 ? '#4cd964' : k > 0.25 ? '#ffcc33' : '#ff4d4d'; ctx.fillRect(-w / 2, by, w * k, h);
+    ctx.restore();
+  };
+
+  CC.Renderer = Renderer;
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — DOM UI: menus, deck builder, unit upgrades, battle HUD/upgrade panel, results.
+(function (CC) {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const C = () => CC.CONFIG;
+
+  function fmtMoney(v) {
+    v = Math.floor(v);
+    if (v < 1000) return '$' + v;
+    if (v < 1e6) return '$' + (v / 1e3).toFixed(2) + 'K';
+    return '$' + (v / 1e6).toFixed(2) + 'M';
+  }
+  function fmtTime(t) { t = Math.floor(t); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  function lvlMult(lvl) { return 1 + C().progression.hpPerLevel * lvl; }
+
+  function show(id) {
+    for (const s of document.querySelectorAll('.screen')) s.classList.toggle('on', s.id === id);
+  }
+
+  // ---------------- menu ----------------
+  function renderMenu(save) {
+    $('menuGems').textContent = save.gems;
+    $('menuRecord').textContent = `Wins ${save.wins} · Losses ${save.losses}`;
+  }
+
+  function drawMenuArt() {
+    const c = $('menuArt'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 70; i++) {
+      for (const [team, x0] of [['blue', 40], ['red', 260]]) {
+        const x = x0 + rnd() * 140, y = 30 + rnd() * 180, r = 7;
+        ctx.fillStyle = team === 'blue' ? '#58a8ff' : '#ff5d5d'; ctx.strokeStyle = team === 'blue' ? '#0f2c52' : '#4f1010'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = '#dde'; ctx.beginPath(); ctx.moveTo(x + (team === 'blue' ? 4 : -4), y + 3); ctx.lineTo(x + (team === 'blue' ? 13 : -13), y + 3); ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#ffcc4d'; ctx.font = '900 46px system-ui'; ctx.textAlign = 'center'; ctx.fillText('⚔', 220, 138);
+  }
+
+  // ---------------- deck ----------------
+  const deckState = { slot: -1, pending: null };
+
+  function statsHtml(type, lvl) {
+    const u = C().units[type], m = lvlMult(lvl), dm = 1 + C().progression.dmgPerLevel * lvl;
+    return `<div class="stats">
+      <span>❤️ HP <b>${Math.round(u.hp * m)}</b></span><span>⚔️ DMG <b>${Math.round(u.dmg * dm)}</b></span><span>⏱ ATK <b>${u.atkSpeed}</b>/s</span>
+      <span>👟 SPD <b>${u.move}</b></span><span>🎯 RNG <b>${u.range < 1 ? 'melee' : u.range}</b></span><span>⟳ <b>${u.squad}</b> / ${u.spawn}s</span>
+    </div>`;
+  }
+
+  function renderDeck(save, onChange) {
+    const slots = $('deckSlots'); slots.innerHTML = '';
+    save.deck.forEach((type, i) => {
+      const u = C().units[type];
+      const el = document.createElement('div');
+      el.className = 'slot' + (deckState.slot === i ? ' sel' : '') + (deckState.pending ? ' glow' : '');
+      el.innerHTML = `<span class="lv">Lv${save.levels[type] + 1}</span><div class="ic">${u.icon}</div><div class="nm">${u.name}</div>`;
+      el.onclick = () => {
+        if (deckState.pending) { placeUnit(save, i, deckState.pending); onChange(); }
+        else deckState.slot = deckState.slot === i ? -1 : i;
+        renderDeck(save, onChange);
+      };
+      slots.appendChild(el);
+    });
+    const cards = $('deckCards'); cards.innerHTML = '';
+    for (const type of C().unitOrder) {
+      const u = C().units[type], inDeck = save.deck.includes(type);
+      const el = document.createElement('div');
+      el.className = 'ucard' + (inDeck ? ' indeck' : '') + (deckState.pending === type ? ' pending' : '');
+      el.innerHTML = `${inDeck ? '<span class="badge">IN DECK</span>' : ''}
+        <div class="hd"><div class="ic">${u.icon}</div><div><div class="nm">${u.name}</div><div class="rl">${u.role}</div></div><div class="lv">Lv ${save.levels[type] + 1}</div></div>
+        ${statsHtml(type, save.levels[type])}<div class="desc">${u.desc}</div>`;
+      el.onclick = () => {
+        if (deckState.slot >= 0) { placeUnit(save, deckState.slot, type); onChange(); }
+        else if (!inDeck) deckState.pending = deckState.pending === type ? null : type;
+        renderDeck(save, onChange);
+      };
+      cards.appendChild(el);
+    }
+    $('deckHint').textContent = deckState.pending ? `Now tap the slot ${C().units[deckState.pending].name} should replace.`
+      : deckState.slot >= 0 ? 'Now tap a unit to put it in the highlighted slot.'
+      : 'Tap a slot, then a unit (or a unit, then a slot). Deck = exactly 5 different units.';
+  }
+
+  function placeUnit(save, slot, type) {
+    const cur = save.deck.indexOf(type);
+    if (cur === slot) { /* nothing */ }
+    else if (cur >= 0) { const t = save.deck[slot]; save.deck[slot] = type; save.deck[cur] = t; } // swap
+    else save.deck[slot] = type;
+    deckState.slot = -1; deckState.pending = null;
+  }
+
+  // ---------------- permanent unit upgrades ----------------
+  function renderUnits(save, onBuy) {
+    $('unitsGems').textContent = save.gems;
+    const list = $('unitList'); list.innerHTML = '';
+    for (const type of C().unitOrder) {
+      const u = C().units[type], lvl = save.levels[type], cost = CC.Save.unitUpgradeCost(lvl);
+      const P = C().progression;
+      const hp0 = Math.round(u.hp * (1 + P.hpPerLevel * lvl)), hp1 = Math.round(u.hp * (1 + P.hpPerLevel * (lvl + 1)));
+      const d0 = Math.round(u.dmg * (1 + P.dmgPerLevel * lvl)), d1 = Math.round(u.dmg * (1 + P.dmgPerLevel * (lvl + 1)));
+      const row = document.createElement('div'); row.className = 'urow'; row.id = 'urow-' + type;
+      row.innerHTML = `<div class="ic">${u.icon}</div>
+        <div class="info"><div class="nm">${u.name}<small>Lv ${lvl + 1}</small>${save.deck.includes(type) ? ' <small style="color:#8cc6ff">• deck</small>' : ''}</div>
+        <div class="delta">❤️ ${hp0} → <b>${hp1}</b> &nbsp; ⚔️ ${d0} → <b>${d1}</b></div></div>`;
+      const btn = document.createElement('button'); btn.className = 'gold';
+      btn.innerHTML = `💎 ${cost}`; btn.disabled = save.gems < cost;
+      btn.onclick = () => onBuy(type);
+      row.appendChild(btn); list.appendChild(row);
+    }
+  }
+
+  // ---------------- battle panel ----------------
+  const panel = { btns: {}, last: {} };
+
+  function buildUpgradePanel(onBuy) {
+    const ups = $('ups'); ups.innerHTML = ''; panel.btns = {}; panel.last = {};
+    for (const id of C().upgradeOrder) {
+      const U = C().upgrades[id];
+      const b = document.createElement('button'); b.className = 'up';
+      b.innerHTML = `<div class="uic">${U.icon}</div><div class="unm">${U.name}</div><div class="ulv">Lv 0</div><div class="uds">${U.desc}</div><div class="uct">$50</div>`;
+      b.addEventListener('pointerdown', e => { e.preventDefault(); if (!b.disabled) onBuy(id); });
+      ups.appendChild(b);
+      panel.btns[id] = { el: b, lv: b.querySelector('.ulv'), ct: b.querySelector('.uct') };
+    }
+  }
+
+  function flashUpgrade(id, level) {
+    const p = panel.btns[id]; if (!p) return;
+    p.el.classList.remove('bought'); void p.el.offsetWidth; p.el.classList.add('bought');
+    const plus = document.createElement('div'); plus.className = 'plus'; plus.textContent = 'Lv ' + level;
+    p.el.appendChild(plus); setTimeout(() => plus.remove(), 800);
+  }
+
+  function setText(el, key, v) { if (panel.last[key] !== v) { panel.last[key] = v; el.textContent = v; } }
+
+  function updateHUD(b) {
+    const me = b.sides.blue, foe = b.sides.red, eco = me.eco;
+    setText($('money'), 'money', fmtMoney(eco.money));
+    setText($('income'), 'inc', '+' + fmtMoney(CC.Economy.incomePerSecond(eco)) + '/s');
+    setText($('hudTime'), 'time', fmtTime(b.time));
+    setText($('redHpTxt'), 'rhp', Math.ceil(foe.base.hp));
+    setText($('blueHpTxt'), 'bhp', Math.ceil(me.base.hp));
+    $('redBar').firstChild.style.width = (foe.base.hp / foe.base.maxHp * 100) + '%';
+    $('blueBar').firstChild.style.width = (me.base.hp / me.base.maxHp * 100) + '%';
+    setText($('kills'), 'kills', me.kills);
+    setText($('armies'), 'arm', me.alive + ' v ' + foe.alive);
+    const L = foe.eco.levels;
+    setText($('aiLv'), 'ai', `AI ⚔${L.power} 🛡${L.defense} 👥${L.tactic} ⚡${L.speed} 💰${L.income}`);
+    setText($('squadInfo'), 'sq', '+' + me.mods.extraUnits);
+    setText($('armyInfo'), 'army', me.alive);
+    let next = Infinity; for (const s of me.deck) next = Math.min(next, s.timer);
+    setText($('spawnInfo'), 'spawn', next.toFixed(1) + 's');
+    for (const id of C().upgradeOrder) {
+      const p = panel.btns[id], cost = CC.Economy.cost(eco, id);
+      setText(p.lv, 'lv' + id, 'Lv ' + eco.levels[id]);
+      setText(p.ct, 'ct' + id, fmtMoney(cost));
+      const dis = eco.money < cost;
+      if (p.el.disabled !== dis) p.el.disabled = dis;
+    }
+  }
+
+  function bumpMoney() { const h = $('hudMoney'); h.classList.remove('bump'); void h.offsetWidth; h.classList.add('bump'); }
+
+  function showResults(r) {
+    const t = $('resTitle');
+    t.textContent = r.win ? 'VICTORY' : 'DEFEAT'; t.className = r.win ? 'win' : 'lose';
+    $('resKills').textContent = r.kills; $('resSpawned').textContent = r.spawned; $('resLost').textContent = r.lost;
+    $('resTime').textContent = fmtTime(r.time); $('resGems').textContent = '+' + r.gems;
+    $('resultOv').classList.add('on');
+    const card = $('resultCard'); card.classList.remove('appear'); void card.offsetWidth; card.classList.add('appear');
+  }
+
+  CC.UI = { show, renderMenu, drawMenuArt, renderDeck, renderUnits, buildUpgradePanel, flashUpgrade, updateHUD, bumpMoney, showResults, fmtMoney, fmtTime, $ };
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+<script>
+// Corridor War — app flow & fixed-timestep game loop.
+(function (CC) {
+  'use strict';
+  const UI = CC.UI, $ = UI.$;
+  const save = CC.Save.load();
+  const map = CC.Map.create();
+  const renderer = new CC.Renderer($('cv'), map);
+
+  let battle = null, acc = 0, last = 0, paused = false, running = false, rewarded = false;
+
+  // ---------- navigation ----------
+  function go(id) {
+    if (id === 'menu') UI.renderMenu(save);
+    if (id === 'deck') UI.renderDeck(save, () => CC.Save.save(save));
+    if (id === 'units') UI.renderUnits(save, buyUnit);
+    UI.show(id);
+  }
+  for (const b of document.querySelectorAll('[data-go]')) b.onclick = () => go(b.dataset.go);
+  $('btnPlay').onclick = startBattle;
+  $('deckPlay').onclick = startBattle;
+  $('btnDeck').onclick = () => go('deck');
+  $('btnUnits').onclick = () => go('units');
+
+  function buyUnit(type) {
+    const cost = CC.Save.unitUpgradeCost(save.levels[type]);
+    if (save.gems < cost) return;
+    save.gems -= cost; save.levels[type]++; CC.Save.save(save);
+    UI.renderUnits(save, buyUnit);
+    const row = $('urow-' + type); if (row) row.classList.add('pop');
+  }
+
+  // ---------- battle ----------
+  function aiLevels() {
+    // The AI's units track the player's average deck level so progression stays meaningful but fair.
+    const avg = save.deck.reduce((a, t) => a + save.levels[t], 0) / save.deck.length;
+    const lv = Math.max(0, Math.floor(avg * 0.85));
+    const levels = {}; for (const t of CC.CONFIG.unitOrder) levels[t] = lv;
+    return levels;
+  }
+
+  function startBattle() {
+    if (!CC.Save.validDeck(save.deck)) { go('deck'); return; }
+    battle = CC.Battle.create({
+      map, blueDeck: save.deck.slice(), redDeck: CC.CONFIG.aiDeck.slice(),
+      blueLevels: save.levels, redLevels: aiLevels(),
+    });
+    battle.controllers.push(CC.AI.create('red'));
+    $('resultOv').classList.remove('on'); $('pauseOv').classList.remove('on');
+    UI.show('battle');
+    UI.buildUpgradePanel(id => battle && !battle.over && !paused && battle.command({ side: 'blue', type: 'upgrade', id }));
+    layout();
+    renderer.particles.length = 0; renderer.texts.length = 0; renderer.rings.length = 0;
+    acc = 0; paused = false; rewarded = false; running = true; last = performance.now();
+    UI.updateHUD(battle);
+  }
+
+  function layout() {
+    const f = $('field'), r = f.getBoundingClientRect();
+    renderer.resize(Math.max(1, r.width), Math.max(1, r.height), Math.min(window.devicePixelRatio || 1, 2.5));
+  }
+  window.addEventListener('resize', () => { if (running) layout(); });
+
+  $('pauseBtn').onclick = () => { if (!battle || battle.over) return; paused = true; $('pauseOv').classList.add('on'); };
+  $('resumeBtn').onclick = () => { paused = false; $('pauseOv').classList.remove('on'); last = performance.now(); };
+  $('quitBtn').onclick = () => { if (!battle) return; $('pauseOv').classList.remove('on'); paused = false; battle.sides.blue.base.hp = 0; };
+  $('againBtn').onclick = startBattle;
+  $('menuBtn').onclick = () => { running = false; go('menu'); };
+  $('resUnitsBtn').onclick = () => { running = false; go('units'); };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && battle && running && !battle.over) { paused = true; $('pauseOv').classList.add('on'); }
+  });
+
+  function finish() {
+    if (rewarded) return; rewarded = true;
+    const me = battle.sides.blue, win = battle.winner === 'blue', P = CC.CONFIG.progression;
+    const gems = win ? Math.round(P.winReward + me.kills / P.killsPerGem + P.baseHpBonus * (me.base.hp / me.base.maxHp)) : 0;
+    save.gems += gems; if (win) save.wins++; else save.losses++;
+    CC.Save.save(save);
+    setTimeout(() => UI.showResults({ win, kills: me.kills, spawned: me.spawned, lost: me.lost, time: battle.time, gems }), 900);
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!running || !battle) return;
+    let dt = (now - last) / 1000; last = now;
+    if (dt > 0.25) dt = 0.25;
+    const DT = CC.CONFIG.sim.dt;
+    if (!paused && !battle.over) {
+      acc += dt;
+      const moneyBefore = Math.floor(battle.sides.blue.eco.money);
+      while (acc >= DT) {
+        CC.Battle.step(battle, DT); acc -= DT;
+        for (const e of battle.events) if (e.t === 'upgrade' && e.side === 'blue') UI.flashUpgrade(e.id, e.level);
+        renderer.consume(battle.events); battle.events.length = 0;
+      }
+      if (Math.floor(battle.sides.blue.eco.money) > moneyBefore + 0.5 && battle.sides.blue.eco.payoutTimer < 0.1) UI.bumpMoney();
+      if (battle.over) finish();
+    } else if (battle.over) { renderer.consume(battle.events); battle.events.length = 0; }
+    renderer.draw(battle, paused || battle.over ? 1 : acc / DT, paused ? 0 : dt);
+    UI.updateHUD(battle);
+  }
+
+  UI.drawMenuArt();
+  go('menu');
+  requestAnimationFrame(frame);
+
+  CC.app = { save, get battle() { return battle; }, startBattle, go }; // handy for debugging / tests
+})(globalThis.CC = globalThis.CC || {});
+
+</script>
+</body>
+</html>
