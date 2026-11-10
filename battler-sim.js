@@ -10,7 +10,21 @@
     UPGRADE_CHANCE: 0.33,                       // chance each offered card is an upgrade (when one is possible)
     DOUBLE_CHANCE: 0.08,                        // chance each offered card is a Double card (when a group has room)
     MERGE_ADJACENT: false,
-    DOUBLE_MAX_SLOTS: 2,                        // a doubled unit covers 2 slots; it cannot be doubled again                      // true = same unit + same level side by side merge into one multi-slot group
+    DOUBLE_MAX_SLOTS: 2,                        // a doubled unit covers 2 slots; it cannot be doubled again
+    // Grid modifiers: special slots that change the group placed on them, permanently for the rest of the match.
+    // hp/dmg multiply health/damage, spd multiplies attack speed (cooldown is divided by it), count multiplies characters.
+    MODIFIERS: {
+      hpUp:    { id: 'hpUp',    sign: 1,  name: 'Health Boost',           short: '+30% HP',     hp: 1.3,  weight: 30 },
+      dmgUp:   { id: 'dmgUp',   sign: 1,  name: 'Damage Boost',           short: '+25% Damage', dmg: 1.25, weight: 30 },
+      spdUp:   { id: 'spdUp',   sign: 1,  name: 'Attack Speed Boost',     short: '+25% Attack Speed', spd: 1.25, weight: 30 },
+      multUp:  { id: 'multUp',  sign: 1,  name: 'Unit Multiplier',        short: 'x2 Units',    count: 2,   weight: 10 },
+      hpDown:  { id: 'hpDown',  sign: -1, name: 'Health Reduction',       short: '-20% HP',     hp: 0.8,  weight: 30 },
+      dmgDown: { id: 'dmgDown', sign: -1, name: 'Damage Reduction',       short: '-20% Damage', dmg: 0.8, weight: 30 },
+      spdDown: { id: 'spdDown', sign: -1, name: 'Attack Speed Reduction', short: '-20% Attack Speed', spd: 0.8, weight: 30 },
+      multDown:{ id: 'multDown',sign: -1, name: 'Unit Reduction',         short: 'x0.5 Units',  count: 0.5, weight: 10 },
+    },
+    // target TOTAL special slots per player territory by round (index 0 = round 1)
+    MODIFIER_TARGETS: { positive: [3, 5, 7, 9, 11], negative: [1, 2, 3, 4, 5] },                      // true = same unit + same level side by side merge into one multi-slot group
     UNIT_WEIGHTS: { archer: 1, knight: 1, cavalry: 1, bomber: 1, dwarf: 1 }, // relative card frequency
     ACTIONS_PER_ROUND: 3,
     COMEBACK_ACTIONS: 1,                        // extra action for the previous round's loser
@@ -81,14 +95,44 @@
   // 0 = front row (touching the middle line), 4 = back row
   function depth(team, row) { return team === 'red' ? CONFIG.TERRITORY_ROWS - 1 - row : row - (CONFIG.ROWS - CONFIG.TERRITORY_ROWS); }
 
-  function createPlayer(team, deck) { return { team, deck: deck.slice(), groups: [], nextId: 1 }; }
+  function createPlayer(team, deck) { return { team, deck: deck.slice(), groups: [], mods: {}, nextId: 1 }; }
 
   // A group is one unit type at one level that covers one or more orthogonally connected slots:
   //   { id, type, level, slots: [{col,row}, ...], col, row }   (col/row = anchor = first slot)
   // Each slot contributes one card's worth of characters (UNITS[type].count).
   const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   function groupAt(player, col, row) { return player.groups.find(g => g.slots.some(s => s.col === col && s.row === row)) || null; }
-  function groupCount(g) { return UNITS[g.type].count * g.slots.length; }
+  const skey = (c, r) => c + ',' + r;
+  const MOD_NONE = { hp: 1, dmg: 1, spd: 1, count: 1 };
+  function modAt(player, col, row) { const id = player && player.mods && player.mods[skey(col, row)]; return id ? CONFIG.MODIFIERS[id] : null; }
+  // characters spawned by one slot of a unit, after its slot modifier (x0.5 rounds up, never below 1)
+  function slotCount(type, mod) { return Math.max(1, Math.ceil(UNITS[type].count * ((mod && mod.count) || 1))); }
+  // characters in a whole group; pass the owning player to include slot modifiers
+  function groupCount(g, player) { let n = 0; for (const sl of g.slots) n += slotCount(g.type, player ? modAt(player, sl.col, sl.row) : null); return n; }
+
+  // Add new special slots at the start of a round so the territory reaches the round's target totals.
+  // Existing modifiers are kept (occupied ones are locked forever); new ones only go on empty, unmodified slots.
+  // Returns the list of newly created {col,row,id}.
+  function genModifiers(player, round, rng) {
+    player.mods = player.mods || {};
+    const ri = Math.min(round, CONFIG.MODIFIER_TARGETS.positive.length) - 1;
+    const have = { 1: 0, '-1': 0 };
+    for (const k in player.mods) have[CONFIG.MODIFIERS[player.mods[k]].sign]++;
+    const free = emptySlots(player).filter(sl => !player.mods[skey(sl.col, sl.row)]);
+    for (let i = free.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [free[i], free[j]] = [free[j], free[i]]; }
+    const made = [];
+    const add = (sign, n) => {
+      const pool = Object.values(CONFIG.MODIFIERS).filter(m => m.sign === sign);
+      for (let i = 0; i < n && free.length; i++) {
+        let r = rng() * pool.reduce((t, m) => t + m.weight, 0), m = pool[pool.length - 1];
+        for (const q of pool) { r -= q.weight; if (r <= 0) { m = q; break; } }
+        const sl = free.pop(); player.mods[skey(sl.col, sl.row)] = m.id; made.push({ col: sl.col, row: sl.row, id: m.id });
+      }
+    };
+    add(1, Math.max(0, CONFIG.MODIFIER_TARGETS.positive[ri] - have[1]));
+    add(-1, Math.max(0, CONFIG.MODIFIER_TARGETS.negative[ri] - have[-1]));
+    return made;
+  }
   function emptySlots(player) {
     const out = []; const [a, b] = territoryRows(player.team);
     for (let r = a; r <= b; r++) for (let c = 0; c < CONFIG.COLS; c++) if (!groupAt(player, c, r)) out.push({ col: c, row: r });
@@ -122,7 +166,8 @@
       for (const s of pass === 0 ? from.slice(0, 1) : from) for (const [dc, dr] of N4) {
         const c = s.col + dc, r = s.row + dr;
         if (!free(c, r)) continue;
-        const v = (dr === 0 ? 2 : 0) + (depth(player.team, r) < depth(player.team, s.row) ? 0.5 : 0) - Math.abs(c - 4.5) * 0.05 - r * 0.001;
+        const v = (dr === 0 ? 2 : 0) + (depth(player.team, r) < depth(player.team, s.row) ? 0.5 : 0) - Math.abs(c - 4.5) * 0.05 - r * 0.001
+          + modValue(g.type, modAt(player, c, r)) * 1.5;
         if (!best || v > best.v) best = { v, col: c, row: r };
       }
       if (best) return [{ col: best.col, row: best.row }];
@@ -242,6 +287,22 @@
     return 0;
   }
 
+  // How much a slot modifier is worth to a unit type (positive = good). Used by the AI and by Double's auto-slot.
+  const MOD_SYNERGY = {
+    hp:  { knight: 1.0, dwarf: 0.9, cavalry: 0.7, archer: 0.35, bomber: 0.35 },
+    dmg: { knight: 0.45, dwarf: 0.55, cavalry: 0.7, archer: 0.9, bomber: 1.0 },
+    spd: { knight: 0.45, dwarf: 0.6, cavalry: 0.55, archer: 0.75, bomber: 0.95 },
+    count: { archer: 1.5, dwarf: 1.3, knight: 1.2, cavalry: 0.95, bomber: 0.95 },
+  };
+  function modValue(type, mod) {
+    if (!mod) return 0;
+    let v = 0;
+    if (mod.hp) v += (mod.hp - 1) / 0.3 * MOD_SYNERGY.hp[type];
+    if (mod.dmg) v += (mod.dmg - 1) / 0.25 * MOD_SYNERGY.dmg[type];
+    if (mod.spd) v += (mod.spd - 1) / 0.25 * MOD_SYNERGY.spd[type];
+    if (mod.count) v += (slotCount(type, mod) / UNITS[type].count - 1) * MOD_SYNERGY.count[type] * 1.4;
+    return v;
+  }
   function bestSlot(self, opp, type, rng) {
     const pref = { knight: 0, dwarf: 0.6, cavalry: 1.1, archer: 3.1, bomber: 2.5 }[type];
     const front = !!FRONTLINE[type];
@@ -260,8 +321,10 @@
         v += 0.12 * ((enemyCols[s.col - 1] || 0) + enemyCols[s.col] + (enemyCols[s.col + 1] || 0));
       }
       if (mergePreview(self, type, s.col, s.row).length) v += 0.45; // merging is good value
+      const mv = modValue(type, modAt(self, s.col, s.row));
+      v += mv * 1.1;
       v += rng() * 0.4;
-      if (!best || v > best.v) best = { v, col: s.col, row: s.row };
+      if (!best || v > best.v) best = { v, col: s.col, row: s.row, modBonus: mv };
     }
     return best;
   }
@@ -278,7 +341,9 @@
   function bestDoubleTarget(self, opp, rng) {
     let best = null;
     for (const g of doubleableGroups(self)) {
-      const v = g.slots.length * 0.35 + (g.level - 1) * 0.3 + counterScore(g.type, opp) * 0.5 + rng() * 0.3;
+      const add = doubleSlots(self, g, g.col, g.row);
+      const v = g.slots.length * 0.35 + (g.level - 1) * 0.3 + counterScore(g.type, opp) * 0.5 + modValue(g.type, modAt(self, g.col, g.row)) * 0.3
+        + (add ? modValue(g.type, modAt(self, add[0].col, add[0].row)) * 0.6 : 0) + rng() * 0.3;
       if (!best || v > best.v) best = { v, col: g.col, row: g.row, level: g.level, size: g.slots.length };
     }
     return best;
@@ -293,7 +358,7 @@
       let v, slot;
       if (c.kind === 'unit') {
         slot = bestSlot(self, opp, c.type, rng); if (!slot) return;
-        v = 1 + counterScore(c.type, opp) * 1.3;
+        v = 1 + counterScore(c.type, opp) * 1.3 + Math.max(-0.5, slot.modBonus) * 0.5;
         if (!own[c.type]) v += 0.2;
         if (FRONTLINE[c.type] && front <= back) v += 0.35;
         if (!FRONTLINE[c.type] && back < front) v += 0.3;
@@ -316,22 +381,38 @@
   }
 
   // ---------------------------------------------------------------- battle simulation
-  function createBattle(blueGroups, redGroups, seed) {
+  // Generic formation for any character count (x2 Units can give up to 10 per slot); stays inside the slot.
+  function formationFor(n) {
+    if (FORMATIONS[n]) return FORMATIONS[n];
+    const rows = n <= 8 ? 2 : 3, out = [];
+    for (let r = 0; r < rows; r++) {
+      const inRow = Math.ceil((n - out.length) / (rows - r));
+      for (let i = 0; i < inRow; i++) out.push([inRow > 1 ? -0.34 + 0.68 * i / (inRow - 1) : 0, rows > 1 ? -0.24 + 0.48 * r / (rows - 1) : 0]);
+    }
+    return out;
+  }
+  // blue / red: a player ({groups, mods}) or just an array of groups (no modifiers)
+  function createBattle(blue, red, seed) {
     const st = { t: 0, chars: [], projs: [], events: [], rng: mkRng(seed), dmg: { blue: 0, red: 0 }, alive: { blue: 0, red: 0 }, total: { blue: 0, red: 0 }, winner: null, tie: false, sudden: false, endT: 0 };
     let id = 0;
-    for (const [team, groups] of [['blue', blueGroups], ['red', redGroups]]) {
-      // every slot of every group spawns one card's worth of characters around that slot's centre
+    for (const [team, side] of [['blue', blue], ['red', red]]) {
+      const groups = Array.isArray(side) ? side : side.groups, owner = Array.isArray(side) ? null : side;
+      // every slot of every group spawns its characters around that slot's centre, with that slot's modifier
       const cells = [];
       for (const g of groups) for (const sl of g.slots) cells.push({ g, col: sl.col, row: sl.row });
       cells.sort((a, b) => (a.row * 10 + a.col) - (b.row * 10 + b.col));
       const flip = team === 'red' ? -1 : 1;
       for (const cell of cells) {
-        const g = cell.g, U = UNITS[g.type], s = groupStats(g.type, g.level), F = FORMATIONS[U.count];
-        for (let i = 0; i < U.count; i++) {
-          const x = cell.col + 0.5 + F[i][0], y = cell.row + 0.5 + F[i][1] * flip;
+        const g = cell.g, U = UNITS[g.type], L = CONFIG.LEVELS[g.level];
+        const mod = (owner && modAt(owner, cell.col, cell.row)) || null, M = Object.assign({}, MOD_NONE, mod || {});
+        // Final = Base x Upgrade multiplier x Grid modifier multiplier
+        const hp = Math.round(U.hp * L.hp * M.hp), dmg = U.dmg * L.dmg * M.dmg, cdMax = U.cd / M.spd;
+        const n = slotCount(g.type, mod), F = formationFor(n);
+        for (let i = 0; i < n; i++) {
+          const x = clamp(cell.col + 0.5 + F[i][0], 0.15, 9.85), y = clamp(cell.row + 0.5 + F[i][1] * flip, 0.15, 9.85);
           st.chars.push({
-            id: id++, team, type: g.type, gid: g.id, level: g.level, U, gx: cell.col + 0.5, gy: cell.row + 0.5,
-            x, y, hp: s.hp, maxHp: s.hp, dmg: s.dmg, cd: U.cd * (0.15 + 0.35 * st.rng()),
+            id: id++, team, type: g.type, gid: g.id, level: g.level, mod: mod ? mod.id : null, U, gx: cell.col + 0.5, gy: cell.row + 0.5,
+            x, y, hp, maxHp: hp, dmg, cdMax, cd: cdMax * (0.15 + 0.35 * st.rng()),
             target: null, threat: null, rt: st.rng() * CONFIG.RETARGET_T, moved: 0, chargeReady: !!U.charge,
             alive: true, deadT: 0, face: x < 5 ? 1 : -1, atk: 0, flash: 0, walk: st.rng() * 6, moving: false, vx: 0, vy: 0,
           });
@@ -367,7 +448,7 @@
 
   function attack(st, c, T, d, mult) {
     const U = c.U;
-    c.cd = U.cd; c.atk = 0.3;
+    c.cd = c.cdMax || U.cd; c.atk = 0.3;
     if (U.attack === 'melee') {
       let dmg = c.dmg * mult;
       if (U.charge) {
@@ -496,15 +577,16 @@
   }
 
   // Run a whole battle headless (for tests / balance)
-  function simulate(blueGroups, redGroups, seed, maxT) {
-    const st = createBattle(blueGroups, redGroups, seed);
+  function simulate(blue, red, seed, maxT) {
+    const st = createBattle(blue, red, seed);
     while (!st.winner && st.t < (maxT || 300)) step(st, CONFIG.SIM_DT);
     return st;
   }
 
   const API = {
     CONFIG, UNITS, ORDER, FRONTLINE, FORMATIONS, mkRng, clamp,
-    territoryRows, inTerritory, depth, createPlayer, groupAt, groupCount, emptySlots, upgradeableTypes,
+    territoryRows, inTerritory, depth, createPlayer, groupAt, groupCount, slotCount, emptySlots, upgradeableTypes,
+    skey, modAt, genModifiers, modValue, formationFor,
     doubleSlots, doubleableGroups, mergePreview, genCards, validTargets, checkPlacement, applyCard, groupStats, buildQueue,
     counterScore, aiDecide, randomDeck, createBattle, step, simulate,
   };

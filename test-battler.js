@@ -10,6 +10,18 @@ function playMatch(seed, deckB, deckR) {
   while (score.blue < CONFIG.WINS_TO_MATCH && score.red < CONFIG.WINS_TO_MATCH) {
     round++;
     const q = S.buildQueue(lastLoser);
+    // grid modifiers: snapshot occupied slots' modifiers, generate, check the rules
+    for (const t of ['blue', 'red']) {
+      const pl = P[t], prev = Object.assign({}, pl.mods), occ = new Set(pl.groups.flatMap(g => g.slots.map(sl => S.skey(sl.col, sl.row))));
+      const made = S.genModifiers(pl, round, rng);
+      for (const k in prev) assert(pl.mods[k] === prev[k], 'existing modifiers never change');
+      for (const m of made) assert(!occ.has(S.skey(m.col, m.row)) && !prev[S.skey(m.col, m.row)], 'new modifiers only on empty, unmodified slots');
+      for (const k in pl.mods) { const [c, r] = k.split(',').map(Number); assert(S.inTerritory(t, c, r), 'modifier in own territory'); }
+      const cnt = { 1: 0, '-1': 0 }; for (const k in pl.mods) cnt[CONFIG.MODIFIERS[pl.mods[k]].sign]++;
+      const ri = Math.min(round, 5) - 1;
+      assert(cnt[1] <= CONFIG.MODIFIER_TARGETS.positive[ri] && cnt[-1] <= CONFIG.MODIFIER_TARGETS.negative[ri], 'modifier totals capped');
+      if (S.emptySlots(pl).length > 20) assert(cnt[1] === CONFIG.MODIFIER_TARGETS.positive[ri] && cnt[-1] === CONFIG.MODIFIER_TARGETS.negative[ri], 'modifier totals reached');
+    }
     const before = { blue: P.blue.groups.length, red: P.red.groups.length };
     for (const a of q) {
       const me = P[a.team], opp = P[a.team === 'blue' ? 'red' : 'blue'];
@@ -28,13 +40,53 @@ function playMatch(seed, deckB, deckR) {
       assert(P[t].groups.every(g => g.level <= CONFIG.MAX_LEVEL && g.slots.every(sl => S.inTerritory(t, sl.col, sl.row))), 'levels/territory');
       assert(P[t].groups.every(g => g.slots.length <= CONFIG.DOUBLE_MAX_SLOTS), 'groups cover 1 slot, or 2 when doubled');
     }
-    const st = S.simulate(P.blue.groups, P.red.groups, seed * 31 + round);
+    const st = S.simulate(P.blue, P.red, seed * 31 + round);
     assert(st.winner, 'battle must end by elimination');
     assert(st.alive[st.winner === 'blue' ? 'red' : 'blue'] === 0, 'loser fully eliminated');
     times.push(st.t); sizes.push(st.total.blue + st.total.red);
     score[st.winner]++; lastLoser = st.winner === 'blue' ? 'red' : 'blue';
   }
   return { winner: score.blue > score.red ? 'blue' : 'red', rounds: round, times, sizes, P };
+}
+
+// Grid modifiers change real battle numbers, multiply with upgrades, and persist
+{
+  const M = CONFIG.MODIFIERS;
+  const p = S.createPlayer('blue', ['archer', 'knight', 'bomber', 'dwarf']);
+  p.mods = { '0,9': 'multUp', '1,9': 'hpUp', '2,9': 'dmgUp', '3,9': 'spdUp', '4,9': 'multDown', '5,9': 'hpDown', '6,9': 'dmgDown', '7,9': 'spdDown' };
+  const put = (type, col) => S.applyCard(p, { kind: 'unit', type }, col, 9);
+  put('archer', 0); put('knight', 1); put('archer', 2); put('bomber', 3); put('archer', 4); put('dwarf', 5); put('knight', 6); put('archer', 7); put('dwarf', 8);
+  S.applyCard(p, { kind: 'upgrade', type: 'archer' }, 2, 9); // Lv2 + Damage Boost
+  const st = S.createBattle(p, [], 5), by = col => st.chars.filter(c => Math.floor(c.gx) === col);
+  assert(by(0).length === 10, 'x2 Units: 5 archers -> 10');
+  assert(new Set(by(0).map(c => c.id)).size === 10 && by(0).every(c => c.hp === UNITS.archer.hp), 'x2 Units makes independent characters');
+  assert(by(1).every(c => c.maxHp === Math.round(UNITS.knight.hp * 1.3)), 'Health Boost +30%');
+  assert(by(2).every(c => Math.abs(c.dmg - UNITS.archer.dmg * 1.25 * 1.25) < 1e-9), 'upgrade x modifier multiply');
+  assert(by(3).every(c => Math.abs(c.cdMax - UNITS.bomber.cd / 1.25) < 1e-9), 'Attack Speed Boost');
+  assert(by(4).length === 3, 'x0.5 Units: 5 -> 3 (round up)');
+  assert(by(5).every(c => c.maxHp === Math.round(UNITS.dwarf.hp * 0.8)), 'Health Reduction');
+  assert(by(6).every(c => Math.abs(c.dmg - UNITS.knight.dmg * 0.8) < 1e-9), 'Damage Reduction');
+  assert(by(7).every(c => Math.abs(c.cdMax - UNITS.archer.cd / 0.8) < 1e-9), 'Attack Speed Reduction');
+  assert(by(8).length === 4 && by(8).every(c => c.maxHp === UNITS.dwarf.hp), 'normal slot unchanged');
+  assert(S.slotCount('dwarf', M.multDown) === 2 && S.slotCount('cavalry', M.multDown) === 1 && S.slotCount('knight', M.multDown) === 2, 'x0.5 rounding / min 1');
+  assert(st.chars.every(c => c.x >= 0.15 && c.x <= 9.85 && c.y >= 0.15 && c.y <= 9.85), 'spawns inside the field');
+  // persistence: later rounds never touch occupied slots, base unit data is never altered
+  const before = JSON.stringify(p.mods), baseHp = UNITS.knight.hp;
+  for (let r = 2; r <= 5; r++) S.genModifiers(p, r, S.mkRng(r));
+  for (const k of Object.keys(JSON.parse(before))) assert(p.mods[k] === JSON.parse(before)[k], 'locked modifiers');
+  assert(UNITS.knight.hp === baseHp, 'base stats untouched');
+  const st2 = S.createBattle(p, [], 6);
+  assert(st2.chars.filter(c => Math.floor(c.gx) === 0).length === 10 && st2.chars.every(c => c.hp === c.maxHp), 'restored every battle with modifiers');
+  // a modifier really changes outcomes: 2 knights on Health Boost beat 2 identical knights on normal slots more often
+  let w = 0; for (let s = 0; s < 30; s++) { const a = S.createPlayer('blue', ['knight']), b = S.createPlayer('red', ['knight']); a.mods = { '4,5': 'hpUp', '5,5': 'hpUp' };
+    for (const c of [4, 5]) { S.applyCard(a, { kind: 'unit', type: 'knight' }, c, 5); S.applyCard(b, { kind: 'unit', type: 'knight' }, c, 4); }
+    if (S.simulate(a, b, s).winner === 'blue') w++; }
+  assert(w >= 24, 'Health Boost wins mirror matches (' + w + '/30)');
+  // AI prefers a good slot over a bad one when positions are equal
+  const ai = S.createPlayer('red', ['knight', 'archer', 'bomber', 'dwarf']), en = S.createPlayer('blue', ['knight']);
+  ai.mods = { '4,4': 'hpDown', '5,4': 'hpUp' };
+  let good = 0; for (let s = 0; s < 40; s++) { const d = S.aiDecide(ai, en, [{ kind: 'unit', type: 'knight' }], 1, S.mkRng(s)); if (d.col === 5 && d.row === 4) good++; }
+  assert(good >= 30, 'AI picks the Health Boost front slot for knights (' + good + '/40)');
 }
 
 // Determinism

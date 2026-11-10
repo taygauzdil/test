@@ -114,6 +114,13 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #banner.gold .big{color:#ffd75e}
 #banner.blue .big{color:#b9d6ff;text-shadow:0 5px 0 #17459a,0 0 30px rgba(58,134,255,.8)}
 #banner.red .big{color:#ffc4c8;text-shadow:0 5px 0 #8a1820,0 0 30px rgba(239,62,74,.8)}
+#tip{position:absolute;z-index:32;pointer-events:none;transform:translate(-50%,-100%);background:rgba(16,18,30,.94);border-radius:10px;padding:6px 10px;font-size:12.5px;font-weight:800;white-space:nowrap;opacity:0;transition:opacity .15s;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+#tip.on{opacity:1}
+#tip.pos{box-shadow:inset 0 0 0 2px #4cd471,0 4px 12px rgba(0,0,0,.4)}
+#tip.neg{box-shadow:inset 0 0 0 2px #ff4d4d,0 4px 12px rgba(0,0,0,.4)}
+#tip small{display:block;font-weight:700;opacity:.75;font-size:11px}
+.ghost .gl.pos{background:#3fbf63!important;color:#fff!important}
+.ghost .gl.neg{background:#e8434b!important;color:#fff!important}
 #toast{position:absolute;left:50%;bottom:calc(var(--tray) + 34px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(10px);z-index:30;pointer-events:none;
   background:rgba(20,20,28,.92);padding:8px 14px;border-radius:12px;font-size:13px;font-weight:700;max-width:86%;text-align:center;opacity:0;transition:opacity .25s,transform .25s}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -175,6 +182,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 
   <div id="banner"><div class="big"></div><div class="small"></div></div>
   <div id="toast"></div>
+  <div id="tip"></div>
 
   <div class="panel" id="roundPanel"><div class="box">
     <h2 id="rpTitle"></h2><div class="sub" id="rpSub"></div>
@@ -199,6 +207,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <div class="rules">
       • Each turn pick <b>1 of 3 cards</b> and <b>drag</b> it onto your blue half of the grid.<br>
       • <b>Upgrade</b> cards go onto one of your existing groups (that group only).<br>
+      • <b>Special slots</b> (♥ ⚔ ⚡ x2 bonuses, red penalties) give the unit placed there that effect <b>for the whole match</b>. More appear every round — tap one to see it.<br>
       • <b>Double</b> card: drop it on a unit and it doubles, growing into the slot next to it (one unit, two slots).<br>
       • Your army <b>stays</b> between rounds and returns at full strength.<br>
       • Lose a round → <b>Comeback Bonus</b>: one extra card next round.<br>
@@ -497,6 +506,39 @@ const cardArt = (card, team) => card.kind === 'double' ? doubleArt(team) : unitA
 const cardCls = card => card.kind === 'upgrade' ? ' upg' : card.kind === 'double' ? ' dbl' : '';
 const cardCol = card => card.kind === 'double' ? '#22c3b5' : UCOL[card.type];
 
+// ======================================================================= grid modifier visuals
+const MOD_COL = { hpUp: '#3ccf6a', dmgUp: '#ff9a2e', spdUp: '#ffd23d', multUp: '#a65cff', neg: '#ff4d4d' };
+const modColor = id => CONFIG.MODIFIERS[id].sign > 0 ? MOD_COL[id] : MOD_COL.neg;
+// icon centred at (x,y), r = radius in px
+function drawModIcon(c, id, x, y, r) {
+  const m = CONFIG.MODIFIERS[id], col = modColor(id), neg = m.sign < 0;
+  c.save(); c.translate(x, y); c.lineJoin = 'round'; c.lineCap = 'round';
+  c.strokeStyle = '#2a1c14'; c.lineWidth = Math.max(1.2, r * 0.16); c.fillStyle = col;
+  if (m.hp) { // heart
+    c.beginPath(); c.moveTo(0, r * 0.75);
+    c.bezierCurveTo(-r * 1.15, -r * 0.05, -r * 0.6, -r * 0.95, 0, -r * 0.38);
+    c.bezierCurveTo(r * 0.6, -r * 0.95, r * 1.15, -r * 0.05, 0, r * 0.75); c.closePath(); c.fill(); c.stroke();
+  } else if (m.dmg) { // sword
+    c.save(); c.rotate(-0.78);
+    c.beginPath(); c.roundRect(-r * 0.17, -r * 0.95, r * 0.34, r * 1.25, r * 0.15); c.fill(); c.stroke();
+    c.fillStyle = '#7a4b26'; c.beginPath(); c.roundRect(-r * 0.55, r * 0.28, r * 1.1, r * 0.22, r * 0.1); c.fill(); c.stroke();
+    c.beginPath(); c.roundRect(-r * 0.13, r * 0.5, r * 0.26, r * 0.42, r * 0.1); c.fill(); c.stroke();
+    c.restore();
+  } else if (m.spd) { // lightning
+    c.beginPath(); c.moveTo(r * 0.25, -r * 0.95); c.lineTo(-r * 0.55, r * 0.12); c.lineTo(-r * 0.02, r * 0.12); c.lineTo(-r * 0.3, r * 0.95); c.lineTo(r * 0.6, -r * 0.2); c.lineTo(r * 0.05, -r * 0.2); c.closePath(); c.fill(); c.stroke();
+  } else if (m.count) { // x2 / x0.5 text
+    const t = m.count > 1 ? 'x2' : 'x½';
+    c.font = '1000 ' + Math.round(r * 1.25) + 'px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.lineWidth = Math.max(2, r * 0.28); c.strokeText(t, 0, r * 0.05); c.fillText(t, 0, r * 0.05);
+  }
+  if (neg && !m.count) { // small minus badge
+    c.beginPath(); c.arc(r * 0.72, r * 0.62, r * 0.42, 0, 6.283); c.fillStyle = '#fff'; c.fill(); c.lineWidth = Math.max(1, r * 0.12); c.stroke();
+    c.strokeStyle = '#d62f37'; c.lineWidth = Math.max(1.4, r * 0.2); c.beginPath(); c.moveTo(r * 0.5, r * 0.62); c.lineTo(r * 0.94, r * 0.62); c.stroke();
+  }
+  c.restore();
+}
+function modTipText(id) { const m = CONFIG.MODIFIERS[id]; return m.name + ': ' + m.short; }
+
 // ======================================================================= layout & background
 let W = 0, H = 0, DPR = 1, F = { x: 0, y: 0, cw: 10, ch: 10, w: 100, h: 100 }, bg = null;
 function layout() {
@@ -563,7 +605,7 @@ const G = {
   phase: 'deck', seed: 0, rng: null, round: 0, score: { blue: 0, red: 0 }, results: [], lastLoser: null,
   P: null, queue: [], qi: -1, cards: [], busy: false, battle: null, speed: 1,
   gridA: 0, markerA: 0, charsA: 0, introT: 0, introDur: 1.25, endHold: 0,
-  fx: [], shake: 0, gfx: {}, drag: null, hintUntil: 0, lastMove: null, firstPlace: true,
+  fx: [], shake: 0, gfx: {}, modPop: {}, drag: null, hintUntil: 0, lastMove: null, firstPlace: true,
   deckSel: [],
 };
 try { const d = JSON.parse(localStorage.getItem('gridclash-deck') || 'null'); if (Array.isArray(d) && d.length === 4 && d.every(t => UNITS[t])) G.deckSel = d; } catch (e) {}
@@ -637,7 +679,7 @@ function startMatch(deck) {
   G.seed = params.has('seed') ? (parseInt(params.get('seed'), 10) || 1) : (Date.now() % 1e9);
   G.rng = S.mkRng(G.seed);
   G.P = { blue: S.createPlayer('blue', deck), red: S.createPlayer('red', S.randomDeck(G.rng)) };
-  G.round = 0; G.score = { blue: 0, red: 0 }; G.results = []; G.lastLoser = null; G.gfx = {}; G.fx = []; G.firstPlace = true;
+  G.round = 0; G.score = { blue: 0, red: 0 }; G.results = []; G.lastLoser = null; G.gfx = {}; G.fx = []; G.firstPlace = true; G.modPop = {};
   G.battle = null; G.gridA = 0; G.markerA = 1; G.charsA = 0;
   startRound();
 }
@@ -650,6 +692,15 @@ async function startRound() {
   G.busy = true;
   const redDeck = G.P.red.deck.map(t => UNITS[t].name).join(' · ');
   await banner('ROUND ' + G.round, G.round === 1 ? 'Red deck: ' + redDeck : G.score.blue + ' — ' + G.score.red, 'gold', 1.3);
+  // new special slots appear before any card is drafted
+  const madeB = S.genModifiers(G.P.blue, G.round, G.rng), madeR = S.genModifiers(G.P.red, G.round, G.rng);
+  const tnow = performance.now();
+  [...madeB, ...madeR].forEach((m, i) => { G.modPop[S.skey(m.col, m.row)] = tnow + i * 70; });
+  if (madeB.length || madeR.length) {
+    const pos = madeB.filter(m => CONFIG.MODIFIERS[m.id].sign > 0).length, neg = madeB.length - pos;
+    toast('New special slots: +' + pos + ' bonus, +' + neg + ' penalty — tap one to see its effect', false, 2600);
+    await wait(Math.min(1400, 300 + (madeB.length + madeR.length) * 70));
+  }
   if (G.lastLoser) {
     await banner('COMEBACK BONUS', (G.lastLoser === 'blue' ? 'You get' : 'Red gets') + ' an extra card action', G.lastLoser, 1.5);
   }
@@ -735,6 +786,7 @@ function onCardDown(e, idx, el) {
   if (G.busy || G.phase !== 'prep' || G.drag) return;
   const a = G.queue[G.qi]; if (!a || a.team !== 'blue') return;
   e.preventDefault();
+  $('#tip').classList.remove('on');
   try { el.setPointerCapture(e.pointerId); } catch (_) {}
   const card = G.cards[idx];
   const ghost = document.createElement('div');
@@ -753,8 +805,9 @@ function onCardDown(e, idx, el) {
       // the card token floats above the finger so it never hides the slot; the drop point is exactly under the finger
       ghost.style.transform = `translate(${q.x}px,${q.y - (d.touch ? 70 : 50)}px)`;
       d.hover = dropCell(card, q.x, q.y);
-      const gl = ghost.querySelector('.gl'), txt = previewText(card, d.hover);
-      if (gl.textContent !== txt) gl.textContent = txt;
+      const gl = ghost.querySelector('.gl'), pv = preview(card, d.hover);
+      if (gl.textContent !== pv.text) gl.textContent = pv.text;
+      gl.classList.toggle('pos', pv.sign > 0); gl.classList.toggle('neg', pv.sign < 0);
     }
   };
   const up = ev => {
@@ -784,16 +837,23 @@ function onCardDown(e, idx, el) {
   };
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
 }
-// Text on the floating card: what will happen if it is dropped here
-function previewText(card, h) {
-  const U = UNITS[card.type];
+// Text on the floating card: what will happen if it is dropped here (+ sentiment: 1 good, -1 bad, 0 neutral)
+function preview(card, h) {
+  const U = UNITS[card.type], P = G.P.blue;
   const base = card.kind === 'double' ? '×2 Double' : card.kind === 'upgrade' ? '▲ ' + U.name : U.name + ' x' + U.count;
-  if (!h || !S.checkPlacement(G.P.blue, card, h.col, h.row).ok) return base;
-  const g = S.groupAt(G.P.blue, h.col, h.row);
-  if (card.kind === 'upgrade') return U.name + ' ★' + g.level + ' → ★' + (g.level + 1);
-  if (card.kind === 'double') return '×2 → ' + S.groupCount(g) * 2 + ' ' + UNITS[g.type].name + 's';
-  return base;
+  if (!h || !S.checkPlacement(P, card, h.col, h.row).ok) return { text: base, sign: 0 };
+  const g = S.groupAt(P, h.col, h.row);
+  if (card.kind === 'upgrade') return { text: U.name + ' ★' + g.level + ' → ★' + (g.level + 1), sign: 1 };
+  if (card.kind === 'double') {
+    const add = S.doubleSlots(P, g, h.col, h.row), m = add && S.modAt(P, add[0].col, add[0].row);
+    const n = S.groupCount(g, P) + S.slotCount(g.type, m);
+    return { text: '×2 → ' + UNITS[g.type].name + ' x' + n + (m ? ' · ' + m.short : ''), sign: m ? m.sign : 0 };
+  }
+  const m = S.modAt(P, h.col, h.row);
+  if (!m) return { text: U.name + ' x' + U.count, sign: 0 };
+  return { text: U.name + ' x' + S.slotCount(card.type, m) + (m.count ? '' : ' · ' + m.short), sign: m.sign };
 }
+function previewText(card, h) { return preview(card, h).text; }
 // Drop target for a pointer position: the slot under the pointer if it is valid, otherwise the nearest valid
 // slot within ~0.8 of a cell (a "magnet", so slightly-off drops still land where the player meant).
 function dropCell(card, x, y) {
@@ -843,8 +903,9 @@ async function aiTurn() {
   ghost.remove();
   const res = applyAndAnimate('red', card, dec.col, dec.row);
   if (res && res.ok) {
-    const g = res.group, nm = UNITS[g.type].name + 's', tot = S.groupCount(g);
-    const msg = res.kind === 'unit' ? 'Red deployed ' + UNITS[g.type].count + ' ' + nm
+    const g = res.group, nm = UNITS[g.type].name + (g.type === 'cavalry' ? '' : 's'), tot = S.groupCount(g, self);
+    const m0 = S.modAt(self, dec.col, dec.row);
+    const msg = res.kind === 'unit' ? 'Red deployed ' + tot + ' ' + nm + (m0 ? ' on ' + m0.name : '')
       : res.kind === 'double' ? 'Red doubled its ' + nm + ' → ×' + tot
       : 'Red upgraded ' + nm + ' to Level ' + g.level;
     toast(msg + (res.merged ? ' → ×' + tot + ' ' + nm : ''), false, 1500);
@@ -876,8 +937,9 @@ function applyAndAnimate(team, card, col, row) {
   } else if (res.kind === 'double') {
     for (const sl of g.slots) fx(sl, 'up');
     const cx = g.slots.reduce((n, sl) => n + sl.col, 0) / g.slots.length + 0.5;
-    floatText(cx, g.row + 0.05, '×2 → ' + S.groupCount(g), '#7ff7ec');
+    floatText(cx, g.row + 0.05, '×2 → ' + S.groupCount(g, G.P[team]), '#7ff7ec');
   }
+  if (res.kind === 'unit') { const m = S.modAt(G.P[team], col, row); if (m) floatText(col + 0.5, row + 0.1, m.short, m.sign > 0 ? '#9dffb4' : '#ff8a8a'); }
   G.lastMove = { team, slots: res.kind === 'unit' ? res.added.slice() : g.slots.slice(), t: now };
   return res;
 }
@@ -888,7 +950,7 @@ async function startBattle() {
   $('#toast').className = '';
   updateTurnbar('', null);
   $('#tray').classList.add('hide');
-  G.battle = S.createBattle(G.P.blue.groups, G.P.red.groups, G.seed * 31 + G.round);
+  G.battle = S.createBattle(G.P.blue, G.P.red, G.seed * 31 + G.round);
   // spawn order for the pop-in: front rows first
   const order = {}; let k = 0;
   const all = [...G.P.blue.groups, ...G.P.red.groups].sort((a, b) => S.depth(a.id[0] === 'b' ? 'blue' : 'red', a.row) - S.depth(b.id[0] === 'b' ? 'blue' : 'red', b.row));
@@ -1005,6 +1067,26 @@ function drawGrid(c, now) {
   // territories
   c.fillStyle = 'rgba(239,62,74,.13)'; c.fillRect(F.x, F.y, F.w, F.h / 2);
   c.fillStyle = 'rgba(58,134,255,.14)'; c.fillRect(F.x, F.y + F.h / 2, F.w, F.h / 2);
+  // special slots (empty ones show a tile + icon; occupied ones get a badge on the unit in drawMarkers)
+  if (G.P) for (const team of ['blue', 'red']) {
+    const P = G.P[team];
+    for (const k in P.mods) {
+      const [col, row] = k.split(',').map(Number);
+      if (S.groupAt(P, col, row)) continue;
+      const id = P.mods[k], X = wx(col), Y = wy(row), cx = X + F.cw / 2, cy = Y + F.ch / 2, col2 = modColor(id), pos = CONFIG.MODIFIERS[id].sign > 0;
+      const pt = G.modPop[k] ? (now - G.modPop[k]) / 1000 : 9, sc = pt < 0 ? 0 : pt < 0.45 ? easeOutBack(pt / 0.45) : 1;
+      if (sc <= 0) continue;
+      c.save(); c.translate(cx, cy); c.scale(sc, sc); c.translate(-cx, -cy);
+      c.fillStyle = col2; c.globalAlpha = a * (pos ? 0.2 : 0.17); c.fillRect(X + 1.5, Y + 1.5, F.cw - 3, F.ch - 3);
+      c.globalAlpha = a * 0.95; c.strokeStyle = col2; c.lineWidth = 2;
+      if (!pos) c.setLineDash([4, 3]);
+      c.beginPath(); c.roundRect(X + 3, Y + 3, F.cw - 6, F.ch - 6, 6); c.stroke(); c.setLineDash([]);
+      drawModIcon(c, id, cx, cy, Math.min(F.cw, F.ch) * 0.27);
+      if (pt < 1.2 && pt >= 0) { c.globalAlpha = a * (1 - pt / 1.2); c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.roundRect(X + 1, Y + 1, F.cw - 2, F.ch - 2, 7); c.stroke(); }
+      c.restore();
+    }
+  }
+  c.globalAlpha = a;
   // valid-slot highlights
   const d = G.drag, hint = !d && G.hintUntil > now && G.hintCard;
   const card = d ? d.card : hint ? G.hintCard : null;
@@ -1084,8 +1166,9 @@ function drawMarkers(c, now) {
       c.restore();
     }
     // 2) miniature figures in every slot
-    const form = S.FORMATIONS[U.count], flip = team === 'red' ? -1 : 1, size = F.cw * 0.5 * U.scale;
+    const P = G.P[team], flip = team === 'red' ? -1 : 1;
     for (const sl of g.slots) {
+      const nn = S.slotCount(g.type, S.modAt(P, sl.col, sl.row)), form = S.formationFor(nn), size = F.cw * (nn > 5 ? 0.4 : 0.5) * U.scale;
       const X = wx(sl.col), Y = wy(sl.row), cx = X + F.cw / 2, cy = Y + F.ch / 2, sc = scaleFor(G.gfx[skey(sl.col, sl.row)] || {}, now);
       c.save(); c.translate(cx, cy); c.scale(sc, sc); c.translate(-cx, -cy);
       const pts = form.map(([ox, oy]) => [cx + ox * F.cw * 0.95, cy + (oy * flip) * F.ch * 0.8 + F.ch * 0.2]).sort((p, q) => p[1] - q[1]);
@@ -1097,12 +1180,20 @@ function drawMarkers(c, now) {
     const LX = wx(last.col), LY = wy(last.row), br = F.cw * (g.slots.length > 1 ? 0.2 : 0.17);
     c.fillStyle = TEAM[team].dark; c.beginPath(); c.arc(LX + F.cw - br - 1, LY + F.ch - br - 1, br, 0, 6.283); c.fill();
     c.strokeStyle = g.slots.length > 1 ? '#ffffff' : '#fff'; c.lineWidth = g.slots.length > 1 ? 2.2 : 1.5; c.stroke();
-    const n = S.groupCount(g);
+    const n = S.groupCount(g, P);
     c.fillStyle = '#fff'; c.font = '900 ' + Math.round(br * (n >= 10 ? 1.0 : 1.25)) + 'px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText(n, LX + F.cw - br - 1, LY + F.ch - br);
     c.fillStyle = '#ffd34d';
     for (let i = 0; i < g.level; i++) star(c, wx(first.col) + F.cw * 0.16 + i * F.cw * 0.2, wy(first.row) + F.ch * 0.15, F.cw * 0.1);
     c.textBaseline = 'alphabetic';
+    // locked slot modifiers stay visible as a small badge in the slot's top-right corner
+    for (const sl of g.slots) {
+      const id = P.mods[skey(sl.col, sl.row)]; if (!id) continue;
+      const rr = F.cw * 0.2, bx = wx(sl.col) + F.cw - rr - 1, by = wy(sl.row) + rr + 1;
+      c.fillStyle = 'rgba(20,18,30,.85)'; c.beginPath(); c.arc(bx, by, rr * 1.15, 0, 6.283); c.fill();
+      c.strokeStyle = modColor(id); c.lineWidth = 1.8; c.stroke();
+      drawModIcon(c, id, bx, by, rr * 0.82);
+    }
     c.restore();
   }
   // highlight the last move so the player sees what the AI did
@@ -1222,6 +1313,27 @@ function frame(now) {
   drawFx(ctx);
   requestAnimationFrame(frame);
 }
+
+// Tooltip for special slots: hover with a mouse, or tap (touch) during preparation
+let tipTimer = 0, tipKey = '';
+function showTipAt(x, y, sticky) {
+  const tip = $('#tip');
+  if (!G.P || G.drag || !(G.phase === 'prep' || G.phase === 'toPrep')) { tip.classList.remove('on'); tipKey = ''; return; }
+  const cell = cellAt(x, y);
+  const P = cell && (cell.row >= 5 ? G.P.blue : G.P.red), id = cell && P.mods[S.skey(cell.col, cell.row)];
+  if (!id) { if (!sticky) { tip.classList.remove('on'); tipKey = ''; } return; }
+  const k = cell.col + ',' + cell.row; const g = S.groupAt(P, cell.col, cell.row);
+  if (k !== tipKey || sticky) {
+    tipKey = k; const m = CONFIG.MODIFIERS[id];
+    tip.innerHTML = modTipText(id) + '<small>' + (g ? 'Locked on ' + (P.team === 'blue' ? 'your ' : 'Red\'s ') + UNITS[g.type].name + 's' : (P.team === 'blue' ? 'Your slot' : 'Red\'s slot') + ' · ' + (m.sign > 0 ? 'bonus' : 'penalty')) + '</small>';
+    tip.className = 'on ' + (m.sign > 0 ? 'pos' : 'neg');
+    const tw = tip.offsetWidth || 180; tip.style.left = clamp(wx(cell.col + 0.5), tw / 2 + 6, W - tw / 2 - 6) + 'px'; tip.style.top = (wy(cell.row) - 4) + 'px';
+  }
+  clearTimeout(tipTimer); if (sticky) tipTimer = setTimeout(() => { tip.classList.remove('on'); tipKey = ''; }, 2200);
+}
+cv.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { const q = appPoint(e); showTipAt(q.x, q.y, false); } });
+cv.addEventListener('pointerdown', e => { const q = appPoint(e); showTipAt(q.x, q.y, true); });
+cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !G.drag) { $('#tip').classList.remove('on'); tipKey = ''; } });
 
 window.addEventListener('resize', () => { layout(); });
 app.addEventListener('scroll', () => { app.scrollTop = 0; app.scrollLeft = 0; }); // never let focus/scrollIntoView shift the stage
