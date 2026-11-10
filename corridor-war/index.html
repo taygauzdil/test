@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#16181e">
+<title>Corridor War</title>
+<style>
+:root{
+  --bg:#16181e; --panel:#252933; --panel2:#2f3440; --ink:#eef1f7; --mute:#9aa3b5;
+  --blue:#58a8ff; --blue2:#1f6fd1; --red:#ff5d5d; --gold:#ffcc4d; --gem:#7fe3ff; --good:#4cd964;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;background:#0b0c10;color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none;overflow:hidden}
+#app{position:relative;max-width:480px;height:100vh;height:100dvh;margin:0 auto;background:var(--bg);overflow:hidden}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.on{display:flex}
+button{font:inherit;color:var(--ink);border:0;border-radius:14px;padding:12px 16px;background:var(--panel2);font-weight:800;cursor:pointer;box-shadow:0 4px 0 #0007;touch-action:manipulation}
+button:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 #0007}
+button:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(.6)}
+.up:disabled{opacity:.62;filter:grayscale(.45)}
+.primary{background:linear-gradient(#6cb6ff,#2b7fe0);box-shadow:0 4px 0 #164a8a}
+.gold{background:linear-gradient(#ffd866,#e8a514);color:#3a2600;box-shadow:0 4px 0 #8a5a00}
+.gem{color:var(--gem);font-weight:800}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:max(12px,env(safe-area-inset-top)) 14px 8px}
+.topbar h2{margin:0;font-size:20px;letter-spacing:.5px}
+.back{padding:8px 14px;font-size:15px}
+.scroll{flex:1;overflow-y:auto;padding:4px 14px 16px;-webkit-overflow-scrolling:touch}
+
+/* ---------- menu ---------- */
+#menu{align-items:center;justify-content:center;gap:14px;padding:24px;background:radial-gradient(circle at 50% 30%,#2b3346,#121419 70%)}
+#menu h1{font-size:42px;margin:0;letter-spacing:2px;text-shadow:0 4px 0 #000a}
+#menu h1 b{color:var(--blue)} #menu h1 i{color:var(--red);font-style:normal}
+#menu .tag{color:var(--mute);margin:-6px 0 8px;font-size:14px;text-align:center}
+#menu button{width:240px;font-size:20px;padding:15px}
+#menu .wallet{font-size:18px;background:#0006;border-radius:12px;padding:8px 16px}
+#menu .record{color:var(--mute);font-size:13px}
+#menuArt{width:220px;height:120px}
+
+/* ---------- deck & unit cards ---------- */
+.slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 14px 10px}
+.slot{background:var(--panel);border:2px dashed #fff3;border-radius:12px;height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.slot.sel{border:2px solid var(--gold);background:#3a3420;box-shadow:0 0 0 3px #ffcc4d33}
+.slot.glow{border-color:var(--blue);border-style:solid}
+.slot .ic{font-size:26px;line-height:1}
+.slot .nm{font-size:10px;font-weight:800;margin-top:4px}
+.slot .lv{position:absolute;top:3px;right:5px;font-size:9px;color:var(--gold);font-weight:800}
+.hint{color:var(--mute);font-size:12px;text-align:center;padding:0 14px 8px;min-height:20px}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ucard{background:var(--panel);border-radius:14px;padding:9px 10px;cursor:pointer;border:2px solid transparent;position:relative}
+.ucard.indeck{border-color:#58a8ff88}
+.ucard.pending{border-color:var(--gold)}
+.ucard .hd{display:flex;align-items:center;gap:8px}
+.ucard .ic{font-size:26px;width:34px;text-align:center}
+.ucard .nm{font-weight:800;font-size:14px}
+.ucard .rl{font-size:11px;color:var(--mute)}
+.ucard .lv{margin-left:auto;color:var(--gold);font-weight:800;font-size:12px}
+.ucard .badge{position:absolute;top:-7px;right:8px;background:var(--blue2);font-size:9px;font-weight:800;padding:2px 6px;border-radius:6px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;margin-top:6px;font-size:10.5px;color:#cfd5e2}
+.stats span b{color:#fff}
+.desc{font-size:11px;color:var(--mute);margin-top:5px}
+.footer{padding:10px 14px max(14px,env(safe-area-inset-bottom))}
+.footer button{width:100%;font-size:18px;padding:14px}
+
+/* unit upgrade rows */
+.urow{display:flex;align-items:center;gap:10px;background:var(--panel);border-radius:14px;padding:10px;margin-bottom:8px}
+.urow .ic{font-size:30px;width:40px;text-align:center}
+.urow .info{flex:1;min-width:0}
+.urow .nm{font-weight:800}
+.urow .nm small{color:var(--gold);margin-left:6px}
+.urow .delta{font-size:12px;color:#cfd5e2;margin-top:3px}
+.urow .delta b{color:var(--good)}
+.urow button{padding:10px 12px;font-size:14px;min-width:92px}
+.urow.pop{animation:pop .35s}
+
+/* ---------- battle ---------- */
+#battle{background:#0d0e12}
+#field{position:relative;flex:2 1 0;min-height:0;overflow:hidden}
+#cv{position:absolute;left:0;top:0;display:block}
+.hud{position:absolute;pointer-events:none;text-shadow:0 2px 0 #000,0 0 6px #000}
+#hudMoney{left:10px;top:max(8px,env(safe-area-inset-top))}
+#hudMoney .m{font-size:30px;font-weight:900;letter-spacing:.5px;line-height:1}
+#hudMoney .inc{font-size:13px;color:var(--good);font-weight:800;margin-top:2px}
+#hudMoney.bump .m{animation:bump .3s}
+#hudRight{right:10px;top:max(8px,env(safe-area-inset-top));text-align:right;font-weight:800}
+.bhp{width:118px;margin-left:auto}
+.bhp .lbl{font-size:11px;display:flex;justify-content:space-between;gap:6px}
+.bar{height:8px;background:#000a;border-radius:5px;overflow:hidden;margin-top:2px;border:1px solid #0008}
+.bar i{display:block;height:100%;width:100%;transition:width .2s}
+#redBar i{background:linear-gradient(90deg,#ff7a7a,#d93030)}
+#blueBar i{background:linear-gradient(90deg,#7ec0ff,#2b7fe0)}
+#hudRight .sub{font-size:11px;color:#ddd;margin-top:5px}
+#aiLv{font-size:10px;color:#ffb3b3;margin-top:3px;letter-spacing:.3px}
+#hudBottom{left:10px;bottom:6px;font-weight:800}
+#hudBottom .bhp{margin-left:0}
+#hudTime{left:50%;transform:translateX(-50%);top:max(10px,env(safe-area-inset-top));font-weight:800;font-size:13px;color:#ddd}
+#pauseBtn{position:absolute;right:10px;bottom:8px;width:40px;height:40px;padding:0;border-radius:12px;font-size:18px;background:#3a3f4dcc}
+#panel{flex:1 1 0;min-height:0;background:linear-gradient(#262a35,#1b1e26);border-top:3px solid #0008;display:flex;flex-direction:column;padding:8px 8px max(8px,env(safe-area-inset-bottom))}
+#panelInfo{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mute);font-weight:700;padding:0 4px 6px}
+#panelInfo b{color:#fff}
+#ups{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:6px;min-height:0}
+.up{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:7px 3px 6px;border-radius:14px;background:linear-gradient(#3b4252,#2c313d);box-shadow:0 4px 0 #0009;min-height:0;overflow:hidden}
+.up .uic{font-size:clamp(22px,7vw,32px);line-height:1;margin-top:2px}
+.up .unm{font-size:12px;font-weight:900;letter-spacing:.3px}
+.up .ulv{font-size:11px;font-weight:800;color:var(--gold)}
+.up .uds{font-size:9.5px;color:#c8cedb;text-align:center;line-height:1.15;font-weight:600;padding:0 1px}
+.up .uct{width:100%;font-size:13px;font-weight:900;border-radius:9px;padding:5px 0;text-align:center;background:linear-gradient(#5fd67f,#2aa34c);color:#fff;text-shadow:0 1px 0 #0006}
+.up:disabled .uct{background:#555b68}
+.up.bought{animation:pop .35s}
+.up.bought::after{content:"";position:absolute;inset:0;border-radius:14px;background:#fff;animation:flash .35s forwards;pointer-events:none}
+.up .plus{position:absolute;top:30%;left:0;right:0;text-align:center;font-weight:900;color:var(--good);font-size:16px;animation:rise .8s forwards;pointer-events:none;text-shadow:0 2px 0 #000}
+@keyframes pop{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes flash{from{opacity:.55}to{opacity:0}}
+@keyframes rise{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-34px)}}
+
+/* overlays */
+.overlay{position:absolute;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:10;padding:20px}
+.overlay.on{display:flex}
+.card{background:linear-gradient(#2d3240,#1d2029);border-radius:20px;padding:22px 20px;width:100%;max-width:340px;text-align:center;box-shadow:0 10px 40px #000a}
+.card h2{margin:0 0 6px;font-size:40px;letter-spacing:2px}
+.card h2.win{color:var(--gold);text-shadow:0 3px 0 #7a5300}
+.card h2.lose{color:var(--red);text-shadow:0 3px 0 #5a0d0d}
+.card .rows{margin:12px 0 16px;text-align:left}
+.card .r{display:flex;justify-content:space-between;padding:7px 4px;border-bottom:1px solid #ffffff12;font-size:15px}
+.card .r b{font-weight:800}
+.card .reward{font-size:22px;margin:8px 0 14px}
+.card button{width:100%;margin-top:8px;font-size:17px}
+.card.appear{animation:pop .4s}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- MAIN MENU -->
+  <section id="menu" class="screen on">
+    <canvas id="menuArt" width="440" height="240"></canvas>
+    <h1><b>CORRIDOR</b> <i>WAR</i></h1>
+    <div class="tag">Real-time army auto-battler</div>
+    <div class="wallet">💎 <span class="gem" id="menuGems">0</span></div>
+    <button class="primary" id="btnPlay">▶ PLAY</button>
+    <button id="btnDeck">🃏 Deck</button>
+    <button id="btnUnits">⬆️ Unit Upgrades</button>
+    <div class="record" id="menuRecord"></div>
+  </section>
+
+  <!-- DECK -->
+  <section id="deck" class="screen">
+    <div class="topbar"><button class="back" data-go="menu">‹ Back</button><h2>Deck</h2><span style="width:70px"></span></div>
+    <div class="slots" id="deckSlots"></div>
+    <div class="hint" id="deckHint">Tap a slot, then tap a unit to put it there.</div>
+    <div class="scroll"><div class="cards" id="deckCards"></div></div>
+    <div class="footer"><button class="primary" id="deckPlay">▶ Battle with this deck</button></div>
+  </section>
+
+  <!-- UNIT UPGRADES -->
+  <section id="units" class="screen">
+    <div class="topbar"><button class="back" data-go="menu">‹ Back</button><h2>Unit Upgrades</h2><span class="gem">💎 <span id="unitsGems">0</span></span></div>
+    <div class="hint">Permanent: +10% HP and +10% damage per level. Win battles to earn 💎.</div>
+    <div class="scroll" id="unitList"></div>
+  </section>
+
+  <!-- BATTLE -->
+  <section id="battle" class="screen">
+    <div id="field">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hudMoney"><div class="m" id="money">$100</div><div class="inc" id="income">+$10/s</div></div>
+      <div class="hud" id="hudTime">0:00</div>
+      <div class="hud" id="hudRight">
+        <div class="bhp" id="redHp"><div class="lbl"><span style="color:#ff8a8a">RED BASE</span><span id="redHpTxt">5000</span></div><div class="bar" id="redBar"><i></i></div></div>
+        <div class="sub">💀 <span id="kills">0</span> &nbsp; 👥 <span id="armies">0 v 0</span></div>
+        <div id="aiLv"></div>
+      </div>
+      <div class="hud" id="hudBottom">
+        <div class="bhp" id="blueHp"><div class="lbl"><span style="color:#8cc6ff">BLUE BASE</span><span id="blueHpTxt">5000</span></div><div class="bar" id="blueBar"><i></i></div></div>
+      </div>
+      <button id="pauseBtn" aria-label="Pause">⏸</button>
+    </div>
+    <div id="panel">
+      <div id="panelInfo"><span>Units/spawn <b id="squadInfo">+0</b></span><span>Army <b id="armyInfo">0</b></span><span>Next spawn <b id="spawnInfo">-</b></span></div>
+      <div id="ups"></div>
+    </div>
+
+    <div class="overlay" id="pauseOv">
+      <div class="card">
+        <h2 style="font-size:30px">Paused</h2>
+        <button class="primary" id="resumeBtn">Resume</button>
+        <button id="quitBtn">Surrender</button>
+      </div>
+    </div>
+    <div class="overlay" id="resultOv">
+      <div class="card" id="resultCard">
+        <h2 id="resTitle">VICTORY</h2>
+        <div class="rows">
+          <div class="r"><span>Total kills</span><b id="resKills">0</b></div>
+          <div class="r"><span>Units spawned</span><b id="resSpawned">0</b></div>
+          <div class="r"><span>Units lost</span><b id="resLost">0</b></div>
+          <div class="r"><span>Battle duration</span><b id="resTime">0:00</b></div>
+        </div>
+        <div class="reward">Reward: <span class="gem">💎 <span id="resGems">0</span></span></div>
+        <button class="primary" id="againBtn">▶ Play Again</button>
+        <button class="gold" id="resUnitsBtn">⬆️ Unit Upgrades</button>
+        <button id="menuBtn">Main Menu</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/map.js"></script>
+<script src="js/economy.js"></script>
+<script src="js/spawning.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
