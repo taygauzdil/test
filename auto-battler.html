@@ -549,10 +549,12 @@ function layout() {
   const trayH = $('#tray').offsetHeight;
   const bottom = H - trayH - 30; // leave room for the "PICK 1 CARD" label that sits on top of the tray
   const avail = Math.max(100, bottom - top);
-  let cw = (W - 12) / 10, ch = avail / 10;
-  if (ch > cw * 1.25) ch = cw * 1.25;
-  if (ch < cw * 0.8) { cw = ch / 0.8; }
-  F = { cw, ch, w: cw * 10, h: ch * 10, x: (W - cw * 10) / 2, y: top + (avail - ch * 10) / 2 };
+  const NC = CONFIG.COLS, NR = CONFIG.ROWS;
+  let cw = (W - 16) / NC, ch = avail / NR;
+  if (ch > cw * 1.1) ch = cw * 1.1;
+  if (ch < cw * 0.75) { cw = ch / 0.75; }
+  F = { cw, ch, w: cw * NC, h: ch * NR, x: (W - cw * NC) / 2, y: top + (avail - ch * NR) / 2 };
+  F.u = Math.min(cw, ch); // size unit for characters/icons (cells are much bigger now)
   buildBg();
 }
 const wx = x => F.x + x * F.cw, wy = y => F.y + y * F.ch;
@@ -570,7 +572,7 @@ function buildBg() {
     c.beginPath(); c.ellipse(x, y, r * 1.4, r, rng() * 3, 0, 6.283); c.fill();
   }
   // trampled dirt band across the middle (no-man's land)
-  const my = wy(5);
+  const my = wy(CONFIG.TERRITORY_ROWS);
   g = c.createLinearGradient(0, my - F.ch * 1.3, 0, my + F.ch * 1.3);
   g.addColorStop(0, 'rgba(150,120,70,0)'); g.addColorStop(0.5, 'rgba(160,128,78,.28)'); g.addColorStop(1, 'rgba(150,120,70,0)');
   c.fillStyle = g; c.fillRect(0, my - F.ch * 1.3, W, F.ch * 2.6);
@@ -779,7 +781,7 @@ function cardEl(card, team, i) {
 function appPoint(e) { const r = app.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 function cellAt(x, y) {
   const col = Math.floor((x - F.x) / F.cw), row = Math.floor((y - F.y) / F.ch);
-  if (col < 0 || col >= 10 || row < 0 || row >= 10) return null;
+  if (col < 0 || col >= CONFIG.COLS || row < 0 || row >= CONFIG.ROWS) return null;
   return { col, row };
 }
 function onCardDown(e, idx, el) {
@@ -1023,7 +1025,7 @@ $('#mpBtn').onclick = () => { $('#matchPanel').classList.remove('on'); G.battle 
 // ======================================================================= particles
 function burst(x, y, cols, n, spd, kind) {
   for (let i = 0; i < n; i++) {
-    const a = Math.random() * 6.283, v = (0.3 + Math.random()) * spd;
+    const a = Math.random() * 6.283, v = (0.3 + Math.random()) * spd * 0.55;
     G.fx.push({ k: kind || 'dot', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - spd * 0.3, life: 0, max: 0.35 + Math.random() * 0.35, col: cols[i % cols.length], r: 0.03 + Math.random() * 0.04, g: 3 });
   }
 }
@@ -1032,7 +1034,7 @@ function ring(x, y, col, r) { G.fx.push({ k: 'ring', x, y, life: 0, max: 0.45, c
 function floatText(x, y, t, col) { G.fx.push({ k: 'text', x, y, vy: -0.8, vx: 0, life: 0, max: 1.0, col, t, g: 0 }); }
 function confetti(team) {
   const cols = team === 'blue' ? ['#3a86ff', '#a9cbff', '#ffffff', '#ffd34d'] : ['#ef3e4a', '#ffb0b5', '#ffffff', '#ffd34d'];
-  for (let i = 0; i < 90; i++) G.fx.push({ k: 'conf', x: Math.random() * 10, y: -0.5 - Math.random() * 2, vx: (Math.random() - 0.5) * 1.5, vy: 1.5 + Math.random() * 2.5, life: 0, max: 3 + Math.random(), col: cols[i % 4], r: 0.06 + Math.random() * 0.05, rot: Math.random() * 6, g: 0 });
+  for (let i = 0; i < 90; i++) G.fx.push({ k: 'conf', x: Math.random() * CONFIG.COLS, y: -0.5 - Math.random() * 2, vx: (Math.random() - 0.5) * 1.5, vy: 1.5 + Math.random() * 2.5, life: 0, max: 3 + Math.random(), col: cols[i % 4], r: 0.06 + Math.random() * 0.05, rot: Math.random() * 6, g: 0 });
 }
 function updateFx(dt) {
   for (let i = G.fx.length - 1; i >= 0; i--) {
@@ -1045,11 +1047,11 @@ function updateFx(dt) {
 function drawFx(c) {
   for (const p of G.fx) {
     const t = p.life / p.max, X = wx(p.x), Y = wy(p.y);
-    if (p.k === 'dot') { c.globalAlpha = 1 - t; c.fillStyle = p.col; c.beginPath(); c.arc(X, Y, p.r * F.cw * (1 - t * 0.5), 0, 6.283); c.fill(); }
-    else if (p.k === 'star') { c.globalAlpha = 1 - t; c.fillStyle = p.col; star(c, X, Y, p.r * F.cw * 1.6 * (1 - t * 0.4)); }
-    else if (p.k === 'smoke') { c.globalAlpha = 1; c.fillStyle = p.col + (0.55 * (1 - t)) + ')'; c.beginPath(); c.arc(X, Y, p.r * F.cw * (1 + t), 0, 6.283); c.fill(); }
+    if (p.k === 'dot') { c.globalAlpha = 1 - t; c.fillStyle = p.col; c.beginPath(); c.arc(X, Y, p.r * F.u * 0.7 * (1 - t * 0.5), 0, 6.283); c.fill(); }
+    else if (p.k === 'star') { c.globalAlpha = 1 - t; c.fillStyle = p.col; star(c, X, Y, p.r * F.u * 1.1 * (1 - t * 0.4)); }
+    else if (p.k === 'smoke') { c.globalAlpha = 1; c.fillStyle = p.col + (0.55 * (1 - t)) + ')'; c.beginPath(); c.arc(X, Y, p.r * F.u * 0.7 * (1 + t), 0, 6.283); c.fill(); }
     else if (p.k === 'ring') { c.globalAlpha = 1 - t; c.strokeStyle = p.col; c.lineWidth = 3 * (1 - t) + 1; c.beginPath(); c.ellipse(X, Y, p.r * F.cw * easeOut(t), p.r * F.ch * 0.7 * easeOut(t), 0, 0, 6.283); c.stroke(); }
-    else if (p.k === 'text') { c.globalAlpha = 1 - t * t; c.font = '900 ' + Math.round(F.cw * 0.42) + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(p.t, X, Y); c.fillStyle = p.col; c.fillText(p.t, X, Y); }
+    else if (p.k === 'text') { c.globalAlpha = 1 - t * t; c.font = '900 ' + Math.round(F.u * 0.3) + 'px system-ui'; c.textAlign = 'center'; c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(p.t, X, Y); c.fillStyle = p.col; c.fillText(p.t, X, Y); }
     else if (p.k === 'conf') { c.globalAlpha = 1 - Math.max(0, t - 0.7) / 0.3; c.save(); c.translate(X, Y); c.rotate(p.rot); c.fillStyle = p.col; c.fillRect(-p.r * F.cw, -p.r * F.cw * 0.5, p.r * F.cw * 2, p.r * F.cw); c.restore(); }
   }
   c.globalAlpha = 1;
@@ -1120,14 +1122,15 @@ function drawGrid(c, now) {
   // grid lines
   c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = 1;
   c.beginPath();
-  for (let i = 0; i <= 10; i++) { c.moveTo(F.x + i * F.cw, F.y); c.lineTo(F.x + i * F.cw, F.y + F.h); c.moveTo(F.x, F.y + i * F.ch); c.lineTo(F.x + F.w, F.y + i * F.ch); }
+  for (let i = 0; i <= CONFIG.COLS; i++) { c.moveTo(F.x + i * F.cw, F.y); c.lineTo(F.x + i * F.cw, F.y + F.h); }
+  for (let i = 0; i <= CONFIG.ROWS; i++) { c.moveTo(F.x, F.y + i * F.ch); c.lineTo(F.x + F.w, F.y + i * F.ch); }
   c.stroke();
   c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 2.5; c.setLineDash([8, 6]);
   c.beginPath(); c.moveTo(F.x, F.y + F.h / 2); c.lineTo(F.x + F.w, F.y + F.h / 2); c.stroke(); c.setLineDash([]);
   c.strokeStyle = 'rgba(239,62,74,.8)'; c.lineWidth = 3; c.strokeRect(F.x + 1.5, F.y + 1.5, F.w - 3, F.h / 2 - 3);
   c.strokeStyle = 'rgba(58,134,255,.85)'; c.strokeRect(F.x + 1.5, F.y + F.h / 2 + 1.5, F.w - 3, F.h / 2 - 3);
   // zone labels
-  c.font = '900 ' + Math.round(F.ch * 0.26) + 'px system-ui'; c.textAlign = 'right'; c.fillStyle = 'rgba(255,255,255,.35)';
+  c.font = '900 ' + Math.round(F.u * 0.19) + 'px system-ui'; c.textAlign = 'right'; c.fillStyle = 'rgba(255,255,255,.35)';
   c.fillText('RED ZONE', F.x + F.w - 6, F.y + F.ch * 0.3); c.fillText('BLUE ZONE', F.x + F.w - 6, F.y + F.h - F.ch * 0.12);
   c.restore();
 }
@@ -1168,11 +1171,11 @@ function drawMarkers(c, now) {
     // 2) miniature figures in every slot
     const P = G.P[team], flip = team === 'red' ? -1 : 1;
     for (const sl of g.slots) {
-      const nn = S.slotCount(g.type, S.modAt(P, sl.col, sl.row)), form = S.formationFor(nn), size = F.cw * (nn > 5 ? 0.4 : 0.5) * U.scale;
+      const nn = S.slotCount(g.type, S.modAt(P, sl.col, sl.row)), form = S.formationFor(nn), size = F.u * (nn > 5 ? 0.36 : 0.46) * U.scale;
       const X = wx(sl.col), Y = wy(sl.row), cx = X + F.cw / 2, cy = Y + F.ch / 2, sc = scaleFor(G.gfx[skey(sl.col, sl.row)] || {}, now);
       c.save(); c.translate(cx, cy); c.scale(sc, sc); c.translate(-cx, -cy);
-      const pts = form.map(([ox, oy]) => [cx + ox * F.cw * 0.95, cy + (oy * flip) * F.ch * 0.8 + F.ch * 0.2]).sort((p, q) => p[1] - q[1]);
-      for (const [px, py] of pts) drawUnit(c, g.type, team, px, py, size, { face: sl.col < 5 ? 1 : -1, noRing: true, aim: 0.5, level: 1 });
+      const pts = form.map(([ox, oy]) => [cx + ox * F.cw * 0.9, cy + (oy * flip) * F.ch * 0.75 + F.ch * 0.22]).sort((p, q) => p[1] - q[1]);
+      for (const [px, py] of pts) drawUnit(c, g.type, team, px, py, size, { face: sl.col < CONFIG.COLS / 2 ? 1 : -1, noRing: true, aim: 0.5, level: 1, seed: sl.col * 7 + sl.row });
       c.restore();
     }
     // 3) one count badge (total characters) on the last slot, level stars on the first
@@ -1226,7 +1229,7 @@ function charPos(ch) {
 function drawBattle(c, now) {
   const st = G.battle; if (!st || G.charsA <= 0.01) return;
   const list = st.chars.filter(ch => ch.alive || ch.deadT < 0.7).sort((a, b) => a.y - b.y);
-  const base = F.cw * 0.78;
+  const base = F.u * 0.52;
   c.save(); c.globalAlpha = G.charsA;
   for (const ch of list) {
     const p = charPos(ch); if (p.s <= 0.01) continue;
@@ -1238,7 +1241,7 @@ function drawBattle(c, now) {
     drawUnit(c, ch.type, ch.team, p.x, p.y, s, o);
     // health bar
     if (ch.alive && ch.hp < ch.maxHp && G.phase === 'battle') {
-      const bw = F.cw * 0.42, bh = Math.max(2.5, F.cw * 0.065), bx = p.x - bw / 2, by = p.y - s * (ch.type === 'cavalry' ? 1.05 : 1.08) - bh;
+      const bw = base * 0.62, bh = Math.max(3, base * 0.09), bx = p.x - bw / 2, by = p.y - s * (ch.type === 'cavalry' ? 1.05 : 1.08) - bh;
       c.fillStyle = 'rgba(0,0,0,.55)'; c.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
       c.fillStyle = ch.team === 'blue' ? '#6fb0ff' : '#ff6b74'; c.fillRect(bx, by, bw * ch.hp / ch.maxHp, bh);
     }
@@ -1249,7 +1252,7 @@ function drawBattle(c, now) {
     if (pr.k === 'arrow') {
       const h = Math.sin(pr.prog * Math.PI) * Math.min(0.6, pr.d0 * 0.09);
       const X = wx(pr.x), Y = wy(pr.y - h) - base * 0.45, ang = Math.atan2(wy(pr.ty) - wy(pr.y), wx(pr.tx) - wx(pr.x)) - (0.5 - pr.prog) * 0.8 * Math.sign(wx(pr.tx) - wx(pr.x) || 1);
-      const L = F.cw * 0.32;
+      const L = F.u * 0.2;
       c.save(); c.translate(X, Y); c.rotate(ang);
       c.strokeStyle = '#6b4a2a'; c.lineWidth = 2; c.beginPath(); c.moveTo(-L, 0); c.lineTo(L * 0.4, 0); c.stroke();
       c.fillStyle = '#e8edf3'; c.beginPath(); c.moveTo(L * 0.6, 0); c.lineTo(L * 0.3, -3); c.lineTo(L * 0.3, 3); c.fill();
@@ -1262,8 +1265,8 @@ function drawBattle(c, now) {
       // landing marker + shadow
       c.strokeStyle = 'rgba(255,120,60,' + (0.25 + 0.4 * k) + ')'; c.lineWidth = 1.5;
       c.beginPath(); c.ellipse(wx(pr.tx), wy(pr.ty), pr.aoe * F.cw * (1.2 - k * 0.2), pr.aoe * F.ch * 0.6, 0, 0, 6.283); c.stroke();
-      c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(gx, gy, F.cw * 0.12, F.cw * 0.05, 0, 0, 6.283); c.fill();
-      const by = gy - h * F.ch - base * 0.4, r = F.cw * 0.12;
+      c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(gx, gy, F.u * 0.09, F.u * 0.04, 0, 0, 6.283); c.fill();
+      const by = gy - h * F.ch * 0.7 - base * 0.4, r = F.u * 0.085;
       c.fillStyle = '#262626'; c.beginPath(); c.arc(gx, by, r, 0, 6.283); c.fill();
       c.fillStyle = 'rgba(255,255,255,.4)'; c.beginPath(); c.arc(gx - r * 0.35, by - r * 0.35, r * 0.3, 0, 6.283); c.fill();
       c.fillStyle = (now / 60) % 2 < 1 ? '#ffd34d' : '#ff7a2a'; c.beginPath(); c.arc(gx + r * 0.6, by - r * 0.9, r * 0.45, 0, 6.283); c.fill();
@@ -1320,7 +1323,7 @@ function showTipAt(x, y, sticky) {
   const tip = $('#tip');
   if (!G.P || G.drag || !(G.phase === 'prep' || G.phase === 'toPrep')) { tip.classList.remove('on'); tipKey = ''; return; }
   const cell = cellAt(x, y);
-  const P = cell && (cell.row >= 5 ? G.P.blue : G.P.red), id = cell && P.mods[S.skey(cell.col, cell.row)];
+  const P = cell && (cell.row >= CONFIG.TERRITORY_ROWS ? G.P.blue : G.P.red), id = cell && P.mods[S.skey(cell.col, cell.row)];
   if (!id) { if (!sticky) { tip.classList.remove('on'); tipKey = ''; } return; }
   const k = cell.col + ',' + cell.row; const g = S.groupAt(P, cell.col, cell.row);
   if (k !== tipKey || sticky) {

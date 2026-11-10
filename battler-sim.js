@@ -5,7 +5,7 @@
 
   // ---------------------------------------------------------------- tuning
   const CONFIG = {
-    COLS: 10, ROWS: 10, TERRITORY_ROWS: 5,     // Red owns rows 0-4 (top), Blue owns rows 5-9 (bottom)
+    COLS: 5, ROWS: 8, TERRITORY_ROWS: 4,       // 5 columns x 8 rows: Red owns rows 0-3 (top), Blue owns rows 4-7 (bottom)
     CARD_OPTIONS: 3,                            // cards offered per action
     UPGRADE_CHANCE: 0.33,                       // chance each offered card is an upgrade (when one is possible)
     DOUBLE_CHANCE: 0.08,                        // chance each offered card is a Double card (when a group has room)
@@ -24,7 +24,7 @@
       multDown:{ id: 'multDown',sign: -1, name: 'Unit Reduction',         short: 'x0.5 Units',  count: 0.5, weight: 10 },
     },
     // target TOTAL special slots per player territory by round (index 0 = round 1)
-    MODIFIER_TARGETS: { positive: [3, 5, 7, 9, 11], negative: [1, 2, 3, 4, 5] },                      // true = same unit + same level side by side merge into one multi-slot group
+    MODIFIER_TARGETS: { positive: [1, 2, 3, 4, 5], negative: [2, 3, 4, 5, 6] },                      // true = same unit + same level side by side merge into one multi-slot group
     UNIT_WEIGHTS: { archer: 1, knight: 1, cavalry: 1, bomber: 1, dwarf: 1 }, // relative card frequency
     ACTIONS_PER_ROUND: 3,
     COMEBACK_ACTIONS: 1,                        // extra action for the previous round's loser
@@ -82,6 +82,10 @@
     return types[types.length - 1];
   }
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  // battlefield bounds in cells (characters stay this far inside the edges) and the centre column
+  const EDGE = 0.15;
+  const cx = v => clamp(v, EDGE, CONFIG.COLS - EDGE), cy = v => clamp(v, EDGE, CONFIG.ROWS - EDGE);
+  const MIDCOL = () => (CONFIG.COLS - 1) / 2;
 
   // ---------------------------------------------------------------- players, territory, cards
   function territoryRows(team) {
@@ -166,7 +170,7 @@
       for (const s of pass === 0 ? from.slice(0, 1) : from) for (const [dc, dr] of N4) {
         const c = s.col + dc, r = s.row + dr;
         if (!free(c, r)) continue;
-        const v = (dr === 0 ? 2 : 0) + (depth(player.team, r) < depth(player.team, s.row) ? 0.5 : 0) - Math.abs(c - 4.5) * 0.05 - r * 0.001
+        const v = (dr === 0 ? 2 : 0) + (depth(player.team, r) < depth(player.team, s.row) ? 0.5 : 0) - Math.abs(c - MIDCOL()) * 0.05 - r * 0.001
           + modValue(g.type, modAt(player, c, r)) * 1.5;
         if (!best || v > best.v) best = { v, col: c, row: r };
       }
@@ -304,7 +308,7 @@
     return v;
   }
   function bestSlot(self, opp, type, rng) {
-    const pref = { knight: 0, dwarf: 0.6, cavalry: 1.1, archer: 3.1, bomber: 2.5 }[type];
+    const pref = { knight: 0, dwarf: 0.4, cavalry: 0.9, archer: 2.6, bomber: 2.2 }[type];
     const front = !!FRONTLINE[type];
     const enemyCols = new Array(CONFIG.COLS).fill(0);
     for (const g of opp.groups) for (const s of g.slots) enemyCols[s.col] += UNITS[g.type].count >= 4 ? 1.2 : 1;
@@ -313,8 +317,9 @@
     for (const s of emptySlots(self)) {
       const d = depth(self.team, s.row);
       let v = -Math.abs(d - pref) * 1.0;
+      if (!front && d === 0) v -= 0.8;   // ranged units on the front row are exposed
       if (type === 'cavalry') v -= Math.min(s.col, CONFIG.COLS - 1 - s.col) * 0.45;
-      else v -= Math.abs(s.col - 4.5) * 0.12;
+      else v -= Math.abs(s.col - MIDCOL()) * 0.12;
       if (!front) { // ranged: sit behind an existing frontline group
         if (ownFront.some(f => Math.abs(f.col - s.col) <= 1 && depth(self.team, f.row) < d)) v += 0.55;
       } else if (type !== 'cavalry') { // melee: face where the enemy is
@@ -333,7 +338,7 @@
     for (const g of self.groups) {
       if (g.type !== type || !canUpgrade(g)) continue;
       const d = depth(self.team, g.row);
-      let v = g.level * 0.5 + g.slots.length * 0.4 + (FRONTLINE[type] ? -d * 0.15 : -Math.abs(g.col - 4.5) * 0.05) + rng() * 0.3;
+      let v = g.level * 0.5 + g.slots.length * 0.4 + (FRONTLINE[type] ? -d * 0.15 : -Math.abs(g.col - MIDCOL()) * 0.05) + rng() * 0.3;
       if (!best || v > best.v) best = { v, col: g.col, row: g.row, level: g.level, size: g.slots.length };
     }
     return best;
@@ -400,7 +405,7 @@
       // every slot of every group spawns its characters around that slot's centre, with that slot's modifier
       const cells = [];
       for (const g of groups) for (const sl of g.slots) cells.push({ g, col: sl.col, row: sl.row });
-      cells.sort((a, b) => (a.row * 10 + a.col) - (b.row * 10 + b.col));
+      cells.sort((a, b) => (a.row * CONFIG.COLS + a.col) - (b.row * CONFIG.COLS + b.col));
       const flip = team === 'red' ? -1 : 1;
       for (const cell of cells) {
         const g = cell.g, U = UNITS[g.type], L = CONFIG.LEVELS[g.level];
@@ -409,12 +414,12 @@
         const hp = Math.round(U.hp * L.hp * M.hp), dmg = U.dmg * L.dmg * M.dmg, cdMax = U.cd / M.spd;
         const n = slotCount(g.type, mod), F = formationFor(n);
         for (let i = 0; i < n; i++) {
-          const x = clamp(cell.col + 0.5 + F[i][0], 0.15, 9.85), y = clamp(cell.row + 0.5 + F[i][1] * flip, 0.15, 9.85);
+          const x = cx(cell.col + 0.5 + F[i][0]), y = cy(cell.row + 0.5 + F[i][1] * flip);
           st.chars.push({
             id: id++, team, type: g.type, gid: g.id, level: g.level, mod: mod ? mod.id : null, U, gx: cell.col + 0.5, gy: cell.row + 0.5,
             x, y, hp, maxHp: hp, dmg, cdMax, cd: cdMax * (0.15 + 0.35 * st.rng()),
             target: null, threat: null, rt: st.rng() * CONFIG.RETARGET_T, moved: 0, chargeReady: !!U.charge,
-            alive: true, deadT: 0, face: x < 5 ? 1 : -1, atk: 0, flash: 0, walk: st.rng() * 6, moving: false, vx: 0, vy: 0,
+            alive: true, deadT: 0, face: x < CONFIG.COLS / 2 ? 1 : -1, atk: 0, flash: 0, walk: st.rng() * 6, moving: false, vx: 0, vy: 0,
           });
           st.total[team]++;
         }
@@ -456,7 +461,7 @@
           dmg *= U.charge; c.chargeReady = false;
           st.events.push({ e: 'charge', x: T.x, y: T.y });
           const nx = (T.x - c.x) / (d || 1), ny = (T.y - c.y) / (d || 1);
-          T.x = clamp(T.x + nx * 0.3, 0.15, 9.85); T.y = clamp(T.y + ny * 0.3, 0.15, 9.85);
+          T.x = cx(T.x + nx * 0.3); T.y = cy(T.y + ny * 0.3);
         }
         c.moved = 0;
       }
@@ -466,7 +471,7 @@
       st.projs.push({ k: 'arrow', team: c.team, x: c.x, y: c.y, sx: c.x, sy: c.y, target: T, tx: T.x, ty: T.y, spd: U.projSpeed, dmg: c.dmg * mult, d0: Math.max(0.3, d), prog: 0 });
     } else if (U.attack === 'bomb') {
       const dur = 0.5 + d * 0.11;
-      const tx = clamp(T.x + T.vx * dur * 0.6, 0.1, 9.9), ty = clamp(T.y + T.vy * dur * 0.6, 0.1, 9.9);
+      const tx = cx(T.x + T.vx * dur * 0.6), ty = cy(T.y + T.vy * dur * 0.6);
       st.projs.push({ k: 'bomb', team: c.team, sx: c.x, sy: c.y, x: c.x, y: c.y, tx, ty, t: 0, dur, dmg: c.dmg * mult, aoe: U.aoe });
     }
   }
@@ -509,7 +514,7 @@
       }
       if (mx || my) {
         c.vx = mx * spd; c.vy = my * spd;
-        c.x = clamp(c.x + c.vx * dt, 0.15, 9.85); c.y = clamp(c.y + c.vy * dt, 0.15, 9.85);
+        c.x = cx(c.x + c.vx * dt); c.y = cy(c.y + c.vy * dt);
         c.moved += spd * dt; c.walk += dt * (6 + spd * 4); c.moving = true;
         if (U.charge && !c.chargeReady && c.moved >= U.chargeDist) c.chargeReady = true;
       } else c.moving = false;
@@ -528,8 +533,8 @@
         if (d < 1e-5) { const ang = st.rng() * 6.283; dx = Math.cos(ang); dy = Math.sin(ang); d = 1; }
         const push = (min - d) * 0.5, nx = dx / d, ny = dy / d, tot = a.U.mass + b.U.mass;
         const pa = push * (b.U.mass / tot) * 2, pb = push * (a.U.mass / tot) * 2;
-        a.x = clamp(a.x - nx * pa, 0.15, 9.85); a.y = clamp(a.y - ny * pa, 0.15, 9.85);
-        b.x = clamp(b.x + nx * pb, 0.15, 9.85); b.y = clamp(b.y + ny * pb, 0.15, 9.85);
+        a.x = cx(a.x - nx * pa); a.y = cy(a.y - ny * pa);
+        b.x = cx(b.x + nx * pb); b.y = cy(b.y + ny * pb);
       }
     }
 
