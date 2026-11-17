@@ -2,6 +2,8 @@
 import { Vector3 } from '../../vendor/three.module.js';
 import { Ragdoll, J, ARM_J, JOINT_COUNT } from '../physics/ragdoll.js';
 import { ARMS, ARM_INFO, TIER } from '../body.js';
+import { LIMB_JOINTS } from '../physics/ragdoll.js';
+const LIMB_SET = Object.fromEntries(Object.keys(LIMB_JOINTS).map(l => [l, true]));
 import { ATTACKS, SHIELD_GUARD, BOW, sampleAttack, buildPose, makePose } from './animation.js';
 import { CONFIG } from '../config.js';
 import { ITEMS } from '../items.js';
@@ -23,7 +25,7 @@ export class Fighter {
     this.vel = new Vector3();     // AI locomotion velocity (world xz)
     this.kv = new Vector3();      // knockback slide velocity
     this.maxHp = loadout.stats.maxHp; this.hp = this.maxHp;
-    this.st = loadout.stats;
+    this.st = { ...loadout.stats };   // copied: losing a leg mid-fight changes it
     this.state = 'fight'; this.stateT = 0;
     this.poise = 0; this.flinch = 0; this.stun = 0;
     this.walkPhase = rng() * 6;
@@ -40,7 +42,7 @@ export class Fighter {
         cd: 0.3 + rng() * 0.5, anim: null, wdir: new Vector3(0, 1, 0), bladeLocal: new Vector3(0, 1, 0),
       };
     }
-    this.hasWeapons = ARMS.some(a => this.arms[a].item && this.arms[a].type !== 'shield');
+    this.hasWeapons = ARMS.some(a => this.arms[a].item && !['shield', 'lost', 'draw'].includes(this.arms[a].type));
     this.perks = loadout.perks.map(p => ({ ...p, t: p.st.cooldown * (0.5 + rng() * 0.3) }));
     this.pose = makePose();
     this.prevTarget = makePose();
@@ -53,8 +55,46 @@ export class Fighter {
   }
 
   _init() {
+    // limbs broken in an earlier round (and not repaired) are simply missing
+    this.lost = new Set(this.lo.broken || []);
+    this.lostThisFight = [];
+    this.limbDmg = {};
     this._computeTargets(0);
     this.rd.teleport(this.worldTarget);
+    for (const l of this.lost) this.rd.remove(l);
+  }
+
+  limbHp(limb) { return limb.startsWith('leg') ? CONFIG.limbs.legHp : CONFIG.limbs.armHp; }
+  legsLost() { return (this.lost.has('legL') ? 1 : 0) + (this.lost.has('legR') ? 1 : 0); }
+
+  // Accumulate damage on a limb; past its HP it breaks off and flies away.
+  damageLimb(limb, dmg, dir) {
+    if (this.lost.has(limb) || !(limb in this.limbDmgMax())) return false;
+    this.limbDmg[limb] = (this.limbDmg[limb] || 0) + dmg;
+    if (this.limbDmg[limb] < this.limbHp(limb)) return false;
+    this.loseLimb(limb, dir);
+    return true;
+  }
+  limbDmgMax() { return LIMB_SET; }
+
+  loseLimb(limb, dir) {
+    this.lost.add(limb);
+    this.lostThisFight.push(limb);
+    this.rd.detach(limb);
+    const fling = dir.clone().multiplyScalar(3.5); fling.y = 3.2;
+    for (const j of LIMB_JOINTS[limb]) this.rd.addVelocity(j, fling);
+    if (this.arms[limb]) {
+      const arm = this.arms[limb];
+      if (this.attacking && this.attacking.arm === arm) this.attacking = null;
+      // a bow loses its loader when either arm of the pair goes
+      for (const a of ARMS) { const o = this.arms[a]; if (o.drawArm === limb || o.bowArm === limb) o.type = 'lost'; }
+      arm.type = 'lost';
+      this.hasWeapons = ARMS.some(a => this.arms[a].item && !['shield', 'lost', 'draw'].includes(this.arms[a].type));
+    } else {
+      this.st.moveSpeed *= CONFIG.limbs.lostLegMove;
+      this.st.stability *= CONFIG.limbs.lostLegStability;
+    }
+    this.events?.push({ type: 'limb', f: this, limb, pos: this.rd.p[LIMB_JOINTS[limb][1]].clone() });
   }
 
   get alive() { return this.hp > 0 && this.state !== 'fallen'; }
@@ -65,7 +105,7 @@ export class Fighter {
 
   meleeReach() {
     let r = 0;
-    for (const a of ARM_KEYS) { const arm = this.arms[a]; if (arm.type !== 'shield' && arm.type !== 'draw' && arm.type !== 'shoot') r = Math.max(r, arm.st.reach); }
+    for (const a of ARM_KEYS) { const arm = this.arms[a]; if (!['shield', 'draw', 'shoot', 'lost'].includes(arm.type)) r = Math.max(r, arm.st.reach); }
     return r || 1.1;
   }
   isRanged() { return ARMS.some(a => this.arms[a].type === 'shoot') && this.meleeReach() < 1.2; }
@@ -113,7 +153,7 @@ export class Fighter {
     for (const a of ARM_KEYS) {
       const arm = this.arms[a];
       if (arm.cd > 0) continue;
-      if (arm.type === 'shield' || arm.type === 'draw') continue;
+      if (arm.type === 'shield' || arm.type === 'draw' || arm.type === 'lost') continue;
       if (arm.type === 'shoot') {
         if (dist > 1.0) options.push({ arm, kind: 'shoot' });
         else options.push({ arm, kind: 'fist', st: { dmg: 6, cooldown: 0.9, reach: 1.15, kb: 0.9 } });
@@ -233,6 +273,9 @@ export class Fighter {
       feet[0].set(-0.22, 0.09, 0.25 * (1 - g)); feet[1].set(0.22, 0.09, -0.1);
     }
     if (this.flinch > 0) { lean -= this.flinch * 0.6; headTilt -= this.flinch * 0.7; }
+    // missing legs: the mech sags and limps on what it has left
+    const ll = this.lost ? this.legsLost() : 0;
+    if (ll) { pelvisY -= 0.14 * ll; lean += 0.08 * ll; }
 
     this.lean += (lean - this.lean) * Math.min(1, dt * 14);
     this.twist += (twist - this.twist) * Math.min(1, dt * 16);
@@ -262,7 +305,7 @@ export class Fighter {
       const bl = arm.bladeLocal;
       want.set(bl.x * c + bl.z * s, bl.y, -bl.x * s + bl.z * c);
       fa.subVectors(this.rd.p[HAND[key]], this.rd.p[ELBOW[key]]).normalize();
-      const m = Math.min(1, this.rd.muscle);
+      const m = arm.type === 'lost' ? 0 : Math.min(1, this.rd.muscle);
       want.multiplyScalar(m * 0.8).addScaledVector(fa, 1 - m * 0.8 + 0.15).normalize();
       arm.wdir.lerp(want, 1 - Math.exp(-30 * dt)).normalize();
     }

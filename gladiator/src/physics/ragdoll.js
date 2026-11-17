@@ -37,6 +37,13 @@ for (const a of ARMS) { const j = ARM_J[a]; set(j.sh, 1, 0.12, 1); set(j.el, 0.6
 for (const [h, k, f] of [[J.hipL, J.knL, J.ftL], [J.hipR, J.knR, J.ftR]]) { set(h, 1.2, 0.12, 1.2); set(k, 0.8, 0.1, 1.2); set(f, 0.7, 0.08, 1.5); }
 export const isLegJoint = i => i >= LEG0;
 
+// Joints that make up each detachable limb (an arm takes its shoulder ball with it, a leg its hip)
+export const LIMB_JOINTS = {};
+for (const a of ARMS) LIMB_JOINTS[a] = [ARM_J[a].sh, ARM_J[a].el, ARM_J[a].ha];
+LIMB_JOINTS.legL = [J.hipL, J.knL, J.ftL];
+LIMB_JOINTS.legR = [J.hipR, J.knR, J.ftR];
+export const LIMB_ANCHOR = Object.fromEntries(Object.keys(LIMB_JOINTS).map(l => [l, l.startsWith('leg') ? J.pelvis : J.chest]));
+
 const PAIRS = [
   [J.pelvis, J.chest], [J.chest, J.head],
   [J.pelvis, J.hipL], [J.pelvis, J.hipR], [J.hipL, J.knL], [J.knL, J.ftL], [J.hipR, J.knR], [J.knR, J.ftR],
@@ -65,7 +72,27 @@ export class Ragdoll {
     this.muscle = 1;        // global 0..1
     this.legMuscle = 1;     // legs can stay strong while upper body is staggered
     this.onGround = REST.map(() => false);
+    this.limp = new Uint8Array(JOINT_COUNT);   // 1 = no muscle (detached limb)
+    this.pinned = [];                          // limbs missing from the start: [joints, anchor]
     this._t = new Vector3(); this._v = new Vector3();
+  }
+
+  // Break a limb off: cut every constraint tying it to the rest of the body and go limp.
+  detach(limb) {
+    const set = new Set(LIMB_JOINTS[limb]);
+    for (const c of this.cons) if (set.has(c.a) !== set.has(c.b)) c.off = true;
+    for (const j of set) this.limp[j] = 1;
+  }
+
+  // A limb that was already broken before the fight: detached and parked inside the torso.
+  remove(limb) {
+    this.detach(limb);
+    this.pinned.push([LIMB_JOINTS[limb], LIMB_ANCHOR[limb]]);
+    this._pin();
+  }
+
+  _pin() {
+    for (const [js, anchor] of this.pinned) for (const j of js) { this.p[j].copy(this.p[anchor]); this.prev[j].copy(this.p[anchor]); }
   }
 
   teleport(points) {
@@ -85,7 +112,7 @@ export class Ragdoll {
     for (let i = 0; i < JOINT_COUNT; i++) {
       const p = this.p[i], pr = this.prev[i];
       v.subVectors(p, pr).divideScalar(dt);
-      const m = (isLegJoint(i) ? Math.max(this.muscle, this.legMuscle) : this.muscle) * GAIN[i];
+      const m = this.limp[i] ? 0 : (isLegJoint(i) ? Math.max(this.muscle, this.legMuscle) : this.muscle) * GAIN[i];
       a.set(0, gravity, 0);
       if (m > 0.001) {
         // PD muscle toward animated target (mass-normalised so light limbs do not overshoot)
@@ -100,12 +127,14 @@ export class Ragdoll {
       p.z += v.z * dt * damp + a.z * dt * dt;
     }
     for (let k = 0; k < iterations; k++) {
-      for (const c of this.cons) this._solve(c.a, c.b, c.len, 1);
+      for (const c of this.cons) if (!c.off) this._solve(c.a, c.b, c.len, 1);
       for (const [x, y, d] of MIN_DIST) {
+        if (this.limp[x] !== this.limp[y]) continue;
         if (this.p[x].distanceTo(this.p[y]) < d) this._solve(x, y, d, 0.5);
       }
       for (let i = 0; i < JOINT_COUNT; i++) this.onGround[i] = groundFn(this.p[i], this.prev[i], RADIUS[i]);
     }
+    if (this.pinned.length) this._pin();
   }
 
   _solve(ia, ib, len, stiff) {

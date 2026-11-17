@@ -130,6 +130,7 @@ export class Battle {
     let best = null;
     for (let k = 0; k < BODY_PARTS.length; k++) {
       const [ja, jb, r, region] = BODY_PARTS[k];
+      if (def.lost.has(region)) continue;   // a limb lying on the floor is no longer a target
       const d = segSegDist(a, b, def.rd.p[ja], def.rd.p[jb], ca, cb);
       const pen = r + wr - d;
       if (pen > 0 && (!best || pen > best.pen)) best = { pen, region, point: cb.clone(), joint: ja === jb ? ja : (ca.distanceTo(def.rd.p[ja]) < ca.distanceTo(def.rd.p[jb]) ? ja : jb), k };
@@ -167,6 +168,7 @@ export class Battle {
     dmg = Math.max(1, Math.round(dmg));
     def.hp = Math.max(0, def.hp - dmg);
     att.damageDealt += dmg;
+    let limbOff = false;
 
     // knockback direction: attacker -> defender, biased toward the rear cliff
     const dir = new Vector3().subVectors(def.root, att.root); dir.y = 0;
@@ -175,7 +177,10 @@ export class Battle {
     // heavier blows are angled more toward the cliff: knockback builds win by ring-out
     const bias = Math.min(0.55, C.cliffBias + 0.06 * kbEff);
     dir.normalize().multiplyScalar(1 - bias).add(new Vector3(0, 0, -bias)).normalize();
-    if (!h.magic || true) def.kv.addScaledVector(dir, kbEff * C.knockbackScale);
+    def.kv.addScaledVector(dir, kbEff * C.knockbackScale);
+    // limb damage: enough punishment on an arm or leg tears it off
+    if ((isArm(h.region) || h.region.startsWith('leg')) && def.hp > 0) limbOff = def.damageLimb(h.region, dmg, dir);
+    if (limbOff) this.hitStop = Math.max(this.hitStop, C.hitStop * 2.5);
 
     // physical reaction: impulse at the struck joint + neighbours, scaled by weapon knockback
     const imp = new Vector3().copy(dir).multiplyScalar(1.2 + kbEff * 0.8);
@@ -207,7 +212,7 @@ export class Battle {
       def.setState('ko');
     }
     if (heavy || knockdown) this.hitStop = C.hitStop * (knockdown ? 2 : 1);
-    this.events.push({ type: 'hit', att, def, dmg, region: h.region, pos: h.point.clone(), blocked: !!h.blocked, heavy: heavy || knockdown || crit, knockdown, crit, kind: h.kind, magic: !!h.magic });
+    this.events.push({ type: 'hit', att, def, dmg, region: h.region, pos: h.point.clone(), blocked: !!h.blocked, heavy: heavy || knockdown || crit || limbOff, knockdown, crit, limbOff, kind: h.kind, magic: !!h.magic });
   }
 
   _bow(att, def) {
@@ -250,6 +255,7 @@ export class Battle {
           continue;
         }
         for (const [ja, jb, r, region] of BODY_PARTS) {
+          if (def.lost.has(region)) continue;
           if (segSegDist(ar.prev, ar.pos, def.rd.p[ja], def.rd.p[jb], ca, cb) < r + 0.03) {
             this._applyHit(ar.owner, def, { region, point: cb.clone(), joint: ja, kind: 'arrow', st: ar.st });
             ar.alive = false; ar.stuck = { f: def, j: ja, off: ca.clone().sub(def.rd.p[ja]) };

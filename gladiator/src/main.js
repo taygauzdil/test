@@ -12,7 +12,7 @@ import { resolveLoadout } from './loadout.js';
 import { J } from './physics/ragdoll.js';
 import { ITEMS } from './items.js';
 import { CONFIG } from './config.js';
-import { ARMS, ARM_INFO, REGIONS } from './body.js';
+import { ARMS, ARM_INFO, REGIONS, REGION_LABEL } from './body.js';
 import { SFX } from './audio.js';
 
 const $ = s => document.querySelector(s);
@@ -102,7 +102,7 @@ let hoverMode = null;
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.classList.add('on');
-  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 1700);
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), msg.length > 60 ? 3800 : 1700);
 }
 
 function flyCoins(fromX, fromY, n, delay = 0) {
@@ -146,10 +146,10 @@ function goPrep() {
 function startBattle() {
   const opp = match.makeOpponent();
   const pl = resolveLoadout(match.inv), el = resolveLoadout(opp.inv);
-  battle = new Battle({ playerLoadout: pl, enemyLoadout: el, playerName: 'YOU', enemyName: opp.name.toUpperCase(), enemyPurse: opp.purse, playerPurse: 6 + match.round * 2 });
+  battle = new Battle({ playerLoadout: pl, enemyLoadout: el, playerName: 'YOU', enemyName: opp.name.toUpperCase(), enemyPurse: opp.purse, playerPurse: match.coins });
   battle.opp = opp;
   if (views) for (const v of views) combatScene.remove(v.root);
-  const pv = new GladiatorView('p', 0), ev = new GladiatorView('e', 1 + (match.round % 3));
+  const pv = new GladiatorView('p', 0), ev = new GladiatorView('e', opp.skin ?? 1);
   pv.setLoadout(pl, match.inv); ev.setLoadout(el, opp.inv);
   for (const v of [pv, ev]) { v.root.traverse(o => { if (o.isMesh) o.castShadow = true; }); combatScene.add(v.root); }
   views = [pv, ev];
@@ -237,6 +237,15 @@ function handleEvents() {
         SFX.steal();
         break;
       }
+      case 'limb': {
+        const leg = e.limb.startsWith('leg');
+        fx.burst(e.pos, { n: 30, color: 0xffb030, speed: 6, life: 0.7, size: 1.3 });
+        fx.burst(e.pos, { n: 14, color: 0x35d6ff, speed: 4, life: 0.5 });
+        fx.impactRing(e.pos, 0xff5a2a, 1.6);
+        fx.text(e.f.headPos.clone().add(new THREE.Vector3(0, 0.7, 0)), leg ? 'LEG LOST!' : 'ARM LOST!', 'call');
+        fx.addShake(0.35); SFX.limb();
+        break;
+      }
       case 'edge': fx.text(e.f.headPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 'WARNING!', 'call'); SFX.fall(); break;
       case 'fight': banner('FIGHT!', 'b-fight'); SFX.fight(); break;
       case 'end': {
@@ -254,15 +263,19 @@ function handleEvents() {
 
 function finishBattle() {
   const won = battle.winner === battle.P;
-  const res = match.finishRound({ won, damage: battle.P.damageDealt, stolen: battle.P.stolen, lostToSteal: battle.E.stolen, reason: battle.reason, foe: battle.opp.name });
+  const playerLost = [...battle.P.lostThisFight], enemyLost = [...battle.E.lostThisFight];
+  const res = match.finishRound({ won, damage: battle.P.damageDealt, stolen: battle.P.stolen, lostToSteal: battle.E.stolen, reason: battle.reason, foe: battle.opp.name,
+    enemyDamage: battle.E.damageDealt, playerLost, enemyLost });
   mode = 'results';
   const rows = res.rewards.rows.map(([k, v]) => `<tr><td>${k}</td><td class="${v < 0 ? 'neg' : ''}">${v >= 0 ? '+' : ''}${v}</td></tr>`).join('');
   const reason = battle.reason === 'ring-out' ? (won ? `${battle.opp.name} dropped into the pit!` : 'Your mech dropped into the pit!') : battle.reason === 'ko' ? (won ? `${battle.opp.name} was shut down` : 'Your mech was shut down') : 'Time ran out - higher HP wins';
   const modal = $('#modal');
   modal.innerHTML = `<div class="mcard"><h2 class="${won ? 'win' : 'lose'}">${won ? 'ROUND WON' : 'ROUND LOST'}</h2><div class="sub">${reason}</div>
-    <div class="hist"><span class="w">YOU ${match.wins.p}</span><span class="l">ENEMY ${match.wins.e}</span></div>
+    <div class="hist"><span class="w">YOU ${match.wins.p}</span><span class="l">${battle.opp.name.toUpperCase()} ${match.wins.e}</span></div>
+    ${limbLine('Your mech lost', playerLost, true)}${limbLine(`${battle.opp.name} lost`, enemyLost, false)}
     <table>${rows}<tr class="total"><td>Total</td><td>${res.rewards.total >= 0 ? '+' : ''}${res.rewards.total} 🪙</td></tr></table>
     <div class="big-coins"><span class="coin-ico" style="width:26px;height:26px"></span><span id="coinCount">${match.coins - res.gained}</span></div>
+    <div class="rival-note">${battle.opp.name} earned +${res.rivalRewards.total} 🪙 and will upgrade too.</div>
     <button id="contBtn">${res.matchOver ? 'SEE RESULT' : 'CONTINUE'}</button></div>`;
   modal.classList.remove('hidden');
   // count-up animation
@@ -272,8 +285,19 @@ function finishBattle() {
   $('#contBtn').onclick = () => {
     SFX.click(); clearInterval(iv);
     if (res.matchOver) showMatchEnd(res.matchWinner);
-    else { match.nextRound(); goPrep(); }
+    else {
+      match.nextRound(); goPrep();
+      // scouting report: what the rival changed with its coins
+      const log = match.rival.log;
+      if (log.length) setTimeout(() => toast(`${match.rival.name}: ${log.join(' · ')}`), 450);
+    }
   };
+}
+
+function limbLine(who, limbs, mine) {
+  if (!limbs.length) return '';
+  const names = limbs.map(l => REGION_LABEL[l]).join(', ');
+  return `<div class="limb-note ${mine ? 'mine' : ''}">🔧 ${who}: <b>${names}</b>${mine ? ' - repair it in the hangar' : ''}</div>`;
 }
 
 function showMatchEnd(w) {

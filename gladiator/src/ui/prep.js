@@ -36,7 +36,7 @@ export class PrepUI {
     const W = app.clientWidth, H = app.clientHeight;
     const wrap = $('#gridWrap');
     // measure everything except the grid
-    const used = ['.topbar', '#stats', '#benchRow', '#shop', '.bottom'].reduce((s, q) => {
+    const used = ['.topbar', '#stats', '#repairRow', '#benchRow', '#shop', '.bottom'].reduce((s, q) => {
       const el = $('#prep ' + q) || $(q); const cs = getComputedStyle(el);
       return s + el.offsetHeight + (q === '.bottom' ? 0 : parseFloat(cs.marginTop) + parseFloat(cs.marginBottom));
     }, 0);
@@ -141,6 +141,7 @@ export class PrepUI {
     $('#coins').textContent = m.coins;
     $('#roundNo').textContent = m.round;
     $('#scoreboard').innerHTML = scoreboardHTML(m);
+    this._repairs();
     // stats
     const ss = statSummary(this.lo);
     $('#stats').innerHTML = ss.map(([ic, k, v], i) => `<span class="stat${this.prevStats && this.prevStats[i] < v ? ' up' : ''}">${ic} ${k} <b>${v}</b></span>`).join('');
@@ -148,6 +149,34 @@ export class PrepUI {
     $('#fightBtn').classList.toggle('warn', !m.canFight);
     this._links();
     this.onChange && this.onChange(this.lo);
+  }
+
+  // Broken limbs: red cells + tags on the grid, and a repair chip per limb
+  _repairs() {
+    const m = this.m, broken = new Set(m.inv.broken);
+    for (const { el, c } of this.cellEls) el.classList.toggle('broken', c.regions.some(r => broken.has(r)) && c.regions.every(r => broken.has(r) || r === 'head' || r === 'body'));
+    for (const t of document.querySelectorAll('.rtag')) {
+      const dead = broken.has(t.dataset.r);
+      t.classList.toggle('dead', dead);
+      t.textContent = REGION_SHORT[t.dataset.r] + (dead ? ' ✖' : '');
+    }
+    const row = $('#repairRow');
+    const had = !row.classList.contains('hidden');
+    if (!broken.size) { row.classList.add('hidden'); row.innerHTML = ''; if (had) this.layout(); return; }
+    row.classList.remove('hidden');
+    row.innerHTML = `<div class="rp-label">🔧 BROKEN</div>` + m.inv.broken.map(l => {
+      const c = m.repairCost(l);
+      return `<button class="repair${m.coins < c ? ' poor' : ''}" data-l="${l}">${REGION_SHORT[l]}<b><span class="coin-ico"></span>${c}</b></button>`;
+    }).join('') + (broken.size > 1 ? `<button class="repair all${m.coins < m.inv.broken.reduce((t, l) => t + m.repairCost(l), 0) ? ' poor' : ''}" data-l="*">ALL<b><span class="coin-ico"></span>${m.inv.broken.reduce((t, l) => t + m.repairCost(l), 0)}</b></button>` : '');
+    for (const b of row.querySelectorAll('.repair')) b.onclick = e => {
+      e.stopPropagation();
+      const list = b.dataset.l === '*' ? [...m.inv.broken] : [b.dataset.l];
+      let fixed = 0;
+      for (const l of list) { const r = m.repair(l); if (r.ok) fixed++; else { SFX.bad(); this.toast(r.why); break; } }
+      if (fixed) { SFX.merge(); this.toast(fixed > 1 ? `${fixed} limbs repaired!` : `${REGION_LABEL[list[0]]} repaired!`); }
+      this.render();
+    };
+    if (!had) this.layout();
   }
 
   _links() {
@@ -449,5 +478,6 @@ function pointIn(el, x, y) { const r = el.getBoundingClientRect(); return x >= r
 
 export function scoreboardHTML(m) {
   const dots = n => Array.from({ length: CONFIG.maxRounds }, (_, i) => `<i class="dot${i < n ? ' on' : ''}"></i>`).join('');
-  return `<div class="sb-row p"><span>PLAYER</span><span class="dots">${dots(m.wins.p)}</span></div><div class="sb-row e"><span>ENEMY</span><span class="dots">${dots(m.wins.e)}</span></div>`;
+  const name = m.rival ? m.rival.name.toUpperCase() : 'ENEMY';
+  return `<div class="sb-row p"><span>PLAYER</span><span class="dots">${dots(m.wins.p)}</span></div><div class="sb-row e"><span title="${m.rival ? m.rival.template.name : ''}">${name}</span><span class="dots">${dots(m.wins.e)}</span></div>`;
 }

@@ -47,6 +47,7 @@ export const SFX = {
   bow: () => { tone(1400, 0.18, { type: 'square', vol: 0.12, slide: 0.25 }); noise(0.08, { vol: 0.12, freq: 3000 }); },
   zap: () => { noise(0.35, { vol: 0.45, freq: 2500, q: 0.5, type: 'highpass' }); tone(80, 0.3, { type: 'sawtooth', vol: 0.2, slide: 0.5 }); },
   steal: () => { tone(1500, 0.06, { type: 'square', vol: 0.1 }); tone(1900, 0.1, { type: 'square', vol: 0.1, delay: 0.05 }); },
+  limb: () => { noise(0.4, { vol: 0.5, freq: 700, q: 0.6 }); tone(220, 0.35, { type: 'square', vol: 0.12, slide: 0.3 }); tone(1800, 0.25, { type: 'sawtooth', vol: 0.05, slide: 0.4, delay: 0.05 }); },
   fall: () => tone(600, 1.2, { type: 'triangle', vol: 0.25, slide: 0.15 }),
   fight: () => { tone(392, 0.15, { type: 'square', vol: 0.18 }); tone(523, 0.3, { type: 'square', vol: 0.18, delay: 0.15 }); },
   win: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, 0.22, { type: 'triangle', vol: 0.3, delay: i * 0.11 })),

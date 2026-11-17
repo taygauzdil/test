@@ -4,7 +4,7 @@ import { Inventory, newUid } from './inventory.js';
 import { ITEMS } from './items.js';
 import { generateShop, computeRewards } from './economy.js';
 import { resolveLoadout } from './loadout.js';
-import { buildOpponent } from './opponents.js';
+import { createRival, rivalTurn, limbCost } from './opponents.js';
 
 export class Match {
   constructor(rng = Math.random) { this.rng = rng; this.reset(); }
@@ -15,9 +15,21 @@ export class Match {
     this.coins = CONFIG.startCoins;
     this.inv = new Inventory();
     this.history = [];
-    this.usedTemplates = [];
     this.shop = generateShop(1, this.inv, this.rng);
     this.over = false;
+    // the same rival fights every round of this match and keeps its own build and coins
+    this.rival = rivalTurn(createRival(this.rng));
+  }
+
+  // ---------- broken limbs ----------
+  repairCost(limb) { return limbCost(limb); }
+  repair(limb) {
+    if (!this.inv.broken.includes(limb)) return { ok: false, why: 'Not broken' };
+    const c = limbCost(limb);
+    if (this.coins < c) return { ok: false, why: `Need ${c} coins` };
+    this.coins -= c;
+    this.inv.broken = this.inv.broken.filter(l => l !== limb);
+    return { ok: true, cost: c };
   }
 
   get loadout() { return resolveLoadout(this.inv); }
@@ -69,24 +81,31 @@ export class Match {
   get canFight() { return this.inv.bench.length === 0; }
 
   makeOpponent() {
-    const o = buildOpponent(this.round, this.inv, this.usedTemplates, this.rng);
-    this.usedTemplates.push(o.template.key);
-    return o;
+    const r = this.rival;
+    return { inv: r.inv, template: r.template, name: r.name, purse: r.coins, skin: r.skin, rival: r };
   }
 
-  finishRound({ won, damage, stolen = 0, lostToSteal = 0, reason = '', foe = '' }) {
+  // playerLost / enemyLost: limbs torn off during this fight; they stay broken until repaired
+  finishRound({ won, damage, stolen = 0, lostToSteal = 0, reason = '', foe = '', enemyDamage = 0, playerLost = [], enemyLost = [] }) {
     const rewards = computeRewards({ damage, won, stolen, lostToSteal });
     const before = this.coins;
     this.coins = Math.max(0, this.coins + rewards.total);
+    // the rival is paid with the same formula from its side of the fight
+    const r = this.rival;
+    const rivalRewards = computeRewards({ damage: enemyDamage, won: !won, stolen: lostToSteal, lostToSteal: stolen });
+    r.coins = Math.max(0, r.coins + rivalRewards.total);
+    this.inv.broken = [...new Set([...this.inv.broken, ...playerLost])];
+    r.inv.broken = [...new Set([...r.inv.broken, ...enemyLost])];
     this.wins[won ? 'p' : 'e']++;
     this.history.push({ round: this.round, won, reason, foe, damage: Math.round(damage) });
     const T = CONFIG.winsToTakeMatch;
     this.over = this.wins.p >= T || this.wins.e >= T || this.round >= CONFIG.maxRounds;
-    return { rewards, gained: this.coins - before, matchOver: this.over, matchWinner: this.over ? (this.wins.p > this.wins.e ? 'p' : 'e') : null };
+    return { rewards, rivalRewards, gained: this.coins - before, matchOver: this.over, matchWinner: this.over ? (this.wins.p > this.wins.e ? 'p' : 'e') : null };
   }
 
   nextRound() {
     this.round++;
     this.shop = generateShop(this.round, this.inv, this.rng);   // unbought offers are discarded
+    rivalTurn(this.rival);                                       // rival repairs + upgrades with its coins
   }
 }

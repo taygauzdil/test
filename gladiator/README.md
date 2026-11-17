@@ -33,6 +33,13 @@ Then open <http://localhost:8000/>. Or open `gladiator-backpack.html`, a single 
 6. **Sell:** drag an owned item onto the shop panel, or tap it and press **Sell**. You get back 50% of what you paid, rounded down.
 7. **FIGHT:** the round ends when a mech is shut down (HP 0) or drops off the rear edge into the pit. Rewards are +2 round income,
    1 coin per 20 damage dealt (max 8), +5 for a win, plus any credits taken with the Hack Module.
+8. **One rival per match:** the same opponent fights you every round until someone has 3 wins. The rival starts
+   with 10 coins like you, earns rewards with the same formula, and between rounds repairs itself and buys/merges parts
+   following its template, so its build carries over and both sides get stronger. A scouting toast shows what it bought.
+9. **Dismemberment:** damage that lands on an arm or leg (after armor) builds up. Past the limb's HP
+   (arm 26, leg 34) it tears off and falls to the floor. A lost arm can't attack or block; a lost leg cuts speed and stability.
+   Broken limbs stay broken next round: their cells turn red and gear on them goes inactive. Repair them from the
+   **BROKEN** strip on the preparation screen (arm 3 coins, leg 4 coins). The rival repairs its own limbs with its coins.
 
 ## Parts
 

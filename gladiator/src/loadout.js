@@ -14,6 +14,7 @@ export function resolveLoadout(inv) {
   let hpBonus = 0, stability = CONFIG.combat.baseStability, moveMult = 1;
   const twoHanded = [];
 
+  const broken = new Set(inv.broken || []);
   const ordered = [...inv.items].sort((a, b) => a.seq - b.seq);
   for (const it of ordered) {
     const def = ITEMS[it.id];
@@ -25,14 +26,16 @@ export function resolveLoadout(inv) {
     status[it.uid] = s;
 
     if (def.kind === 'weapon' || def.kind === 'shield') {
-      const armsTouched = ARMS.filter(a => touched.includes(a));
-      if (!armsTouched.length) { s.reason = 'Must touch an arm'; continue; }
+      const anyArm = ARMS.filter(a => touched.includes(a));
+      const armsTouched = anyArm.filter(a => !broken.has(a));
+      if (!anyArm.length) { s.reason = 'Must touch an arm'; continue; }
+      if (!armsTouched.length) { s.reason = `${REGION_LABEL[anyArm[0]]} is broken - repair it`; continue; }
       if (def.hands === 2) {
         // two-handed: its own arm plus the opposite arm at the same height must both be free
-        const ok = armsTouched.filter(a => !hands[a] && !hands[ARM_INFO[a].mirror]).sort((a, b) => (weights[b] || 0) - (weights[a] || 0));
+        const ok = armsTouched.filter(a => !hands[a] && !hands[ARM_INFO[a].mirror] && !broken.has(ARM_INFO[a].mirror)).sort((a, b) => (weights[b] || 0) - (weights[a] || 0));
         if (!ok.length) {
           const a = armsTouched[0], m = ARM_INFO[a].mirror, blocker = hands[a] || hands[m];
-          s.reason = `Needs ${REGION_LABEL[a]} + ${REGION_LABEL[m]} free (${ITEMS[blocker.item.id].name} in use)`;
+          s.reason = blocker ? `Needs ${REGION_LABEL[a]} + ${REGION_LABEL[m]} free (${ITEMS[blocker.item.id].name} in use)` : `${REGION_LABEL[m]} is broken - repair it`;
           continue;
         }
         const primary = ok[0], other = ARM_INFO[primary].mirror;
@@ -55,7 +58,9 @@ export function resolveLoadout(inv) {
       continue;
     }
 
-    const active = touched.filter(r => def.regions.includes(r));
+    const allowed = touched.filter(r => def.regions.includes(r));
+    const active = allowed.filter(r => !broken.has(r));
+    if (allowed.length && !active.length) { s.reason = `${REGION_LABEL[allowed[0]]} is broken - repair it`; continue; }
     if (!active.length) { s.reason = 'Must touch ' + def.regions.filter(r => !r.startsWith('arm') || r === 'armL1').map(r => r === 'armL1' ? 'an arm' : REGION_LABEL[r]).join(' / '); continue; }
     s.active = true; s.regions = active;
     if (def.kind === 'armor') {
@@ -69,6 +74,7 @@ export function resolveLoadout(inv) {
   }
 
   const arm = a => {
+    if (broken.has(a)) return { type: 'lost', st: UNARMED, item: null };
     const h = hands[a];
     if (!h) return { type: 'fist', st: UNARMED, item: null };
     if (h.def.kind === 'shield') return { type: 'shield', st: h.st, item: h.item };
@@ -78,20 +84,22 @@ export function resolveLoadout(inv) {
   };
 
   const arms = Object.fromEntries(ARMS.map(a => [a, arm(a)]));
-  const attackers = Object.values(arms).filter(a => a.type !== 'shield' && a.type !== 'draw');
+  const attackers = Object.values(arms).filter(a => a.type !== 'shield' && a.type !== 'draw' && a.type !== 'lost');
+  const legsLost = ['legL', 'legR'].filter(l => broken.has(l)).length;
+  const L = CONFIG.limbs;
   const weapons = attackers.filter(a => a.item);
   return {
-    status, hands, armor, perks, twoHanded,
+    status, hands, armor, perks, twoHanded, broken: [...broken],
     arms,
     stats: {
       maxHp: CONFIG.combat.baseHp + hpBonus,
-      stability,
-      moveSpeed: CONFIG.combat.baseMoveSpeed * Math.max(0.6, moveMult),
+      stability: stability * Math.pow(L.lostLegStability, legsLost),
+      moveSpeed: CONFIG.combat.baseMoveSpeed * Math.max(0.6, moveMult) * Math.pow(L.lostLegMove, legsLost),
       knockback: Math.max(UNARMED.kb, ...attackers.map(a => a.st.kb || 0)),
       damage: weapons.reduce((t, a) => t + a.st.dmg, 0),
       defense: Object.values(armor).reduce((a, b) => a + b, 0),
       // attacks per second across all arms (one swing at a time, so it saturates)
-      attackSpeed: Math.min(3, attackers.reduce((t, a) => t + 1 / a.st.cooldown, 0)),
+      attackSpeed: Math.min(3, attackers.reduce((t, a) => t + 1 / a.st.cooldown, 0) || 0),
     },
   };
 }

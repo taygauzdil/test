@@ -45,6 +45,7 @@ for (const [a, bk] of matchups) {
 
 // Full-match simulation with a simple greedy player policy vs generated opponents.
 export function playerTurn(m) {
+  for (const l of [...m.inv.broken]) m.repair(l);
   for (let pass = 0; pass < 3; pass++) for (let i = 0; i < m.shop.length; i++) {
     if (!m.canAfford(i)) continue;
     const id = m.shop[i].id;
@@ -71,7 +72,8 @@ if (process.argv[2] === 'match') {
       while (!b.done && b.t < 80) { b.step(1 / 120); b.events.length = 0; }
       const won = b.winner === b.P;
       perRound[m.round - 1] += won; perRoundN[m.round - 1]++;
-      const r = m.finishRound({ won, damage: b.P.damageDealt, stolen: b.P.stolen, lostToSteal: b.E.stolen });
+      const r = m.finishRound({ won, damage: b.P.damageDealt, stolen: b.P.stolen, lostToSteal: b.E.stolen, enemyDamage: b.E.damageDealt, playerLost: b.P.lostThisFight, enemyLost: b.E.lostThisFight });
+      if (process.argv[4] === 'v') console.log(`R${m.round} ${won ? 'W' : 'L'} ${b.reason} | you ${m.coins}c value ${m.inv.items.reduce((t, i) => t + IT[i.id].price * (1 << (i.level - 1)), 0)} broken [${m.inv.broken}] | ${m.rival.name} ${m.rival.coins}c value ${m.rival.inv.items.reduce((t, i) => t + IT[i.id].price * (1 << (i.level - 1)), 0)} broken [${m.rival.inv.broken}] ${m.rival.log.join(', ')}`);
       if (r.matchOver) { mw += r.matchWinner === 'p'; break; }
       m.nextRound();
     }

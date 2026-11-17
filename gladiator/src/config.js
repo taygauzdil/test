@@ -27,6 +27,21 @@ export const CONFIG = {
     hitStop: 0.06,
   },
 
+  // Dismemberment: damage that lands on a limb (after armor) accumulates; past the limb's HP it
+  // breaks off. Broken limbs stay broken between rounds until repaired in the hangar.
+  limbs: {
+    armHp: 26,
+    legHp: 34,
+    repairCost: { arm: 3, leg: 4 },
+    lostLegMove: 0.6,       // move speed multiplier per missing leg
+    lostLegStability: 0.6,  // stability multiplier per missing leg
+  },
+
+  // Persistent rival: one opponent per match that shops with its own coins every round
+  rival: {
+    maxBuysPerRound: 3,
+  },
+
   arena: {
     halfWidth: 7.2,       // walls at +-x
     front: 3.2,           // front lip (toward camera)

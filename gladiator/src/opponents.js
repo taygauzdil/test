@@ -2,7 +2,9 @@
 // The builder spends a coin budget (scaled with round + player's build value) buying items in
 // order, then upgrading them via merges - so the opponent obeys exactly the same inventory rules.
 import { Inventory, newUid } from './inventory.js';
-import { ITEMS, itemValue } from './items.js';
+import { ITEMS, itemValue, footprint, REGION_LABEL } from './items.js';
+import { regionsTouched } from './grid.js';
+import { CONFIG } from './config.js';
 
 // Grid slots: arm weapons sit in the outer columns (x=0 left / x=5 right) at y=0 (top arm),
 // y=2 (middle arm), y=4 (bottom arm). Items are bought in list order, then upgraded.
@@ -58,4 +60,53 @@ export function buildOpponent(round, playerInv, used = [], rng = Math.random) {
   }
   const name = tpl.names[Math.floor(rng() * tpl.names.length)];
   return { inv, template: tpl, name, purse: 6 + round * 2 };
+}
+
+// ---------- Persistent rival ----------
+// One opponent per match. It starts with the same coins as the player, earns rewards with the same
+// formula after every round, and each round repairs broken limbs and buys / merges parts following
+// its template - so both sides grow stronger together and the rival's earlier choices carry over.
+export const limbCost = limb => (limb.startsWith('leg') ? CONFIG.limbs.repairCost.leg : CONFIG.limbs.repairCost.arm);
+
+export function createRival(rng = Math.random) {
+  const tpl = TEMPLATES[Math.floor(rng() * TEMPLATES.length)];
+  return {
+    template: tpl, name: tpl.names[Math.floor(rng() * tpl.names.length)],
+    inv: new Inventory(), coins: CONFIG.startCoins, next: 0, skin: 1 + Math.floor(rng() * 3), log: [],
+  };
+}
+
+export function rivalTurn(r) {
+  r.log = [];
+  const inv = r.inv;
+  // 1) repair limbs that carry gear (or legs), cheapest priorities first
+  const hosts = limb => inv.items.some(it => { const f = footprint(it); return regionsTouched(it.x, it.y, f.w, f.h).includes(limb); });
+  const want = inv.broken.filter(l => l.startsWith('leg') || hosts(l)).sort((a, b) => (hosts(b) - hosts(a)) || (limbCost(a) - limbCost(b)));
+  for (const limb of want) {
+    const c = limbCost(limb);
+    if (r.coins < c) break;
+    r.coins -= c; inv.broken = inv.broken.filter(l => l !== limb);
+    r.log.push(`Repaired ${REGION_LABEL[limb]}`);
+  }
+  // 2) buy the next template part; once the core build is in, merge-upgrade instead of saving
+  let buys = 0;
+  while (buys < CONFIG.rival.maxBuysPerRound) {
+    const next = r.template.items[r.next];
+    if (next) {
+      const [id, x, y] = next;
+      const it = { uid: newUid(), id, level: 1, rot: 0 };
+      if (!inv.canPlace(it, x, y)) { r.next++; continue; }
+      if (ITEMS[id].price <= r.coins) {
+        inv.place(it, x, y, 0); r.coins -= ITEMS[id].price; r.next++; buys++;
+        r.log.push(`Bought ${ITEMS[id].name}`);
+        continue;
+      }
+      if (r.next < 3) break;   // save up for the core build
+    }
+    const up = [...inv.items].sort((a, b) => a.seq - b.seq).find(it => it.level < 3 && itemValue(it) <= r.coins);
+    if (!up) break;
+    r.coins -= itemValue(up); up.level++; buys++;
+    r.log.push(`Upgraded ${ITEMS[up.id].name} to Lv.${up.level}`);
+  }
+  return r;
 }

@@ -296,6 +296,14 @@ export class GladiatorView {
     for (const a of this.attached) a.parent && a.parent.remove(a);
     this.attached = []; this.spinners = [];
     this.weapons = {};
+    // limbs that broke off in an earlier round are missing: hide them, the socket glows red
+    const broken = new Set(lo.broken || []);
+    for (const a of ARMS) {
+      const gone = broken.has(a);
+      for (const o of [this.upper[a], this.fore[a], this.handG[a], this.weaponG[a]]) o.visible = !gone;
+      this.shoulderBall[a].material = gone ? this.hurtGlow : this.shoulderBall[a].userData.baseMat;
+    }
+    for (const l of ['legL', 'legR']) for (const o of [this.thigh[l], this.shin[l], this.foot[l]]) o.visible = !broken.has(l);
     const add = (parent, obj) => { parent.add(obj); this.attached.push(obj); obj.traverse(o => { if (o.isMesh && o.material && !o.material.transparent) { o.castShadow = true; } }); return obj; };
     for (const it of inv.items) {
       const s = lo.status[it.uid]; if (!s || !s.active) continue;

@@ -5,6 +5,11 @@ import { Inventory, newUid } from '../src/inventory.js';
 import { resolveLoadout } from '../src/loadout.js';
 import { regionsTouched, CELLS } from '../src/grid.js';
 import { ARMS } from '../src/body.js';
+import { CONFIG } from '../src/config.js';
+import { rivalTurn } from '../src/opponents.js';
+import { Battle } from '../src/combat/battle.js';
+import { J, ARM_J } from '../src/physics/ragdoll.js';
+import { Vector3 } from '../vendor/three.module.js';
 import { generateShop, computeRewards } from '../src/economy.js';
 import { Match } from '../src/match.js';
 import { ITEMS } from '../src/items.js';
@@ -228,6 +233,70 @@ test('opponent builds obey inventory rules and scale up', () => {
   const strong = buildOpponent(5, big, [], () => 0.5);
   const val = o => o.inv.items.reduce((s, i) => s + ITEMS[i.id].price * (1 << (i.level - 1)), 0);
   assert.ok(val(strong) > val(weak));
+});
+
+test('broken limbs deactivate their gear and weaken legs', () => {
+  const inv = new Inventory();
+  const sw = mk('sword'); inv.place(sw, 0, 2);
+  const lg = mk('legs'); inv.place(lg, 2, 6);
+  inv.broken = ['armL2', 'legL'];
+  const lo = resolveLoadout(inv);
+  assert.equal(lo.status[sw.uid].active, false);
+  assert.match(lo.status[sw.uid].reason, /Left Middle Arm is broken/);
+  assert.equal(lo.arms.armL2.type, 'lost');
+  assert.deepEqual(lo.status[lg.uid].regions, ['legR'], 'leg armor only on the intact leg');
+  const healthy = resolveLoadout((() => { const v = inv.clone(); v.broken = []; return v; })());
+  assert.ok(lo.stats.moveSpeed < healthy.stats.moveSpeed && lo.stats.stability < healthy.stats.stability);
+});
+
+test('repairing a limb costs coins and restores the gear', () => {
+  const m = new Match(() => 0.4);
+  m.buyAndPlace(m.shop.findIndex(o => o.id === 'sword'), 0, 2);
+  const before = m.coins;
+  m.finishRound({ won: false, damage: 0, playerLost: ['armL2'] });
+  assert.deepEqual(m.inv.broken, ['armL2']);
+  m.nextRound();
+  assert.deepEqual(m.inv.broken, ['armL2'], 'stays broken into the next round');
+  const coins = m.coins;
+  const r = m.repair('armL2');
+  assert.ok(r.ok); assert.equal(m.coins, coins - CONFIG.limbs.repairCost.arm);
+  assert.equal(m.loadout.arms.armL2.type, 'slash');
+  m.coins = 0; m.inv.broken = ['legL'];
+  assert.equal(m.repair('legL').ok, false, 'needs coins');
+  assert.ok(before >= 0);
+});
+
+test('the same rival returns every round and keeps growing', () => {
+  const m = new Match(() => 0.3);
+  const name = m.rival.name, tpl = m.rival.template.key;
+  const value = () => m.rival.inv.items.reduce((t, i) => t + ITEMS[i.id].price * (1 << (i.level - 1)), 0);
+  const v1 = value();
+  assert.ok(v1 > 0 && v1 <= CONFIG.startCoins, 'round 1 rival spends its own 10 coins');
+  const uids = m.rival.inv.items.map(i => i.uid);
+  for (let r = 0; r < 3; r++) {
+    assert.equal(m.makeOpponent().name, name);
+    m.finishRound({ won: r % 2 === 0, damage: 80, enemyDamage: 90 });
+    m.nextRound();
+  }
+  assert.equal(m.rival.template.key, tpl);
+  assert.ok(value() > v1, 'rival upgraded with earned coins');
+  for (const u of uids) assert.ok(m.rival.inv.get(u), 'earlier rival parts are kept');
+  m.rival.inv.broken = [m.rival.inv.items.length ? 'legL' : 'legR'];
+  m.rival.coins = 50; rivalTurn(m.rival);
+  assert.equal(m.rival.inv.broken.length, 0, 'rival repairs with its coins');
+});
+
+test('limbs detach physically in combat', () => {
+  const inv = new Inventory(); inv.place(mk('sword'), 0, 2);
+  const b = new Battle({ playerLoadout: resolveLoadout(inv), enemyLoadout: resolveLoadout(new Inventory()), intro: false });
+  b.P.loseLimb('armL2', new Vector3(0, 0, -1));
+  for (let i = 0; i < 240; i++) b.step(1 / 120);
+  const j = ARM_J.armL2;
+  assert.ok(b.P.rd.p[j.sh].distanceTo(b.P.rd.p[J.chest]) > 0.8, 'arm flew off the chassis');
+  assert.equal(b.P.arms.armL2.type, 'lost');
+  const broken = new Inventory(); broken.place(mk('sword'), 0, 2); broken.broken = ['armL2'];
+  const b2 = new Battle({ playerLoadout: resolveLoadout(broken), enemyLoadout: resolveLoadout(new Inventory()), intro: false });
+  assert.ok(b2.P.lost.has('armL2'));
 });
 
 console.log(`\n${passed} rule tests passed`);

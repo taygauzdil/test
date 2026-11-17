@@ -11,6 +11,7 @@ export class Inventory {
     this.items = [];   // placed: { uid, id, level, x, y, rot, seq }
     this.bench = [];   // purchased but not placed: { uid, id, level, rot }
     this.seq = 1;      // equip order counter: earlier equipped weapons win an arm
+    this.broken = [];  // limbs (arm keys / legL / legR) that broke off and are not repaired yet
   }
 
   occupant(x, y, ignoreUid) {
@@ -119,6 +120,7 @@ export class Inventory {
     c.items = this.items.map(i => ({ ...i }));
     c.bench = this.bench.map(i => ({ ...i }));
     c.seq = this.seq;
+    c.broken = [...this.broken];
     return c;
   }
 }

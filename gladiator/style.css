@@ -210,3 +210,18 @@ button:active { transform: translateY(2px); }
 
 #toast { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%) translateY(20px); background: #0f1a2c; color: #fff; padding: 8px 14px; border-radius: 12px; font-size: 13px; font-weight: 800; opacity: 0; transition: opacity .2s, transform .2s; z-index: 60; pointer-events: none; max-width: 90%; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
 #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- broken limbs / repair ---------- */
+.cell.broken::before { background: repeating-linear-gradient(45deg, rgba(255,60,60,.32) 0 6px, rgba(40,0,0,.25) 6px 12px); border-color: #ff5a5f; }
+.rtag.dead { opacity: 1; background: #c0392b; }
+#repairRow { display: flex; align-items: center; gap: 6px; margin: 6px 10px 0; padding: 4px 8px; border-radius: 12px; background: rgba(120, 20, 20, .55); border: 1px solid #ff5a5f; flex-wrap: wrap; }
+#repairRow .rp-label { font-size: 11px; font-weight: 900; letter-spacing: 1px; color: #ffc4bf; }
+#repairRow .repair { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 10px; font-size: 11px; font-weight: 900; background: linear-gradient(#ff7a7e, #d9373d); box-shadow: 0 3px 0 #8f2226; }
+#repairRow .repair b { display: inline-flex; align-items: center; gap: 2px; color: #ffe066; }
+#repairRow .repair .coin-ico { width: 12px; height: 12px; }
+#repairRow .repair.all { background: linear-gradient(#45e08c, #22a85f); box-shadow: 0 3px 0 #17703f; }
+#repairRow .repair.poor { filter: grayscale(.8) brightness(.7); }
+.sb-row.e span:first-child { width: auto; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.limb-note { font-size: 12.5px; margin: 4px 0; padding: 4px 8px; border-radius: 8px; background: #dfe7f1; }
+.limb-note.mine { background: #ffd9d6; color: #8f2226; }
+.rival-note { font-size: 12px; color: #44566e; margin-top: 4px; }
