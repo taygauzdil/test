@@ -12,9 +12,9 @@ export { ARMS, REGIONS, REGION_LABEL };
 
 export const ITEMS = {
   sword: {
-    name: 'Sword', kind: 'weapon', hands: 1, price: 4, w: 1, h: 2, model: 'sword',
+    name: 'Laser Blade', kind: 'weapon', hands: 1, price: 4, w: 1, h: 2, model: 'sword',
     regions: ARMS, attack: 'slash',
-    desc: 'Fast slashes, medium damage, short reach.',
+    desc: 'Fast energy slashes, medium damage, short reach.',
     levels: [
       { dmg: 15, cooldown: 1.0, reach: 1.30, kb: 1.0, length: 0.95 },
       { dmg: 25, cooldown: 0.95, reach: 1.32, kb: 1.15, length: 1.0 },
@@ -22,9 +22,9 @@ export const ITEMS = {
     ],
   },
   axe: {
-    name: 'Axe', kind: 'weapon', hands: 1, price: 5, w: 1, h: 2, model: 'axe',
+    name: 'Plasma Axe', kind: 'weapon', hands: 1, price: 5, w: 1, h: 2, model: 'axe',
     regions: ARMS, attack: 'chop',
-    desc: 'Slow, heavy chops with strong knockback.',
+    desc: 'Slow, superheated chops with strong knockback.',
     levels: [
       { dmg: 22, cooldown: 1.45, reach: 1.25, kb: 2.0, length: 0.9 },
       { dmg: 36, cooldown: 1.38, reach: 1.28, kb: 2.3, length: 0.95 },
@@ -32,9 +32,9 @@ export const ITEMS = {
     ],
   },
   spear: {
-    name: 'Spear', kind: 'weapon', hands: 1, price: 5, w: 1, h: 2, model: 'spear',
+    name: 'Rail Lance', kind: 'weapon', hands: 1, price: 5, w: 1, h: 2, model: 'spear',
     regions: ARMS, attack: 'thrust',
-    desc: 'Long-reach forward thrusts.',
+    desc: 'Long-reach piercing thrusts.',
     levels: [
       { dmg: 18, cooldown: 1.15, reach: 1.85, kb: 0.9, length: 1.75 },
       { dmg: 30, cooldown: 1.1, reach: 1.9, kb: 1.0, length: 1.85 },
@@ -42,9 +42,9 @@ export const ITEMS = {
     ],
   },
   hammer: {
-    name: 'Hammer', kind: 'weapon', hands: 1, price: 6, w: 2, h: 2, model: 'hammer',
+    name: 'Piston Hammer', kind: 'weapon', hands: 1, price: 6, w: 2, h: 2, model: 'hammer',
     regions: ARMS, attack: 'slam',
-    desc: 'Very slow, massive knockback. Sends foes flying.',
+    desc: 'Very slow hydraulic slams with massive knockback. Sends mechs flying.',
     levels: [
       { dmg: 26, cooldown: 2.3, reach: 1.3, kb: 3.1, length: 0.95, move: -0.1 },
       { dmg: 40, cooldown: 2.2, reach: 1.32, kb: 3.6, length: 1.0, move: -0.1 },
@@ -52,9 +52,9 @@ export const ITEMS = {
     ],
   },
   bow: {
-    name: 'Bow', kind: 'weapon', hands: 2, price: 6, w: 1, h: 2, model: 'bow',
+    name: 'Blaster Cannon', kind: 'weapon', hands: 2, price: 6, w: 1, h: 2, model: 'bow',
     regions: ARMS, attack: 'shoot',
-    desc: 'Two-handed: uses its arm plus the opposite arm at the same height. Fires physical arrows.',
+    desc: 'Two-handed: uses its arm plus the opposite arm at the same height. Fires physical energy bolts.',
     levels: [
       { dmg: 14, cooldown: 1.45, reach: 6.0, kb: 0.8, speed: 15 },
       { dmg: 23, cooldown: 1.35, reach: 6.0, kb: 0.9, speed: 16 },
@@ -62,9 +62,9 @@ export const ITEMS = {
     ],
   },
   shield: {
-    name: 'Shield', kind: 'shield', price: 4, w: 1, h: 2, model: 'shield',
+    name: 'Energy Shield', kind: 'shield', price: 4, w: 1, h: 2, model: 'shield',
     regions: ARMS,
-    desc: 'Blocks hits that physically strike it. Uses an arm.',
+    desc: 'Hard-light barrier: blocks hits that physically strike it. Uses an arm.',
     levels: [
       { block: 0.45, armor: 4, radius: 0.28 },
       { block: 0.6, armor: 7, radius: 0.31 },
@@ -72,15 +72,15 @@ export const ITEMS = {
     ],
   },
   helmet: {
-    name: 'Helmet', kind: 'armor', price: 3, w: 2, h: 1, model: 'helmet',
+    name: 'Sensor Helm', kind: 'armor', price: 3, w: 2, h: 1, model: 'helmet',
     regions: ['head'],
-    desc: 'Reduces head damage.',
+    desc: 'Armored sensor array. Reduces head damage.',
     levels: [{ armor: 12 }, { armor: 22 }, { armor: 36 }],
   },
   chest: {
-    name: 'Chest Armor', kind: 'armor', price: 6, w: 1, h: 2, model: 'chest',
+    name: 'Armor Plating', kind: 'armor', price: 6, w: 1, h: 2, model: 'chest',
     regions: ['body', ...ARMS],
-    desc: 'Protects the body and any arm it touches. +Max HP.',
+    desc: 'Bolted-on plating for the chassis and any arm it touches. +Max HP.',
     levels: [
       { armor: 10, hp: 20, move: -0.05 },
       { armor: 17, hp: 35, move: -0.05 },
@@ -88,9 +88,9 @@ export const ITEMS = {
     ],
   },
   legs: {
-    name: 'Leg Armor', kind: 'armor', price: 4, w: 2, h: 1, model: 'legs',
+    name: 'Hydraulic Legs', kind: 'armor', price: 4, w: 2, h: 1, model: 'legs',
     regions: ['legL', 'legR'],
-    desc: 'Protects legs and improves stability.',
+    desc: 'Reinforced leg actuators: protects legs and improves stability.',
     levels: [
       { armor: 10, stability: 0.35 },
       { armor: 17, stability: 0.6 },
@@ -98,9 +98,9 @@ export const ITEMS = {
     ],
   },
   lightning: {
-    name: 'Lightning', kind: 'perk', price: 6, w: 1, h: 1, model: 'lightning',
+    name: 'Tesla Coil', kind: 'perk', price: 6, w: 1, h: 1, model: 'lightning',
     regions: ['head', 'body'],
-    desc: 'Calls a lightning bolt on the foe every few seconds.',
+    desc: 'Arcs an electric bolt into the foe every few seconds.',
     levels: [
       { dmg: 11, cooldown: 4.0 },
       { dmg: 19, cooldown: 3.5 },
@@ -108,9 +108,9 @@ export const ITEMS = {
     ],
   },
   coinsteal: {
-    name: 'Coin Steal', kind: 'perk', price: 5, w: 1, h: 1, model: 'coinsteal',
+    name: 'Hack Module', kind: 'perk', price: 5, w: 1, h: 1, model: 'coinsteal',
     regions: ['body', 'legL', 'legR'],
-    desc: 'Pickpockets coins from the foe during combat.',
+    desc: 'Hacks credits out of the foe\'s wallet during combat.',
     levels: [
       { steal: 1, cooldown: 3.5 },
       { steal: 2, cooldown: 3.2 },

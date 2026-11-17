@@ -7,17 +7,17 @@ import { ITEMS, itemValue } from './items.js';
 // Grid slots: arm weapons sit in the outer columns (x=0 left / x=5 right) at y=0 (top arm),
 // y=2 (middle arm), y=4 (bottom arm). Items are bought in list order, then upgraded.
 export const TEMPLATES = [
-  { key: 'balanced', name: 'Balanced Brute', names: ['Marcus', 'Lucia', 'Titus'],
+  { key: 'balanced', name: 'Balanced Frame', names: ['Atlas-7', 'Kestrel', 'Vanguard'],
     items: [['sword', 0, 2], ['helmet', 2, 0], ['shield', 5, 2], ['chest', 1, 3], ['sword', 0, 0], ['legs', 2, 6], ['shield', 5, 0]] },
-  { key: 'tank', name: 'Heavy Tank', names: ['Brutus', 'Gorgo', 'Magna'],
+  { key: 'tank', name: 'Heavy Tank', names: ['Bulwark', 'Goliath-X', 'Ironclad'],
     items: [['axe', 0, 2], ['chest', 4, 2], ['shield', 5, 2], ['helmet', 2, 0], ['shield', 5, 0], ['legs', 2, 6], ['axe', 0, 4]] },
-  { key: 'dual', name: 'Six-Blade Whirlwind', names: ['Cassia', 'Remus', 'Vex'],
+  { key: 'dual', name: 'Six-Blade Whirlwind', names: ['Shredder', 'Vortex', 'Razor-6'],
     items: [['sword', 0, 2], ['sword', 5, 2], ['helmet', 2, 0], ['sword', 0, 0], ['sword', 5, 0], ['sword', 0, 4], ['sword', 5, 4]] },
-  { key: 'ranged', name: 'Ranged Fighter', names: ['Sagitta', 'Orion', 'Flavia'],
+  { key: 'ranged', name: 'Artillery Mech', names: ['Longshot', 'Orion-9', 'Barrage'],
     items: [['bow', 0, 2], ['helmet', 2, 0], ['legs', 2, 6], ['chest', 1, 4], ['lightning', 4, 1], ['bow', 0, 0], ['spear', 5, 4]] },
-  { key: 'knockback', name: 'Knockback Specialist', names: ['Thud', 'Rocco', 'Bulla'],
+  { key: 'knockback', name: 'Knockback Specialist', names: ['Piledriver', 'Rammer', 'Quake'],
     items: [['hammer', 0, 0], ['legs', 2, 6], ['helmet', 2, 0], ['axe', 5, 2], ['chest', 1, 2], ['axe', 0, 4]] },
-  { key: 'lightning', name: 'Lightning Build', names: ['Zeta', 'Fulmen', 'Iris'],
+  { key: 'lightning', name: 'Tesla Build', names: ['Voltage', 'Arc-3', 'Zapper'],
     items: [['spear', 0, 2], ['lightning', 1, 4], ['helmet', 2, 0], ['coinsteal', 1, 5], ['chest', 4, 2], ['spear', 5, 2], ['lightning', 4, 1]] },
 ];
 

@@ -77,7 +77,7 @@ test('one active weapon per arm; first equipped wins', () => {
   let lo = resolveLoadout(inv);
   assert.equal(lo.status[a.uid].active, true);
   assert.equal(lo.status[b.uid].active, false);
-  assert.match(lo.status[b.uid].reason, /Left Middle Arm already holds Sword/);
+  assert.match(lo.status[b.uid].reason, /Left Middle Arm already holds Laser Blade/);
   inv.remove(a.uid); inv.place({ ...a }, 0, 2);   // re-equip -> sword is now newer, axe wins
   lo = resolveLoadout(inv);
   assert.equal(lo.status[b.uid].active, true);

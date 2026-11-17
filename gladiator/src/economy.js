@@ -36,8 +36,8 @@ export function computeRewards({ damage, won, stolen = 0, lostToSteal = 0 }) {
     [`Damage dealt (${Math.round(damage)})`, dmgCoins],
   ];
   if (won) rows.push(['Victory bonus', R.winBonus]);
-  if (stolen) rows.push(['Coins stolen', stolen]);
-  if (lostToSteal) rows.push(['Stolen by enemy', -lostToSteal]);
+  if (stolen) rows.push(['Credits hacked', stolen]);
+  if (lostToSteal) rows.push(['Hacked by enemy', -lostToSteal]);
   return { rows, total: rows.reduce((s, r) => s + r[1], 0) };
 }
 

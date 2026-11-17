@@ -36,7 +36,7 @@ function makeEnv() {
   const env = new THREE.Scene();
   const sky = new THREE.Mesh(new THREE.SphereGeometry(10, 16, 8), new THREE.ShaderMaterial({ side: THREE.BackSide,
     vertexShader: 'varying vec3 p; void main(){ p = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader: 'varying vec3 p; void main(){ float h = normalize(p).y; vec3 c = mix(vec3(0.55,0.36,0.22), vec3(1.0,0.86,0.66), smoothstep(-0.3,0.1,h)); c = mix(c, vec3(0.45,0.7,1.0), smoothstep(0.2,0.9,h)); gl_FragColor = vec4(c,1.0); }' }));
+    fragmentShader: 'varying vec3 p; void main(){ float h = normalize(p).y; vec3 c = mix(vec3(0.18,0.14,0.24), vec3(0.95,0.55,0.65), smoothstep(-0.3,0.1,h)); c = mix(c, vec3(0.35,0.55,1.0), smoothstep(0.2,0.9,h)); gl_FragColor = vec4(c,1.0); }' }));
   env.add(sky);
   for (const [x, y, z, s] of [[3, 5, 4, 2.5], [-4, 3, 2, 1.5], [0, 6, -3, 2]]) {
     const b = new THREE.Mesh(new THREE.BoxGeometry(s, s * 0.6, 0.2), new THREE.MeshBasicMaterial({ color: 0xffffff }));
@@ -51,9 +51,9 @@ const envMap = makeEnv();
 // ---------------- prep scene ----------------
 const prepScene = new THREE.Scene();
 prepScene.environment = envMap; prepScene.environmentIntensity = 0.7;
-prepScene.add(new THREE.HemisphereLight(0xfff4e0, 0x8a5a3a, 1.6));
+prepScene.add(new THREE.HemisphereLight(0xdce8ff, 0x3a3050, 1.7));
 const key = new THREE.DirectionalLight(0xffe8c8, 2.2); key.position.set(-2, 4, 6); prepScene.add(key);
-const fill = new THREE.DirectionalLight(0x9fd0ff, 0.6); fill.position.set(3, 1, 3); prepScene.add(fill);
+const fill = new THREE.DirectionalLight(0x45e5ff, 0.9); fill.position.set(3, 1, 3); prepScene.add(fill);
 const prepCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
 prepCam.position.set(0, 1.2, 10); prepCam.lookAt(0, 1.2, 0);
 const prepHero = new GladiatorView('p');
@@ -71,7 +71,7 @@ const PREP_DIRS = Object.fromEntries(ARMS.map(a => {
 // ---------------- combat scene ----------------
 const combatScene = new THREE.Scene();
 combatScene.environment = envMap; combatScene.environmentIntensity = 0.6;
-combatScene.fog = new THREE.Fog(0xffd9b0, 30, 110);
+combatScene.fog = new THREE.Fog(0x4a3060, 35, 125);
 const arena = buildArena();
 combatScene.add(arena);
 makeLights(combatScene);
@@ -83,14 +83,13 @@ let battle = null;
 let battleSpeed = 1;
 let camState = { x: 0, y: 1.6, dist: 8, shakeT: 0 };
 
+// blaster bolt: glowing energy slug with a hot core
 function buildArrow() {
   const g = new THREE.Group();
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.7, 5), M(0x8a5a32));
-  g.add(shaft);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.09, 5), M(0xb0b8c0, { metalness: 0.7 })); tip.position.y = 0.39; g.add(tip);
-  const fl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.005), M(0xffffff)); fl.position.y = -0.3; g.add(fl);
-  const fl2 = fl.clone(); fl2.rotation.y = Math.PI / 2; g.add(fl2);
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const core = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.4, 3, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  g.add(core);
+  const glow = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.5, 3, 8), new THREE.MeshBasicMaterial({ color: 0x35d6ff, transparent: true, opacity: 0.55, depthWrite: false }));
+  g.add(glow);
   return g;
 }
 
@@ -164,7 +163,7 @@ function startBattle() {
   battleSpeed = 1; $('#speedBtn').textContent = '▶ 1x';
   mode = 'combat';
   show('#hud');
-  banner(`ROUND ${match.round}<small>${opp.name} enters the arena!</small>`, 'b-fight');
+  banner(`ROUND ${match.round}<small>${opp.name} powers up!</small>`, 'b-fight');
   updateHpBars(true);
 }
 
@@ -238,11 +237,11 @@ function handleEvents() {
         SFX.steal();
         break;
       }
-      case 'edge': fx.text(e.f.headPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 'WHOAAA!', 'call'); SFX.fall(); break;
+      case 'edge': fx.text(e.f.headPos.clone().add(new THREE.Vector3(0, 0.6, 0)), 'WARNING!', 'call'); SFX.fall(); break;
       case 'fight': banner('FIGHT!', 'b-fight'); SFX.fight(); break;
       case 'end': {
         const won = e.winner === battle.P;
-        const why = e.reason === 'ring-out' ? 'RING OUT!' : e.reason === 'ko' ? 'K.O.!' : 'TIME!';
+        const why = e.reason === 'ring-out' ? 'RING OUT!' : e.reason === 'ko' ? 'SHUTDOWN!' : 'TIME!';
         setTimeout(() => { banner(`${won ? 'VICTORY' : 'DEFEAT'}<small>${why}</small>`, won ? 'win' : 'lose', true); won ? SFX.win() : SFX.lose(); }, 350);
         battle.hitStop = 0.25;
         fx.addShake(0.3);
@@ -258,7 +257,7 @@ function finishBattle() {
   const res = match.finishRound({ won, damage: battle.P.damageDealt, stolen: battle.P.stolen, lostToSteal: battle.E.stolen, reason: battle.reason, foe: battle.opp.name });
   mode = 'results';
   const rows = res.rewards.rows.map(([k, v]) => `<tr><td>${k}</td><td class="${v < 0 ? 'neg' : ''}">${v >= 0 ? '+' : ''}${v}</td></tr>`).join('');
-  const reason = battle.reason === 'ring-out' ? (won ? `${battle.opp.name} fell off the cliff!` : 'You fell off the cliff!') : battle.reason === 'ko' ? (won ? `${battle.opp.name} was knocked out` : 'You were knocked out') : 'Time ran out - higher HP wins';
+  const reason = battle.reason === 'ring-out' ? (won ? `${battle.opp.name} dropped into the pit!` : 'Your mech dropped into the pit!') : battle.reason === 'ko' ? (won ? `${battle.opp.name} was shut down` : 'Your mech was shut down') : 'Time ran out - higher HP wins';
   const modal = $('#modal');
   modal.innerHTML = `<div class="mcard"><h2 class="${won ? 'win' : 'lose'}">${won ? 'ROUND WON' : 'ROUND LOST'}</h2><div class="sub">${reason}</div>
     <div class="hist"><span class="w">YOU ${match.wins.p}</span><span class="l">ENEMY ${match.wins.e}</span></div>
@@ -282,7 +281,7 @@ function showMatchEnd(w) {
   const won = w === 'p';
   const hist = match.history.map(h => `<span class="${h.won ? 'w' : 'l'}">R${h.round} ${h.won ? 'WIN' : 'LOSS'}</span>`).join('');
   $('#modal').innerHTML = `<div class="mcard"><h2 class="${won ? 'win' : 'lose'}">${won ? 'CHAMPION!' : 'DEFEATED'}</h2>
-    <div class="sub">${won ? 'The crowd chants your name!' : 'The arena claims another hero...'}</div>
+    <div class="sub">${won ? 'Your mech rules the arena!' : 'Your mech is sent back to the scrapyard...'}</div>
     <div class="score-big"><span class="p">${match.wins.p}</span> – <span class="e">${match.wins.e}</span></div>
     <div class="hist">${hist}</div>
     <button id="againBtn">PLAY AGAIN</button></div>`;
@@ -294,8 +293,8 @@ function showMatchEnd(w) {
 function showTitle() {
   mode = 'title';
   show('#prep');
-  $('#modal').innerHTML = `<div class="mcard"><div class="title-logo">ARENA BEAST<small>BACKPACK</small></div>
-    <ol class="howto"><li>Your monster has <b>six arms</b>, a head, a body and two legs.</li><li>Buy gear and drag it into the backpack grid. Gear only works if its cells <b>touch the right body part</b> - the coloured dots show which.</li><li>Every arm holds one weapon or shield: run six swords, three shields, or any mix. Bows use an arm plus its mirror arm.</li><li>Drop identical items on each other to <b>merge</b>. Press FIGHT, knock foes off the cliff or KO them.</li><li>First to <b>3 round wins</b> takes the match.</li></ol>
+  $('#modal').innerHTML = `<div class="mcard"><div class="title-logo">MECHA<small>BACKPACK</small></div>
+    <ol class="howto"><li>Your battle mech has <b>six arms</b>, a head, a chassis and two legs.</li><li>Buy parts and drag them into the backpack grid. A part only works if its cells <b>touch the right body part</b> - the coloured dots show which.</li><li>Every arm mounts one weapon or shield: six laser blades, three energy shields, or any mix. Blaster cannons use an arm plus its mirror arm.</li><li>Drop identical parts on each other to <b>merge</b>. Press FIGHT, shut the enemy down or knock it into the pit.</li><li>First to <b>3 round wins</b> takes the match.</li></ol>
     <button id="startBtn">PLAY</button></div>`;
   $('#modal').classList.remove('hidden');
   prep.layout();

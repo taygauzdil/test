@@ -1,7 +1,8 @@
-# Arena Beast Backpack
+# Mecha Backpack
 
-A 3D, portrait (9:16) PvP auto-battler prototype. You arrange equipment on a backpack grid
-around a **six-armed arena monster** (head, body, six arms, two legs), then watch two physics-driven monsters fight it out. First to 3 round wins takes the match.
+A 3D, portrait (9:16) PvP auto-battler prototype with a mecha theme. You arrange parts on a backpack grid
+around a **six-armed battle mech** (head, chassis, six arms, two legs), then watch two physics-driven mechs fight it out
+on a steel deck suspended over a factory pit. First to 3 round wins takes the match.
 
 ## Run
 
@@ -23,15 +24,33 @@ Then open <http://localhost:8000/>. Or open `gladiator-backpack.html`, a single 
    outer column plus one inner cell, so every arm can carry its own 1x2 weapon or shield.
    An item only works if its cells touch a region it can use: weapons and shields need an arm, a helmet needs the head,
    chest armor the body (it also protects any arm it touches), leg armor the legs, and perks their listed regions.
-   While you drag, the regions an item would touch light up on the gladiator and the cells glow green (valid) or red (invalid).
-3. **One item per arm:** each arm holds one weapon or shield (six swords, three shields, any mix). The item you placed first keeps the arm;
-   later weapons or shields on the same arm are dimmed and marked **INACTIVE**. The two-handed bow uses its arm plus the opposite arm at the same height.
+   While you drag, the regions an item would touch light up on the mech and the cells glow green (valid) or red (invalid).
+3. **One item per arm:** each arm holds one weapon or shield (six laser blades, three energy shields, any mix). The item you placed first keeps the arm;
+   later weapons or shields on the same arm are dimmed and marked **INACTIVE**. The two-handed Blaster Cannon uses its arm plus the opposite arm at the same height.
 4. **Rotate:** tap an item and press **Rotate**, or while dragging press **R**, right-click, or tap with a second finger.
 5. **Merge:** drop an identical item of the same level onto another (from the grid, bench or shop) to make Lv.2, then Lv.3.
    The merged item stays where the target was.
 6. **Sell:** drag an owned item onto the shop panel, or tap it and press **Sell**. You get back 50% of what you paid, rounded down.
-7. **FIGHT:** the round ends on a KO or when someone falls off the rear cliff. Rewards are +2 round income,
-   1 coin per 20 damage dealt (max 8), +5 for a win, plus any coins stolen with Coin Steal.
+7. **FIGHT:** the round ends when a mech is shut down (HP 0) or drops off the rear edge into the pit. Rewards are +2 round income,
+   1 coin per 20 damage dealt (max 8), +5 for a win, plus any credits taken with the Hack Module.
+
+## Parts
+
+Item ids in code stay generic (`sword`, `bow`, ...); these are the names shown in game.
+
+| Id | Part | Notes |
+|---|---|---|
+| `sword` | Laser Blade | fast slashes |
+| `axe` | Plasma Axe | slow, heavy knockback |
+| `spear` | Rail Lance | long reach |
+| `hammer` | Piston Hammer | 2x2, massive knockback |
+| `bow` | Blaster Cannon | two-handed, fires energy bolts |
+| `shield` | Energy Shield | blocks hits that strike it |
+| `helmet` | Sensor Helm | head armor |
+| `chest` | Armor Plating | chassis + touched arms, +HP |
+| `legs` | Hydraulic Legs | leg armor, stability |
+| `lightning` | Tesla Coil | periodic electric bolt |
+| `coinsteal` | Hack Module | steals credits during combat |
 
 ## Architecture
 
